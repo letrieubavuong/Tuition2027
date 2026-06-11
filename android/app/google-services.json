@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1030301766778",
+    "project_id": "tuition2025-d4e25",
+    "storage_bucket": "tuition2025-d4e25.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1030301766778:android:336fc140b6fd1250e6d7c3",
+        "android_client_info": {
+          "package_name": "com.example.tuition2025"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAalk10jjDFPeRkFxClA5frKH3Yya2nnWg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

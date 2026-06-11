@@ -1,0 +1,162 @@
+// File: lib/main.dart
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:tuition2025/utils/theme.dart';
+import 'l10n/app_localizations.dart';
+
+// Import cac man hinh chinh
+import 'screens/ds_lop.dart';
+import 'screens/ds_hs.dart';
+import 'screens/hocphi.dart';
+import 'screens/home_page.dart'; // Import trang Home mới
+import 'screens/splash_screen.dart'; // Import màn hình chờ
+import 'services/notification_service.dart'; // Import dịch vụ thông báo
+import 'package:firebase_core/firebase_core.dart';
+import 'services/widget_sync_service.dart';
+
+// Tạo một GlobalKey để truy cập State của MainScreen từ bên ngoài
+final GlobalKey<MainScreenState> mainScreenKey = GlobalKey<MainScreenState>();
+
+// ----------------------------------------------------
+// MainScreen: Quan ly Bottom Bar
+// ----------------------------------------------------
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key}); // Constructor đã nhận key
+
+  @override
+  State<MainScreen> createState() => MainScreenState();
+}
+
+class MainScreenState extends State<MainScreen> {
+  int _selectedIndex = 0;
+
+  // SỬA: Khôi phục lại danh sách các màn hình chính
+  late List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      HomePage(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
+      DSLop(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
+      DSHocSinh(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
+      HocPhiPage(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
+    ];
+  }
+
+  void onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    // SỬA: Cập nhật lại danh sách screens để truyền selectedIndex mới
+    setState(() {
+      _screens = [
+        HomePage(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
+        DSLop(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
+        DSHocSinh(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
+        HocPhiPage(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
+      ];
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _screens[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        // SỬA: Lấy label từ localization
+        items: <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.home),
+            label: AppLocalizations.of(context)!.homePageTitle,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.class_),
+            label: AppLocalizations.of(context)!.classLabel,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.person),
+            label: AppLocalizations.of(context)!.studentLabel,
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.monetization_on),
+            label: AppLocalizations.of(context)!.feeLabel,
+          ),
+        ],
+        currentIndex: _selectedIndex,
+        // SỬA: Đồng bộ màu sắc với theme mới
+        type: BottomNavigationBarType.fixed, // Giữ nguyên để hiển thị label
+        backgroundColor: Theme.of(context).cardColor,
+        selectedItemColor: Theme.of(context).primaryColor,
+        unselectedItemColor: Theme.of(context).hintColor,
+        onTap: onItemTapped,
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------
+// Ham main() khoi chay
+// ----------------------------------------------------
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Khởi tạo dữ liệu ngôn ngữ cho package intl
+  await initializeDateFormatting('vi_VN', null);
+  
+  // Khởi tạo Firebase
+  try {
+    await Firebase.initializeApp();
+    debugPrint('✅ Firebase initialized successfully');
+  } catch (e) {
+    debugPrint('⚠️ Firebase failed to initialize (likely missing google-services.json): $e');
+  }
+
+  runApp(const ProviderScope(child: MyApp()));
+
+  // Khởi tạo dịch vụ thông báo nhắc lịch học (không chặn khởi động UI)
+  Future.microtask(() async {
+    try {
+      await NotificationService.instance.initialize();
+      await NotificationService.instance.requestPermissions();
+      await NotificationService.instance.syncAllClassReminders();
+      await WidgetSyncService.syncTodaySchedule();
+      await WidgetSyncService.syncBankQRWidget();
+    } catch (e) {
+      debugPrint('Error starting NotificationService: $e');
+    }
+  });
+}
+
+class MyApp extends ConsumerWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+    final locale = ref.watch(localeProvider); // SỬA: Lắng nghe locale provider
+    return MaterialApp(
+      title: 'QLHS App',
+      debugShowCheckedModeBanner: false, // SỬA: Ẩn banner debug
+      theme: AppThemes.lightTheme,
+      darkTheme: AppThemes.darkTheme,
+      themeMode: themeMode,
+      // SỬA: Cập nhật cấu hình localization
+      localizationsDelegates: const [
+        AppLocalizations.delegate, // Delegate của ứng dụng
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en', ''), // English
+        Locale('vi', 'VN'), // Tiếng Việt
+      ],
+      locale: locale, // SỬA: Sử dụng locale từ provider
+      // SỬA: Gán GlobalKey cho MainScreen widget
+      home: const SplashScreen(),
+    );
+  }
+}

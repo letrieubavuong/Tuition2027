@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:gravity="center"
+    android:background="@drawable/widget_background">
+
+    <!-- Title -->
+    <TextView
+        android:id="@+id/widget_qr_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="QUÉT MÃ THANH TOÁN"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="6dp" />
+
+    <!-- QR Code Image Container -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:background="#FFFFFF"
+        android:padding="8dp"
+        android:layout_marginBottom="6dp"
+        android:orientation="vertical">
+        <ImageView
+            android:id="@+id/widget_qr_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter" />
+    </LinearLayout>
+
+    <!-- Bank Info -->
+    <TextView
+        android:id="@+id/widget_qr_info"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Chưa cấu hình tài khoản"
+        android:textColor="#00B0FF"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:singleLine="true" />
+</LinearLayout>
