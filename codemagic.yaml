@@ -50,12 +50,3 @@ workflows:
 
     artifacts:
       - build/ios/ipa/*.ipa
-      
-    publishing:
-      # Configure notification or App Store publishing:
-      email:
-        recipients:
-          # Add your email here to get notified after build completes:
-          # - your-email@example.com
-        on_failure: true
-        on_cancel: true
