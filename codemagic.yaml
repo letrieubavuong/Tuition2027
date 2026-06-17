@@ -36,17 +36,12 @@ workflows:
 
       - name: Set up code signing
         script: |
-          # If certificates are uploaded to Codemagic environment, initialize the keychain:
-          # keychain initialize
-          # use-profiles
-          echo "Skipping keychain initialization for unsigned build..."
+          keychain initialize
+          use-profiles
 
       - name: Build iOS IPA
         script: |
-          # Build unsigned IPA for testing/validation.
-          # To build a signed IPA for App Store or TestFlight, remove '--no-codesign' 
-          # and configure Apple Developer portal integration in Codemagic.
-          flutter build ipa --release --no-codesign
+          flutter build ipa --release
 
     artifacts:
       - build/ios/ipa/*.ipa
