@@ -234,6 +234,13 @@ class LichHocService {
         );
         return false;
       }
+      // Lấy thông tin lịch cũ để tìm lịch học chung tương ứng trước khi cập nhật
+      final List<Map<String, dynamic>> oldRecords = await db.query(
+        tenBang,
+        where: 'id = ?',
+        whereArgs: [lichHoc.id],
+      );
+
       final result = await db.update(
         tenBang,
         lichHoc.toMap(),
@@ -251,6 +258,30 @@ class LichHocService {
             'gio': '${lichHoc.gioBatDau} - ${lichHoc.gioKetThuc}',
           },
         );
+
+        // ĐỒNG BỘ: Cập nhật thông tin trong bảng lich_hoc_chung tương ứng nếu có
+        if (oldRecords.isNotEmpty) {
+          final oldRecord = oldRecords.first;
+          final int oldThu = oldRecord['thuTrongTuan'] as int;
+          final String oldGioBatDau = (oldRecord['gioBatDau'] as String).substring(0, 5);
+          final String oldGioKetThuc = (oldRecord['gioKetThuc'] as String).substring(0, 5);
+
+          // Chuyển đổi thứ của lịch cũ sang tiếng Việt
+          final oldNgayTrongTuan = _thuTrongTuanToVN(oldThu);
+
+          // Cập nhật lich_hoc_chung tương ứng
+          await db.update(
+            DBHelper.tenBangLichHocChung,
+            {
+              'ngay_trong_tuan': _thuTrongTuanToVN(lichHoc.thuTrongTuan),
+              'gio_bat_dau': lichHoc.gioBatDau.substring(0, 5),
+              'gio_ket_thuc': lichHoc.gioKetThuc.substring(0, 5),
+            },
+            where: 'id_lop = ? AND ngay_trong_tuan = ? AND gio_bat_dau = ? AND gio_ket_thuc = ?',
+            whereArgs: [lichHoc.idLop, oldNgayTrongTuan, oldGioBatDau, oldGioKetThuc],
+          );
+        }
+
         await NotificationService.instance.scheduleClassReminder(lichHoc);
         WidgetSyncService.syncTodaySchedule().catchError((e) => null);
       }
@@ -272,6 +303,28 @@ class LichHocService {
         stackTrace: st,
       );
       return false;
+    }
+  }
+
+  // Helper method to translate weekday to Vietnamese
+  String _thuTrongTuanToVN(int thu) {
+    switch (thu) {
+      case 2:
+        return 'Thứ Hai';
+      case 3:
+        return 'Thứ Ba';
+      case 4:
+        return 'Thứ Tư';
+      case 5:
+        return 'Thứ Năm';
+      case 6:
+        return 'Thứ Sáu';
+      case 7:
+        return 'Thứ Bảy';
+      case 1:
+        return 'Chủ Nhật';
+      default:
+        return 'Không rõ';
     }
   }
 

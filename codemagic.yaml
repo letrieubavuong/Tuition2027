@@ -1,0 +1,61 @@
+# Configuration for building the Flutter iOS application on Codemagic.
+# Place this file in the root directory of your project.
+
+workflows:
+  ios-build:
+    name: iOS Build Workflow
+    max_build_duration: 60
+    instance_type: mac_mini_m1 # Standard macOS build machine on Codemagic
+    
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      # Define environment variables if needed for code signing:
+      # groups:
+      #   - apple_credentials # Set this up in Codemagic UI for certificates and provisioning profiles
+      
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: '*'
+          include: true
+          source: true
+
+    scripts:
+      - name: Install dependencies
+        script: |
+          flutter packages pub get
+          
+      - name: Run build_runner (if needed)
+        script: |
+          # This project uses riverpod_generator, so build_runner is required to generate g.dart files.
+          flutter pub run build_runner build --delete-conflicting-outputs
+
+      - name: Set up code signing
+        script: |
+          # If certificates are uploaded to Codemagic environment, initialize the keychain:
+          # keychain initialize
+          # use-profiles
+          echo "Skipping keychain initialization for unsigned build..."
+
+      - name: Build iOS IPA
+        script: |
+          # Build unsigned IPA for testing/validation.
+          # To build a signed IPA for App Store or TestFlight, remove '--no-codesign' 
+          # and configure Apple Developer portal integration in Codemagic.
+          flutter build ipa --release --no-codesign
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      
+    publishing:
+      # Configure notification or App Store publishing:
+      email:
+        recipients:
+          # Add your email here to get notified after build completes:
+          # - your-email@example.com
+        on_failure: true
+        on_cancel: true

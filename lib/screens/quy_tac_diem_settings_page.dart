@@ -281,6 +281,70 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
     }
   }
 
+  Future<void> _tuDongChiaDiem() async {
+    final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
+
+    // 1. Đọc toàn bộ quy tắc điểm
+    final listQuyTac = await _quyTacDiemService.docTatCaQuyTacDiem();
+    if (listQuyTac.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isVi ? 'Chưa có quy tắc nào để chia điểm!' : 'No rules defined yet!')),
+        );
+      }
+      return;
+    }
+
+    final positiveRules = listQuyTac.where((r) => r.loaiQuyTac == 'CONG_DIEM').toList();
+    final negativeRules = listQuyTac.where((r) => r.loaiQuyTac == 'TRU_DIEM').toList();
+
+    // 2. Tính điểm phân phối và cập nhật
+    if (positiveRules.isNotEmpty) {
+      double sumAllocated = 0.0;
+      for (int i = 0; i < positiveRules.length; i++) {
+        double share;
+        if (i == positiveRules.length - 1) {
+          share = 10.0 - sumAllocated;
+        } else {
+          share = double.parse((10.0 / positiveRules.length).toStringAsFixed(2));
+          sumAllocated += share;
+        }
+        share = double.parse(share.toStringAsFixed(2));
+        await _quyTacDiemService.capNhatQuyTacDiem(positiveRules[i].copyWith(diemThayDoi: share));
+      }
+    }
+
+    if (negativeRules.isNotEmpty) {
+      double sumAllocated = 0.0;
+      for (int i = 0; i < negativeRules.length; i++) {
+        double share;
+        if (i == negativeRules.length - 1) {
+          share = -5.0 - sumAllocated;
+        } else {
+          share = double.parse((-5.0 / negativeRules.length).toStringAsFixed(2));
+          sumAllocated += share;
+        }
+        share = double.parse(share.toStringAsFixed(2));
+        await _quyTacDiemService.capNhatQuyTacDiem(negativeRules[i].copyWith(diemThayDoi: share));
+      }
+    }
+
+    // 3. Tải lại dữ liệu và thông báo
+    _taiDuLieu();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isVi
+                ? 'Đã chia điểm: Tổng cộng = 10đ, Tổng trừ = -5đ!'
+                : 'Points distributed: Total plus = 10, Total minus = -5!'
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
@@ -294,6 +358,13 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
         centerTitle: true,
         backgroundColor: cardColor,
         foregroundColor: lightText,
+        actions: [
+          IconButton(
+            tooltip: isVi ? 'Tự động chia điểm' : 'Auto distribute points',
+            icon: const Icon(Icons.scale),
+            onPressed: _tuDongChiaDiem,
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(8.0),

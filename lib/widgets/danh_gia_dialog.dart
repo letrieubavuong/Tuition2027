@@ -82,11 +82,11 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
   Future<void> _handleSave() async {
     if (_formKey.currentState!.validate() && _currentNhanXet != null) {
       _currentNhanXet!.diemThaiDo =
-          double.tryParse(_thaiDoController.text) ?? 10.0;
+          double.tryParse(_thaiDoController.text) ?? 0.0;
       _currentNhanXet!.diemBaiTap =
-          double.tryParse(_baiTapController.text) ?? 10.0;
+          double.tryParse(_baiTapController.text) ?? 0.0;
       _currentNhanXet!.diemKiemTra =
-          double.tryParse(_kiemTraController.text) ?? 10.0;
+          double.tryParse(_kiemTraController.text) ?? 0.0;
       _currentNhanXet!.nhanXetChung = _nhanXetChungController.text;
 
       await _nhanXetService.capNhatNhanXet(_currentNhanXet!);
@@ -157,6 +157,23 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
           onPressed: () => Navigator.of(context).pop(false),
           child: Text(isVi ? 'Hủy' : 'Cancel', style: TextStyle(color: secondaryText)),
         ),
+        OutlinedButton.icon(
+          onPressed: () {
+            final cc = _currentNhanXet?.diemChuyenCan ?? 10.0;
+            final td = double.tryParse(_thaiDoController.text) ?? 0.0;
+            final bt = double.tryParse(_baiTapController.text) ?? 0.0;
+            final kt = double.tryParse(_kiemTraController.text) ?? 0.0;
+            setState(() {
+              _nhanXetChungController.text = _nhanXetService.sinhNhanXetThangTuDong(cc, td, kt, bt);
+            });
+          },
+          style: OutlinedButton.styleFrom(
+            foregroundColor: accentColor,
+            side: BorderSide(color: accentColor),
+          ),
+          icon: const Icon(Icons.auto_awesome, size: 16),
+          label: Text(isVi ? 'Tự sinh nhận xét' : 'Auto Remark'),
+        ),
         ElevatedButton.icon(
           onPressed: _handleSave,
           style: ElevatedButton.styleFrom(
@@ -200,8 +217,8 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
           return isVi ? 'Không được để trống' : 'Cannot be empty';
         }
         final score = double.tryParse(value);
-        if (score == null || score < 0 || score > 10) {
-          return isVi ? 'Điểm phải từ 0-10' : 'Score must be 0-10';
+        if (score == null || score < -10 || score > 10) {
+          return isVi ? 'Điểm phải từ -10 đến 10' : 'Score must be -10 to 10';
         }
         return null;
       },

@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -50,6 +52,21 @@ class NotificationService {
         developer.log('🔔 Người dùng nhấn vào thông báo: ${response.payload}', name: 'NotificationService');
       },
     );
+
+    // 4. Tạo kênh thông báo mặc định cho Android (Hỗ trợ phát chuông lặp liên tục như báo thức)
+    if (Platform.isAndroid) {
+      const AndroidNotificationChannel channel = AndroidNotificationChannel(
+        'tuition_reminders_channel_alarm',
+        'Nhắc Nhở Lịch Học (Chuông Báo Thức)',
+        description: 'Kênh thông báo nhắc ca học và reo chuông lặp liên tục như báo thức',
+        importance: Importance.max,
+        playSound: true,
+      );
+      await _notificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(channel);
+      developer.log('📢 Đã tạo kênh thông báo: tuition_reminders_channel_alarm', name: 'NotificationService');
+    }
 
     developer.log('✅ Khởi tạo FlutterLocalNotifications thành công!', name: 'NotificationService');
   }
@@ -156,16 +173,30 @@ class NotificationService {
       );
 
       final androidDetails = AndroidNotificationDetails(
-        'tuition_reminders_channel',
-        'Nhắc Nhở Lịch Học',
-        channelDescription: 'Kênh thông báo nhắc ca học trước giờ lên lớp',
+        'tuition_reminders_channel_alarm',
+        'Nhắc Nhở Lịch Học (Chuông Báo Thức)',
+        channelDescription: 'Kênh thông báo nhắc ca học và reo chuông lặp liên tục như báo thức',
         importance: Importance.max,
         priority: Priority.high,
         playSound: true,
         visibility: NotificationVisibility.public,
+        additionalFlags: Int32List.fromList([4]), // Flag 4 là FLAG_INSISTENT reo lặp liên tục như báo thức
+        audioAttributesUsage: AudioAttributesUsage.alarm,
+        category: AndroidNotificationCategory.alarm,
       );
 
       final notificationDetails = NotificationDetails(android: androidDetails);
+
+      bool canScheduleExact = true;
+      if (Platform.isAndroid) {
+        canScheduleExact = await _notificationsPlugin
+            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+            ?.canScheduleExactNotifications() ?? false;
+      }
+
+      final scheduleMode = canScheduleExact 
+          ? AndroidScheduleMode.exactAllowWhileIdle 
+          : AndroidScheduleMode.inexactAllowWhileIdle;
 
       try {
         await _notificationsPlugin.zonedSchedule(
@@ -174,35 +205,19 @@ class NotificationService {
           'Ca dạy lớp "$tenLop" sẽ bắt đầu lúc ${lichHoc.gioBatDau.substring(0, 5)} (còn $minutesBefore phút)',
           scheduledDateTime,
           notificationDetails,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          androidScheduleMode: scheduleMode,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
           matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
           payload: 'lop_id=${lichHoc.idLop}',
         );
         developer.log(
-          '⏰ Đã lên lịch thông báo lớp "$tenLop" (ID: ${lichHoc.id}) lúc: $scheduledDateTime (Exact mode)',
+          '⏰ Đã lên lịch thông báo lớp "$tenLop" (ID: ${lichHoc.id}) lúc: $scheduledDateTime ($scheduleMode mode)',
           name: 'NotificationService'
         );
       } catch (scheduleError) {
         developer.log(
-          '⚠️ Lỗi khi hẹn giờ chính xác (có thể thiếu quyền SCHEDULE_EXACT_ALARM). Thử lại với inexact mode: $scheduleError',
-          name: 'NotificationService'
-        );
-        await _notificationsPlugin.zonedSchedule(
-          lichHoc.id!,
-          'Sắp đến giờ dạy - Tuition 2025',
-          'Ca dạy lớp "$tenLop" sẽ bắt đầu lúc ${lichHoc.gioBatDau.substring(0, 5)} (còn $minutesBefore phút)',
-          scheduledDateTime,
-          notificationDetails,
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
-          matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
-          payload: 'lop_id=${lichHoc.idLop}',
-        );
-        developer.log(
-          '⏰ Đã lên lịch thông báo lớp "$tenLop" (ID: ${lichHoc.id}) lúc: $scheduledDateTime (Inexact mode)',
+          '❌ Lỗi khi hẹn giờ thông báo lớp "$tenLop": $scheduleError',
           name: 'NotificationService'
         );
       }

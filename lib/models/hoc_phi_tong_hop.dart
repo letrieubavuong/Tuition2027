@@ -9,6 +9,7 @@ class HocSinhNoHocPhi {
   final int soTienConNo;
   final int mienGiam; // THÊM: Mức miễn giảm của học sinh
   final int soBuoiDu; // THÊM: Số buổi dư còn lại
+  final String? sdt; // Số điện thoại
 
   HocSinhNoHocPhi({
     required this.idHocSinh,
@@ -18,6 +19,7 @@ class HocSinhNoHocPhi {
     required this.soTienConNo,
     required this.mienGiam,
     required this.soBuoiDu,
+    this.sdt,
   });
 }
 

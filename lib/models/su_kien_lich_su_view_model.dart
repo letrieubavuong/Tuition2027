@@ -1,5 +1,6 @@
 // File: lib/models/su_kien_lich_su_view_model.dart
 
+import '../utils/number_parser.dart';
 import 'su_kien_hoc_tap.dart';
 
 class SuKienLichSuViewModel {
@@ -22,7 +23,7 @@ class SuKienLichSuViewModel {
       tenLop: map['tenLop'] as String,
       ngayHoc: DateTime.parse(map['ngayHoc'] as String),
       moTa: map['mo_ta'] as String,
-      diemThayDoi: (map['diem_thay_doi'] as num).toDouble(),
+      diemThayDoi: parseDoubleSafely(map['diem_thay_doi']),
       loaiSuKien: LoaiSuKien.values.firstWhere(
         (e) => e.toString().split('.').last == map['loai_su_kien'],
         orElse: () => LoaiSuKien.khac,

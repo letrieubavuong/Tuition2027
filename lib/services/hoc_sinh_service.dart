@@ -18,7 +18,8 @@ class HocSinhService {
       hs.toMap(), // Sử dụng toMap() của HS
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-    return hs.copyWith(id: id);
+    final savedHs = hs.copyWith(id: id);
+    return savedHs;
   }
 
   // 2. Doc Tat Ca Hoc Sinh (Read All)
@@ -34,7 +35,7 @@ class HocSinhService {
   // 3. Cap Nhat Hoc Sinh (Update)
   Future<int> capNhatHocSinh(HS hs) async {
     final db = await dbHelper.database;
-    return db.update(tenBang, hs.toMap(), where: 'id = ?', whereArgs: [hs.id]);
+    return await db.update(tenBang, hs.toMap(), where: 'id = ?', whereArgs: [hs.id]);
   }
 
   Future<HS?> docHocSinhTheoId(int id) async {
@@ -53,7 +54,6 @@ class HocSinhService {
     }
   }
 
-  // 4. Xoa Hoc Sinh (Delete)
   Future<int> xoaHocSinh(int id) async {
     final db = await dbHelper.database;
     // Sử dụng transaction để đảm bảo tính toàn vẹn
@@ -64,7 +64,6 @@ class HocSinhService {
     });
   }
 
-  // Thêm mới: Cập nhật số buổi học dư của học sinh
   Future<int> capNhatSoBuoiDu(int idHocSinh, int soBuoiMoi) async {
     try {
       final db = await dbHelper.database;

@@ -111,9 +111,9 @@ class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
           tongTienConNo += report.tongSoTienConNo;
 
           // Thêm tên lớp vào sau tên học sinh để dễ nhận biết trong danh sách nợ
-          dsNoGop.addAll(
-            report.dsHocSinhConNo.map(
-              (hs) => HocSinhNoHocPhi(
+          for (var hs in report.dsHocSinhConNo) {
+            dsNoGop.add(
+              HocSinhNoHocPhi(
                 idHocSinh: hs.idHocSinh,
                 tenHocSinh: '${hs.tenHocSinh} (${lop.ten})',
                 soTienCanNop: hs.soTienCanNop,
@@ -121,9 +121,10 @@ class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
                 soTienConNo: hs.soTienConNo,
                 mienGiam: hs.mienGiam,
                 soBuoiDu: hs.soBuoiDu,
+                sdt: hs.sdt,
               ),
-            ),
-          );
+            );
+          }
         }
 
         final mergedReport = HocPhiTongHop(

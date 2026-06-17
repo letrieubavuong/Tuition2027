@@ -1,5 +1,93 @@
 package com.example.tuition2025
 
-import io.flutter.embedding.android.FlutterActivity
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.provider.Settings
+import androidx.annotation.NonNull
+import io.flutter.embedding.android.FlutterFragmentActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity()
+class MainActivity : FlutterFragmentActivity() {
+    private val CHANNEL = "com.example.tuition2025/notification_listener"
+    private var methodChannel: MethodChannel? = null
+
+    private val transactionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == NotificationReceiverService.ACTION_BANK_TRANSACTION) {
+                val title = intent.getStringExtra(NotificationReceiverService.EXTRA_TITLE) ?: ""
+                val text = intent.getStringExtra(NotificationReceiverService.EXTRA_TEXT) ?: ""
+                val pkg = intent.getStringExtra(NotificationReceiverService.EXTRA_PACKAGE) ?: ""
+
+                val data = mapOf(
+                    "title" to title,
+                    "text" to text,
+                    "package" to pkg
+                )
+                
+                runOnUiThread {
+                    methodChannel?.invokeMethod("onNotificationReceived", data)
+                }
+            }
+        }
+    }
+
+    override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        
+        methodChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isNotificationServiceEnabled" -> {
+                    result.success(isNotificationServiceEnabled())
+                }
+                "openNotificationListenerSettings" -> {
+                    openNotificationListenerSettings()
+                    result.success(true)
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        val filter = IntentFilter(NotificationReceiverService.ACTION_BANK_TRANSACTION)
+        registerReceiver(transactionReceiver, filter)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            unregisterReceiver(transactionReceiver)
+        } catch (e: Exception) {
+            // Ignore if not registered
+        }
+    }
+
+    private fun isNotificationServiceEnabled(): Boolean {
+        val pkgName = packageName
+        val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
+        if (!flat.isNullOrEmpty()) {
+            val names = flat.split(":")
+            for (name in names) {
+                val cn = android.content.ComponentName.unflattenFromString(name)
+                if (cn != null && cn.packageName == pkgName) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    private fun openNotificationListenerSettings() {
+        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+    }
+}
+

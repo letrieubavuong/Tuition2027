@@ -7,6 +7,8 @@ import '../widgets/main_drawer.dart';
 import '../services/lop_service.dart';
 import '../l10n/app_localizations.dart'; // Import localization
 import 'lop_detail.dart';
+import '../utils/toast_helper.dart';
+
 
 class DSLop extends StatefulWidget {
   final GlobalKey<MainScreenState> mainScreenKey;
@@ -256,14 +258,11 @@ class _DSLopState extends State<DSLop> {
                         Navigator.of(context).pop(true);
                       } catch (e) {
                         if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              isVi 
-                                  ? 'Lỗi: Tên lớp đã tồn tại hoặc lỗi hệ thống.'
-                                  : 'Error: Class name already exists or system error.',
-                            ),
-                          ),
+                        ToastHelper.showError(
+                          context,
+                          isVi 
+                              ? 'Lỗi: Tên lớp đã tồn tại hoặc lỗi hệ thống.'
+                              : 'Error: Class name already exists or system error.',
                         );
                       }
                     }

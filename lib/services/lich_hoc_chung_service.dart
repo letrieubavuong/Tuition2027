@@ -462,7 +462,7 @@ class LichHocChungService {
   // ===================================================
   // 7. LẤY LỊCH HỌC CÁ NHÂN CỦA HỌC SINH
   // ===================================================
-  Future<List<LichHocChung>> layLichHocCaNhanCuaHocSinh(int idHocSinh) async {
+  Future<List<LichHocChung>> layLichHocCaNhanCuaHocSinh(int idHocSinh, {int? idLop}) async {
     try {
       if (idHocSinh <= 0) {
         developer.log(
@@ -475,20 +475,26 @@ class LichHocChungService {
 
       final db = await _database;
 
-      // JOIN để lấy thông tin lịch học chung
-      final List<Map<String, dynamic>> maps = await db.rawQuery(
-        '''
+      // JOIN để lấy thông tin lịch học chung, có lọc theo lớp nếu được truyền vào
+      String sql = '''
         SELECT lhc.* 
         FROM $tenBangLHC lhc
         INNER JOIN $tenBangLHCN lhcn ON lhc.id = lhcn.id_lich_hoc_chung
         WHERE lhcn.id_hoc_sinh = ?
-        ORDER BY lhc.ngay_trong_tuan ASC, lhc.gio_bat_dau ASC
-      ''',
-        [idHocSinh],
-      );
+      ''';
+      List<dynamic> args = [idHocSinh];
+      
+      if (idLop != null) {
+        sql += ' AND lhc.id_lop = ?';
+        args.add(idLop);
+      }
+      
+      sql += ' ORDER BY lhc.ngay_trong_tuan ASC, lhc.gio_bat_dau ASC';
+
+      final List<Map<String, dynamic>> maps = await db.rawQuery(sql, args);
 
       developer.log(
-        '✅ Đọc thành công ${maps.length} lịch học cá nhân của học sinh ID: $idHocSinh',
+        '✅ Đọc thành công ${maps.length} lịch học cá nhân của học sinh ID: $idHocSinh' + (idLop != null ? ' tại lớp ID: $idLop' : ''),
         name: 'LichHocChungService.layLichHocCaNhanCuaHocSinh',
       );
 
@@ -610,11 +616,13 @@ class LichHocChungService {
     int idHocSinh,
     String thang, { // YYYY-MM
     DateTime? ngayThamGia, // Thêm ngày tham gia để lọc
+    int? idLop, // Thêm idLop để lọc theo lớp
   }) async {
     try {
-      // 1. Lấy tất cả lịch học cá nhân của học sinh
+      // 1. Lấy tất cả lịch học cá nhân của học sinh trong lớp này
       final List<LichHocChung> lichCaNhan = await layLichHocCaNhanCuaHocSinh(
         idHocSinh,
+        idLop: idLop,
       );
       if (lichCaNhan.isEmpty) return 0;
 

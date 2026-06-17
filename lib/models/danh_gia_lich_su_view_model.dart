@@ -1,5 +1,7 @@
 // File: lib/models/danh_gia_lich_su_view_model.dart
 
+import '../utils/number_parser.dart';
+
 class DanhGiaLichSuViewModel {
   final String tenLop;
   final DateTime ngayHoc;
@@ -21,9 +23,9 @@ class DanhGiaLichSuViewModel {
     return DanhGiaLichSuViewModel(
       tenLop: map['tenLop'] as String,
       ngayHoc: DateTime.parse(map['ngayHoc'] as String),
-      diemThaiDo: map['diem_thai_do'] as double?,
-      diemHieuBai: map['diem_hieu_bai'] as double?,
-      diemBaiTap: map['diem_bai_tap'] as double?,
+      diemThaiDo: parseDoubleOrNullSafely(map['diem_thai_do']),
+      diemHieuBai: parseDoubleOrNullSafely(map['diem_hieu_bai']),
+      diemBaiTap: parseDoubleOrNullSafely(map['diem_bai_tap']),
       nhanXet: map['nhan_xet'] as String?,
     );
   }

@@ -1081,14 +1081,46 @@ class _LopDetailState extends ConsumerState<LopDetail>
                       return;
                     }
 
+                     // KIỂM TRA RÀNG BUỘC: Giờ kết thúc phải lớn hơn giờ bắt đầu
+                    final startMinutes = startTime!.hour * 60 + startTime!.minute;
+                    final endMinutes = endTime!.hour * 60 + endTime!.minute;
+
+                    if (endMinutes <= startMinutes) {
+                      if (ctx.mounted) {
+                        showDialog(
+                          context: ctx,
+                          builder: (errCtx) => AlertDialog(
+                            backgroundColor: cardColor,
+                            title: Text(
+                              isVi ? 'Giờ học không hợp lệ' : 'Invalid Time Range',
+                              style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                            ),
+                            content: Text(
+                              isVi
+                                  ? 'Giờ kết thúc phải sau giờ bắt đầu. Vui lòng chọn lại!'
+                                  : 'The end time must be after the start time. Please select again!',
+                              style: TextStyle(color: lightText),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(errCtx).pop(),
+                                child: Text(isVi ? 'Đóng' : 'Close', style: TextStyle(color: accentColor)),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      return;
+                    }
+
                     final newLichHoc = LichHoc(
                       id: isEditing ? lichHoc?.id : null,
                       idLop: _currentLop.id!,
                       thuTrongTuan: selectedDay!,
                       gioBatDau:
-                          '${startTime?.hour.toString().padLeft(2, '0')}:${startTime?.minute.toString().padLeft(2, '0')}:00',
+                          '${startTime!.hour.toString().padLeft(2, '0')}:${startTime!.minute.toString().padLeft(2, '0')}:00',
                       gioKetThuc:
-                          '${endTime?.hour.toString().padLeft(2, '0')}:${endTime?.minute.toString().padLeft(2, '0')}:00',
+                          '${endTime!.hour.toString().padLeft(2, '0')}:${endTime!.minute.toString().padLeft(2, '0')}:00',
                     );
                     final success = isEditing
                         ? await ref
@@ -1571,6 +1603,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
     if (rank == null) return isVi ? 'Chưa xếp' : 'Not ranked';
     if (isVi) return rank;
     switch (rank) {
+      case 'Thách Đấu': return 'Challenger';
+      case 'Cao Thủ': return 'Master';
+      case 'Tinh Anh': return 'Hero';
       case 'Kim Cương': return 'Diamond';
       case 'Bạch Kim': return 'Platinum';
       case 'Vàng': return 'Gold';
@@ -2011,6 +2046,19 @@ Best regards!
                 icon: const Icon(Icons.picture_as_pdf, size: 16),
                 label: Text(isVi ? 'Xuất PDF' : 'PDF'),
               ),
+              TextButton.icon(
+                onPressed: () async {
+                  final pdfService = PdfExportService();
+                  await pdfService.generateAndShareBaoCaoHocTapImage(
+                    hs,
+                    nhanXet,
+                    _currentLop.ten,
+                    currentThangStr,
+                  );
+                },
+                icon: const Icon(Icons.image, size: 16),
+                label: Text(isVi ? 'Gửi ảnh' : 'Send Image'),
+              ),
             ],
           ),
           TextButton(
@@ -2040,6 +2088,12 @@ Best regards!
 
   Map<String, dynamic> _getRankData(String? rank) {
     switch (rank) {
+      case 'Thách Đấu':
+        return {'color': Colors.redAccent, 'icon': Icons.local_fire_department};
+      case 'Cao Thủ':
+        return {'color': Colors.orangeAccent, 'icon': Icons.military_tech};
+      case 'Tinh Anh':
+        return {'color': Colors.purpleAccent, 'icon': Icons.auto_awesome};
       case 'Kim Cương':
         return {'color': Colors.cyanAccent, 'icon': Icons.diamond};
       case 'Bạch Kim':

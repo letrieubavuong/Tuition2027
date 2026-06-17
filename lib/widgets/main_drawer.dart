@@ -13,6 +13,7 @@ import '../screens/caidat.dart';
 import '../screens/thong_ke_page.dart';
 import '../screens/huong_dan_su_dung_page.dart';
 import '../screens/quy_tac_diem_settings_page.dart';
+import '../screens/bang_xep_hang_khoi_page.dart';
 import '../utils/theme.dart';
 import '../l10n/app_localizations.dart';
 
@@ -322,6 +323,12 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
                     icon: Icons.analytics_rounded,
                     text: loc.statistics,
                     onTap: () => _navigateToOtherScreen(context, const ThongKePage()),
+                    context: context,
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.emoji_events_rounded,
+                    text: loc.locale.languageCode == 'vi' ? 'Đấu Trường Hạng Khối' : 'Grade Leaderboards',
+                    onTap: () => _navigateToOtherScreen(context, const BangXepHangKhoiPage()),
                     context: context,
                   ),
                 ],

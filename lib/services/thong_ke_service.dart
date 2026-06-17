@@ -98,39 +98,28 @@ class ThongKeService {
       final thangList = _get12ThangGanNhat();
       final List<HocPhiThang> results = [];
 
-      // Lấy tất cả các lớp
-      final lopList = await db.query(DBHelper.tenBangLop);
-      if (lopList.isEmpty) return [];
-
-      // Lấy tất cả các bản ghi thanh toán để xử lý phía client, giảm truy vấn DB
-      final allThanhToan = await db.query(DBHelper.tenBangThanhToan);
-
       for (final thang in thangList) {
-        int tongThuThang = 0;
-        int tongNoThang = 0;
-
-        // 1. Tính tổng thu của tháng từ các bản ghi thanh toán đã có
-        final thanhToanTrongThang = allThanhToan.where(
-          (tt) => tt['thang'] == thang,
+        // Sử dụng câu lệnh SUM để tính toán trực tiếp từ cơ sở dữ liệu cho tháng hiện tại
+        final List<Map<String, dynamic>> res = await db.rawQuery(
+          '''
+          SELECT 
+            SUM(tong_thanh_toan) as tong_phai_nop,
+            SUM(so_tien_da_dong) as tong_da_dong
+          FROM ${DBHelper.tenBangThanhToan}
+          WHERE thang = ?
+          ''',
+          [thang],
         );
-        if (thanhToanTrongThang.isNotEmpty) {
-          tongThuThang = thanhToanTrongThang
-              .map((tt) => tt['so_tien_da_dong'] as int)
-              .sum;
-        }
 
-        // 2. Tính tổng nợ của tháng
-        // Để tính nợ, ta cần tính tổng học phí phải nộp của tất cả các lớp trong tháng đó
         int tongPhaiNopThang = 0;
-        for (final lop in lopList) {
-          final lopId = lop['id'] as int;
-          // Sử dụng lại report service để tính toán phức tạp
-          final HocPhiTongHop report = await _reportService
-              .layBaoCaoHocPhiThang(lopId, thang);
-          tongPhaiNopThang += report.tongSoTienCanThu;
+        int tongThuThang = 0;
+
+        if (res.isNotEmpty) {
+          tongPhaiNopThang = res.first['tong_phai_nop'] as int? ?? 0;
+          tongThuThang = res.first['tong_da_dong'] as int? ?? 0;
         }
 
-        tongNoThang = tongPhaiNopThang - tongThuThang;
+        int tongNoThang = tongPhaiNopThang - tongThuThang;
         if (tongNoThang < 0) tongNoThang = 0; // Nợ không thể âm
 
         results.add(

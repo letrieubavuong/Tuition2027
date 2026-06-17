@@ -8,7 +8,7 @@ class DBHelper {
   static Database? _database;
 
   // current database version - tăng khi cần migration mới
-  static const int _dbVersion = 18;
+  static const int _dbVersion = 20;
 
   // Hằng số cho tên Bảng
   static const String tenBangHS = 'hoc_sinh';
@@ -222,6 +222,114 @@ class DBHelper {
             // Index cho bảng danh_gia_buoi_hoc
             await db.execute('CREATE INDEX IF NOT EXISTS idx_dgbh_diemdanh ON $tenBangDanhGiaBuoiHoc (id_diem_danh)');
             break;
+          case 19:
+            print('Applying migration v19: update google_sheets_web_app_url');
+            await db.update(tenBangCaiDat, {
+              'gia_tri': 'https://script.google.com/macros/s/AKfycbweybBmk23NHVogV007Fbu20LNqVUKQ01qSfUUnjXjMABfyAiuY8P-Pj5-HGBY_iJEn/exec'
+            }, where: "khoa = 'google_sheets_web_app_url'");
+            break;
+          case 20:
+            print('Applying migration v20: insert new suggested scoring rules');
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'CONG_DIEM',
+              'hang_muc': 'THAI_DO',
+              'mo_ta': 'Đi học đúng giờ',
+              'diem_thay_doi': 0.3,
+              'thu_tu_hien_thi': 4,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'CONG_DIEM',
+              'hang_muc': 'THAI_DO',
+              'mo_ta': 'Hỗ trợ bạn bè',
+              'diem_thay_doi': 0.5,
+              'thu_tu_hien_thi': 5,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'CONG_DIEM',
+              'hang_muc': 'THAI_DO',
+              'mo_ta': 'Tiến bộ vượt bậc',
+              'diem_thay_doi': 1.0,
+              'thu_tu_hien_thi': 6,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'CONG_DIEM',
+              'hang_muc': 'HIEU_BAI',
+              'mo_ta': 'Giải bài sáng tạo',
+              'diem_thay_doi': 1.0,
+              'thu_tu_hien_thi': 7,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'CONG_DIEM',
+              'hang_muc': 'HIEU_BAI',
+              'mo_ta': 'Đạt điểm 9-10 kiểm tra',
+              'diem_thay_doi': 1.0,
+              'thu_tu_hien_thi': 8,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'CONG_DIEM',
+              'hang_muc': 'BAI_TAP',
+              'mo_ta': 'Làm thêm bài tập nâng cao',
+              'diem_thay_doi': 0.5,
+              'thu_tu_hien_thi': 9,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'CONG_DIEM',
+              'hang_muc': 'BAI_TAP',
+              'mo_ta': 'Bài tập sạch đẹp',
+              'diem_thay_doi': 0.5,
+              'thu_tu_hien_thi': 10,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'TRU_DIEM',
+              'hang_muc': 'THAI_DO',
+              'mo_ta': 'Sử dụng điện thoại/việc riêng',
+              'diem_thay_doi': -1.0,
+              'thu_tu_hien_thi': 5,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'TRU_DIEM',
+              'hang_muc': 'THAI_DO',
+              'mo_ta': 'Thiếu đồ dùng học tập',
+              'diem_thay_doi': -0.3,
+              'thu_tu_hien_thi': 6,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'TRU_DIEM',
+              'hang_muc': 'THAI_DO',
+              'mo_ta': 'Nói leo/thái độ sai lệch',
+              'diem_thay_doi': -1.0,
+              'thu_tu_hien_thi': 7,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'TRU_DIEM',
+              'hang_muc': 'HIEU_BAI',
+              'mo_ta': 'Không ghi chép bài',
+              'diem_thay_doi': -0.5,
+              'thu_tu_hien_thi': 8,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'TRU_DIEM',
+              'hang_muc': 'HIEU_BAI',
+              'mo_ta': 'Điểm kiểm tra kém',
+              'diem_thay_doi': -0.5,
+              'thu_tu_hien_thi': 9,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'TRU_DIEM',
+              'hang_muc': 'BAI_TAP',
+              'mo_ta': 'Làm bài đối phó',
+              'diem_thay_doi': -1.0,
+              'thu_tu_hien_thi': 10,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            await db.insert(tenBangQuyTacDiem, {
+              'loai_quy_tac': 'TRU_DIEM',
+              'hang_muc': 'BAI_TAP',
+              'mo_ta': 'Nộp bài tập muộn',
+              'diem_thay_doi': -0.5,
+              'thu_tu_hien_thi': 11,
+            }, conflictAlgorithm: ConflictAlgorithm.ignore);
+            break;
           // Thêm case tiếp theo cho các version sau
           default:
             print('No migration defined for version $v');
@@ -366,6 +474,10 @@ class DBHelper {
     await db.insert(tenBangCaiDat, {
       'khoa': 'account_name',
       'gia_tri': 'LE TRIEU BA VUONG',
+    });
+    await db.insert(tenBangCaiDat, {
+      'khoa': 'google_sheets_web_app_url',
+      'gia_tri': 'https://script.google.com/macros/s/AKfycbweybBmk23NHVogV007Fbu20LNqVUKQ01qSfUUnjXjMABfyAiuY8P-Pj5-HGBY_iJEn/exec',
     });
     await db.insert(tenBangTruong, {'ten': 'THPT Hoàng Hoa Thám'});
 
@@ -597,6 +709,56 @@ class DBHelper {
       'thu_tu_hien_thi': 3,
     }, conflictAlgorithm: ConflictAlgorithm.ignore);
     await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'CONG_DIEM',
+      'hang_muc': 'THAI_DO',
+      'mo_ta': 'Đi học đúng giờ',
+      'diem_thay_doi': 0.3,
+      'thu_tu_hien_thi': 4,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'CONG_DIEM',
+      'hang_muc': 'THAI_DO',
+      'mo_ta': 'Hỗ trợ bạn bè',
+      'diem_thay_doi': 0.5,
+      'thu_tu_hien_thi': 5,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'CONG_DIEM',
+      'hang_muc': 'THAI_DO',
+      'mo_ta': 'Tiến bộ vượt bậc',
+      'diem_thay_doi': 1.0,
+      'thu_tu_hien_thi': 6,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'CONG_DIEM',
+      'hang_muc': 'HIEU_BAI',
+      'mo_ta': 'Giải bài sáng tạo',
+      'diem_thay_doi': 1.0,
+      'thu_tu_hien_thi': 7,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'CONG_DIEM',
+      'hang_muc': 'HIEU_BAI',
+      'mo_ta': 'Đạt điểm 9-10 kiểm tra',
+      'diem_thay_doi': 1.0,
+      'thu_tu_hien_thi': 8,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'CONG_DIEM',
+      'hang_muc': 'BAI_TAP',
+      'mo_ta': 'Làm thêm bài tập nâng cao',
+      'diem_thay_doi': 0.5,
+      'thu_tu_hien_thi': 9,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'CONG_DIEM',
+      'hang_muc': 'BAI_TAP',
+      'mo_ta': 'Bài tập sạch đẹp',
+      'diem_thay_doi': 0.5,
+      'thu_tu_hien_thi': 10,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+
+    await db.insert(tenBangQuyTacDiem, {
       'loai_quy_tac': 'TRU_DIEM',
       'hang_muc': 'THAI_DO',
       'mo_ta': 'Nói chuyện',
@@ -623,6 +785,55 @@ class DBHelper {
       'mo_ta': 'Đi muộn',
       'diem_thay_doi': -0.5,
       'thu_tu_hien_thi': 4,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'TRU_DIEM',
+      'hang_muc': 'THAI_DO',
+      'mo_ta': 'Sử dụng điện thoại/việc riêng',
+      'diem_thay_doi': -1.0,
+      'thu_tu_hien_thi': 5,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'TRU_DIEM',
+      'hang_muc': 'THAI_DO',
+      'mo_ta': 'Thiếu đồ dùng học tập',
+      'diem_thay_doi': -0.3,
+      'thu_tu_hien_thi': 6,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'TRU_DIEM',
+      'hang_muc': 'THAI_DO',
+      'mo_ta': 'Nói leo/thái độ sai lệch',
+      'diem_thay_doi': -1.0,
+      'thu_tu_hien_thi': 7,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'TRU_DIEM',
+      'hang_muc': 'HIEU_BAI',
+      'mo_ta': 'Không ghi chép bài',
+      'diem_thay_doi': -0.5,
+      'thu_tu_hien_thi': 8,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'TRU_DIEM',
+      'hang_muc': 'HIEU_BAI',
+      'mo_ta': 'Điểm kiểm tra kém',
+      'diem_thay_doi': -0.5,
+      'thu_tu_hien_thi': 9,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'TRU_DIEM',
+      'hang_muc': 'BAI_TAP',
+      'mo_ta': 'Làm bài đối phó',
+      'diem_thay_doi': -1.0,
+      'thu_tu_hien_thi': 10,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(tenBangQuyTacDiem, {
+      'loai_quy_tac': 'TRU_DIEM',
+      'hang_muc': 'BAI_TAP',
+      'mo_ta': 'Nộp bài tập muộn',
+      'diem_thay_doi': -0.5,
+      'thu_tu_hien_thi': 11,
     }, conflictAlgorithm: ConflictAlgorithm.ignore);
   }
 }

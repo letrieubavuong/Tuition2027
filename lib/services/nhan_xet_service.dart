@@ -6,6 +6,7 @@ import '../models/hs_lop_view_model.dart';
 import '../models/nhan_xet_thang.dart';
 import '../utils/db.dart';
 import 'diem_danh_service.dart';
+import 'danh_gia_buoi_hoc_service.dart';
 
 class NhanXetService {
   final String _tenBang = DBHelper.tenBangNhanXetThang;
@@ -121,7 +122,38 @@ class NhanXetService {
         // 3. Tính điểm chuyên cần: (Có mặt + Nghỉ có phép) / Tổng số buổi * 10
         nhanXetThang.diemChuyenCan = ((coMat + nghiCP) / tongSoBuoi * 10.0);
 
-        // 4. TÍNH TOÁN ĐIỂM TRUNG BÌNH TỪ BẢNG `danh_gia_buoi_hoc`
+        // 3.1 TỰ ĐỘNG ĐÁNH GIÁ TRƯỚC: Tạo các đánh giá mặc định (10.0) cho các buổi 'Có mặt' chưa được đánh giá
+        if (coMat > 0) {
+          final List<Map<String, dynamic>> sessions = await db.query(
+            DBHelper.tenBangDiemDanh,
+            where: "id_hoc_sinh = ? AND id_lop = ? AND trang_thai = 'Có mặt' AND gio_diem_danh >= ? AND gio_diem_danh < ?",
+            whereArgs: [hs.id!, idLop, startDateStr, endDateStr],
+          );
+
+          for (var sess in sessions) {
+            final idDiemDanh = sess['id'] as int;
+            final List<Map<String, dynamic>> existEval = await db.query(
+              _tenBangDGBH,
+              where: 'id_diem_danh = ?',
+              whereArgs: [idDiemDanh],
+            );
+            if (existEval.isEmpty) {
+              final autoComment = DanhGiaBuoiHocService().sinhNhanXetTuDong(0.0, 0.0, 0.0);
+              await db.insert(
+                _tenBangDGBH,
+                {
+                  'id_diem_danh': idDiemDanh,
+                  'diem_thai_do': 0.0,
+                  'diem_hieu_bai': 0.0,
+                  'diem_bai_tap': 0.0,
+                  'nhan_xet': autoComment,
+                },
+              );
+            }
+          }
+        }
+
+        // 4. TÍNH TOÁN ĐIỂM TRUNG BÌNH TỪ BẢNG `danh_gia_buoi_hoc` (Sau khi đã tự động đánh giá)
         final String sql =
             '''
           SELECT 
@@ -146,44 +178,38 @@ class NhanXetService {
 
         if (avgResult.isNotEmpty && avgResult.first.values.any((v) => v != null)) {
           final avgMap = avgResult.first;
-          if (avgMap['avg_thai_do'] != null) {
-            nhanXetThang.diemThaiDo = (avgMap['avg_thai_do'] as num).toDouble();
-          } else if (coMat > 0) {
-            nhanXetThang.diemThaiDo = 10.0; // Mặc định 10 nếu có đi học nhưng không bị trừ điểm
-          } else {
-            nhanXetThang.diemThaiDo = 0;
-          }
+          nhanXetThang.diemThaiDo = avgMap['avg_thai_do'] != null
+              ? (avgMap['avg_thai_do'] as num).toDouble()
+              : 0.0;
 
-          if (avgMap['avg_bai_tap'] != null) {
-            nhanXetThang.diemBaiTap = (avgMap['avg_bai_tap'] as num).toDouble();
-          } else if (coMat > 0) {
-            nhanXetThang.diemBaiTap = 10.0;
-          } else {
-            nhanXetThang.diemBaiTap = 0;
-          }
+          nhanXetThang.diemBaiTap = avgMap['avg_bai_tap'] != null
+              ? (avgMap['avg_bai_tap'] as num).toDouble()
+              : 0.0;
 
-          if (avgMap['avg_hieu_bai'] != null) {
-            nhanXetThang.diemKiemTra = (avgMap['avg_hieu_bai'] as num).toDouble();
-          } else if (coMat > 0) {
-            nhanXetThang.diemKiemTra = 10.0;
-          } else {
-            nhanXetThang.diemKiemTra = 0;
-          }
+          nhanXetThang.diemKiemTra = avgMap['avg_hieu_bai'] != null
+              ? (avgMap['avg_hieu_bai'] as num).toDouble()
+              : 0.0;
         } else {
-          // Nếu không có đánh giá buổi học nào nhưng có đi học
-          if (coMat > 0) {
-            nhanXetThang.diemThaiDo = 10.0;
-            nhanXetThang.diemBaiTap = 10.0;
-            nhanXetThang.diemKiemTra = 10.0;
-          } else {
-            nhanXetThang.diemThaiDo = 0;
-            nhanXetThang.diemBaiTap = 0;
-            nhanXetThang.diemKiemTra = 0;
-          }
+          nhanXetThang.diemThaiDo = 0.0;
+          nhanXetThang.diemBaiTap = 0.0;
+          nhanXetThang.diemKiemTra = 0.0;
         }
 
         // 5. Tính toán lại xếp hạng
         nhanXetThang.xepHang = _tinhToanXepHang(nhanXetThang.diemTrungBinh);
+
+        // 5.1 Tự động sinh nhận xét tháng nếu nhận xét cũ trống hoặc là nhận xét tự động mặc định
+        if (nhanXetThang.nhanXetChung == null ||
+            nhanXetThang.nhanXetChung!.isEmpty ||
+            nhanXetThang.nhanXetChung == 'Con ngoan, học tập chăm chỉ.' ||
+            nhanXetThang.nhanXetChung!.startsWith('Trong tháng này, em ')) {
+          nhanXetThang.nhanXetChung = sinhNhanXetThangTuDong(
+            nhanXetThang.diemChuyenCan,
+            nhanXetThang.diemThaiDo,
+            nhanXetThang.diemKiemTra,
+            nhanXetThang.diemBaiTap,
+          );
+        }
       }
 
       // 6. Lưu lại bản ghi đã cập nhật
@@ -194,6 +220,59 @@ class NhanXetService {
         whereArgs: [nhanXetThang.id],
       );
     }
+  }
+
+  /// Tự động sinh nhận xét đánh giá tháng dựa trên điểm số chuyên cần, thái độ, hiểu bài, bài tập.
+  String sinhNhanXetThangTuDong(double chuyenCan, double thaiDo, double hieuBai, double baiTap) {
+    String nxChuyenCan = '';
+    if (chuyenCan >= 9.0) {
+      nxChuyenCan = 'đi học rất chuyên cần và đầy đủ';
+    } else if (chuyenCan >= 7.0) {
+      nxChuyenCan = 'đi học tương đối đầy đủ';
+    } else {
+      nxChuyenCan = 'vắng mặt nhiều buổi học, cần đi học đều đặn hơn';
+    }
+
+    String nxThaiDo = '';
+    if (thaiDo >= 5.0) {
+      nxThaiDo = 'thái độ học tập trên lớp rất xuất sắc, luôn hăng hái phát biểu';
+    } else if (thaiDo >= 1.5) {
+      nxThaiDo = 'thái độ học tập tốt, tập trung nghe giảng';
+    } else if (thaiDo >= 0.0) {
+      nxThaiDo = 'ngoan ngoãn, thực hiện đầy đủ hướng dẫn của thầy cô';
+    } else if (thaiDo >= -2.5) {
+      nxThaiDo = 'đôi khi còn chưa tập trung hoặc nói chuyện riêng trong lớp';
+    } else {
+      nxThaiDo = 'thường xuyên làm việc riêng, cần nghiêm túc chấn chỉnh thái độ học';
+    }
+
+    String nxHieuBai = '';
+    if (hieuBai >= 5.0) {
+      nxHieuBai = 'tiếp thu kiến thức cực tốt, kết quả kiểm tra rất xuất sắc';
+    } else if (hieuBai >= 1.5) {
+      nxHieuBai = 'hiểu bài tốt, nắm vững kiến thức trọng tâm';
+    } else if (hieuBai >= 0.0) {
+      nxHieuBai = 'hiểu bài ở mức cơ bản, cần ôn tập thêm';
+    } else if (hieuBai >= -2.5) {
+      nxHieuBai = 'tiếp thu bài còn chậm, cần kiên nhẫn làm nhiều bài tập hơn';
+    } else {
+      nxHieuBai = 'gặp nhiều khó khăn khi tiếp thu kiến thức, cần kèm cặp thêm';
+    }
+
+    String nxBaiTap = '';
+    if (baiTap >= 5.0) {
+      nxBaiTap = 'hoàn thành bài tập về nhà rất tốt, trình bày khoa học và cẩn thận';
+    } else if (baiTap >= 1.5) {
+      nxBaiTap = 'làm bài tập đầy đủ trước khi lên lớp';
+    } else if (baiTap >= 0.0) {
+      nxBaiTap = 'có làm bài tập nhưng đôi lúc còn thiếu hoặc làm chưa kỹ';
+    } else if (baiTap >= -2.5) {
+      nxBaiTap = 'làm bài tập về nhà còn đối phó hoặc nộp muộn';
+    } else {
+      nxBaiTap = 'không làm bài tập về nhà, cần tự giác hơn';
+    }
+
+    return 'Trong tháng này, em $nxChuyenCan. Về học tập, em có $nxThaiDo, $nxHieuBai và $nxBaiTap.';
   }
 
   // Hàm tính điểm chuyên cần
@@ -213,20 +292,73 @@ class NhanXetService {
     return diem < 0 ? 0 : diem;
   }
 
-  // Hàm tính toán xếp hạng
+  // Hàm tính toán xếp hạng theo game Liên Quân Mobile (Cập nhật: TB = 0.0 thì xếp hạng Vàng)
   String _tinhToanXepHang(double diemTrungBinh) {
-    if (diemTrungBinh >= 9.5) {
-      return 'Kim Cương';
-    } else if (diemTrungBinh >= 8.5) {
-      return 'Bạch Kim';
-    } else if (diemTrungBinh >= 7.5) {
-      return 'Vàng';
-    } else if (diemTrungBinh >= 6.5) {
-      return 'Bạc';
-    } else if (diemTrungBinh >= 5.0) {
-      return 'Đồng';
-    } else {
-      return 'Chưa xếp hạng';
+    if (diemTrungBinh == 0.0) {
+      return 'Vàng'; // Tổng trung bình bằng 0.0 thì xếp hạng Vàng
     }
+
+    if (diemTrungBinh >= 8.5) {
+      return 'Thách Đấu';
+    } else if (diemTrungBinh >= 7.0) {
+      return 'Cao Thủ';
+    } else if (diemTrungBinh >= 5.5) {
+      return 'Tinh Anh';
+    } else if (diemTrungBinh >= 4.0) {
+      return 'Kim Cương';
+    } else if (diemTrungBinh >= 2.5) {
+      return 'Bạch Kim';
+    } else if (diemTrungBinh >= 1.0) {
+      return 'Vàng';
+    } else if (diemTrungBinh >= -2.0) {
+      return 'Bạc';
+    } else {
+      return 'Đồng';
+    }
+  }
+
+  // Lấy bảng xếp hạng học sinh theo Khối (Grade) trong tháng YYYY-MM
+  Future<List<Map<String, dynamic>>> layBangXepHangTheoKhoi(int khoi, String thang) async {
+    final db = await _database;
+    final List<Map<String, dynamic>> results = await db.rawQuery('''
+      SELECT 
+        HS.id as id_hoc_sinh,
+        HS.ten as ten_hoc_sinh,
+        L.ten as ten_lop,
+        L.id as id_lop,
+        NX.diem_chuyen_can,
+        NX.diem_thai_do,
+        NX.diem_bai_tap,
+        NX.diem_kiem_tra,
+        NX.xep_hang
+      FROM ${DBHelper.tenBangHS} HS
+      JOIN ${DBHelper.tenBangLopHS} LHS ON HS.id = LHS.id_hoc_sinh
+      JOIN ${DBHelper.tenBangLop} L ON LHS.id_lop = L.id
+      LEFT JOIN $_tenBang NX ON HS.id = NX.id_hoc_sinh AND L.id = NX.id_lop AND NX.thang = ?
+      WHERE L.khoi = ? AND LHS.trang_thai = 'Dang hoc'
+    ''', [thang, khoi]);
+
+    // Tiến hành ánh xạ dữ liệu và tính toán điểm trung bình
+    final List<Map<String, dynamic>> processed = results.map((row) {
+      final double cc = (row['diem_chuyen_can'] as num?)?.toDouble() ?? 0.0;
+      final double td = (row['diem_thai_do'] as num?)?.toDouble() ?? 0.0;
+      final double bt = (row['diem_bai_tap'] as num?)?.toDouble() ?? 0.0;
+      final double kt = (row['diem_kiem_tra'] as num?)?.toDouble() ?? 0.0;
+      final double dtb = (cc + td + bt + kt) / 4.0;
+      final String rankStr = row['xep_hang'] as String? ?? 'Đồng';
+
+      return {
+        'id_hoc_sinh': row['id_hoc_sinh'],
+        'ten_hoc_sinh': row['ten_hoc_sinh'],
+        'ten_lop': row['ten_lop'],
+        'id_lop': row['id_lop'],
+        'diem_trung_binh': dtb,
+        'xep_hang': rankStr,
+      };
+    }).toList();
+
+    // Sắp xếp theo điểm trung bình giảm dần
+    processed.sort((a, b) => (b['diem_trung_binh'] as double).compareTo(a['diem_trung_binh'] as double));
+    return processed;
   }
 }

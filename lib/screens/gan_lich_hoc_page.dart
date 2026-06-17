@@ -5,6 +5,7 @@ import '../models/hs_lop_view_model.dart';
 import '../models/lich_hoc_chung.dart';
 import '../services/lich_hoc_chung_service.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/toast_helper.dart';
 
 // Enum cho trạng thái lọc
 enum FilterStatus { all, assigned, unassigned }
@@ -125,19 +126,12 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
         }
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isVi ? '✅ Cập nhật lịch học thành công!' : '✅ Schedule updated successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        ToastHelper.showSuccess(context, isVi ? 'Cập nhật lịch học thành công!' : 'Schedule updated successfully!');
         Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isVi ? '❌ Lỗi: $e' : '❌ Error: $e'), backgroundColor: Colors.red),
-        );
+        ToastHelper.showError(context, isVi ? 'Lỗi: $e' : 'Error: $e');
       }
     } finally {
       if (mounted) {

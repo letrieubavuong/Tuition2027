@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 // Import Models
 import '../models/su_kien_lich_su_view_model.dart';
@@ -11,6 +12,7 @@ import '../models/hs.dart';
 import '../models/truong.dart';
 import '../models/lop.dart';
 import '../models/lich_hoc_chung.dart';
+import '../models/danh_gia_lich_su_view_model.dart';
 
 // Import Services
 import '../services/su_kien_hoc_tap_service.dart';
@@ -19,6 +21,7 @@ import '../services/truong_service.dart';
 import '../services/lich_hoc_chung_service.dart';
 import '../services/lop_hoc_sinh_service.dart';
 import '../services/report_service.dart';
+import '../services/danh_gia_buoi_hoc_service.dart';
 import '../utils/db.dart';
 import '../models/hoc_phi_tong_hop.dart';
 import '../widgets/thu_tien_hoc_phi_dialog.dart';
@@ -916,54 +919,249 @@ class _HSDetailState extends ConsumerState<HSDetail> {
 
   Widget _buildDanhGiaTab(HS hs) {
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
-    return FutureBuilder<List<SuKienLichSuViewModel>>(
-      future: _suKienService.layLichSuSuKien(hs.id!),
+    return FutureBuilder<List<dynamic>>(
+      future: Future.wait([
+        _suKienService.layLichSuSuKien(hs.id!),
+        DanhGiaBuoiHocService().layLichSuDanhGia(hs.id!),
+      ]),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final data = snapshot.data ?? [];
-        if (data.isEmpty) {
+        if (snapshot.hasError) {
           return Center(
             child: Text(
-              isVi ? 'Chưa có nhận xét nào' : 'No evaluations yet',
+              isVi ? 'Lỗi tải đánh giá học tập' : 'Error loading academic evaluations',
               style: TextStyle(color: secondaryText),
             ),
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: data.length,
-          itemBuilder: (context, i) {
-            final sk = data[i];
-            final isTichCuc = sk.loaiSuKien == LoaiSuKien.tichCuc;
-            return Card(
-              color: cardColor,
-              child: ListTile(
-                leading: Icon(
-                  isTichCuc ? Icons.add_circle : Icons.remove_circle,
-                  color: isTichCuc ? Colors.greenAccent : Colors.redAccent,
-                ),
-                title: Text(sk.moTa, style: TextStyle(color: lightText)),
-                subtitle: Text(
-                  isVi 
-                      ? 'Ngày: ${DateFormat('dd/MM/yyyy').format(sk.ngayHoc)}'
-                      : 'Date: ${DateFormat('dd/MM/yyyy').format(sk.ngayHoc)}',
-                  style: TextStyle(color: secondaryText, fontSize: 11),
-                ),
-                trailing: Text(
-                  '${isTichCuc ? "+" : ""}${sk.diemThayDoi}',
-                  style: TextStyle(
-                    color: isTichCuc ? Colors.greenAccent : Colors.redAccent,
-                    fontWeight: FontWeight.bold,
+        final List<SuKienLichSuViewModel> events = snapshot.data?[0] as List<SuKienLichSuViewModel>? ?? [];
+        final List<DanhGiaLichSuViewModel> danhGiaList = snapshot.data?[1] as List<DanhGiaLichSuViewModel>? ?? [];
+
+        final chartData = danhGiaList.reversed.toList(); // Sắp xếp theo trình tự thời gian tăng dần
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // --- BIỂU ĐỒ TIẾN BỘ HỌC TẬP ---
+              if (chartData.length >= 2) ...[
+                Card(
+                  color: cardColor,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isVi ? 'BIỂU ĐỒ TIẾN BỘ HỌC TẬP' : 'ACADEMIC PROGRESS CHART',
+                          style: TextStyle(
+                            color: lightText,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          height: 200,
+                          child: LineChart(
+                            LineChartData(
+                              minY: 0,
+                              maxY: 10,
+                              gridData: FlGridData(
+                                show: true,
+                                drawVerticalLine: false,
+                                getDrawingHorizontalLine: (value) => FlLine(
+                                  color: Colors.white.withOpacity(0.05),
+                                  strokeWidth: 1,
+                                ),
+                              ),
+                              borderData: FlBorderData(show: false),
+                              titlesData: FlTitlesData(
+                                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                leftTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    reservedSize: 28,
+                                    getTitlesWidget: (value, meta) {
+                                      if (value % 2 != 0) return const SizedBox();
+                                      return Text(
+                                        value.toInt().toString(),
+                                        style: TextStyle(color: secondaryText, fontSize: 10),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                bottomTitles: AxisTitles(
+                                  sideTitles: SideTitles(
+                                    showTitles: true,
+                                    reservedSize: 24,
+                                    getTitlesWidget: (value, meta) {
+                                      final index = value.toInt();
+                                      if (index < 0 || index >= chartData.length) return const SizedBox();
+                                      // Chỉ hiển thị nhãn ngày nếu danh sách không quá nhiều hoặc hiển thị xen kẽ
+                                      if (chartData.length > 5 && index % 2 != 0) return const SizedBox();
+                                      return SideTitleWidget(
+                                        axisSide: meta.axisSide,
+                                        child: Text(
+                                          DateFormat('dd/MM').format(chartData[index].ngayHoc),
+                                          style: TextStyle(color: secondaryText, fontSize: 9),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              lineBarsData: [
+                                // Đường điểm Thái độ (Thái độ học tập) - Màu xanh lục
+                                LineChartBarData(
+                                  spots: List.generate(chartData.length, (idx) {
+                                    return FlSpot(idx.toDouble(), chartData[idx].diemThaiDo ?? 0.0);
+                                  }),
+                                  isCurved: true,
+                                  color: Colors.greenAccent,
+                                  barWidth: 3,
+                                  isStrokeCapRound: true,
+                                  dotData: const FlDotData(show: true),
+                                  belowBarData: BarAreaData(show: false),
+                                ),
+                                // Đường điểm Hiểu bài - Màu xanh dương
+                                LineChartBarData(
+                                  spots: List.generate(chartData.length, (idx) {
+                                    return FlSpot(idx.toDouble(), chartData[idx].diemHieuBai ?? 0.0);
+                                  }),
+                                  isCurved: true,
+                                  color: Colors.blueAccent,
+                                  barWidth: 3,
+                                  isStrokeCapRound: true,
+                                  dotData: const FlDotData(show: true),
+                                  belowBarData: BarAreaData(show: false),
+                                ),
+                                // Đường điểm Bài tập về nhà - Màu cam
+                                LineChartBarData(
+                                  spots: List.generate(chartData.length, (idx) {
+                                    return FlSpot(idx.toDouble(), chartData[idx].diemBaiTap ?? 0.0);
+                                  }),
+                                  isCurved: true,
+                                  color: Colors.orangeAccent,
+                                  barWidth: 3,
+                                  isStrokeCapRound: true,
+                                  dotData: const FlDotData(show: true),
+                                  belowBarData: BarAreaData(show: false),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Chú thích biểu đồ
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildLegendItem(isVi ? 'Thái độ' : 'Attitude', Colors.greenAccent),
+                            const SizedBox(width: 16),
+                            _buildLegendItem(isVi ? 'Hiểu bài' : 'Understanding', Colors.blueAccent),
+                            const SizedBox(width: 16),
+                            _buildLegendItem(isVi ? 'Bài tập' : 'Homework', Colors.orangeAccent),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+                const SizedBox(height: 20),
+              ] else if (danhGiaList.isNotEmpty) ...[
+                Card(
+                  color: cardColor,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Center(
+                      child: Text(
+                        isVi
+                            ? 'Cần thêm đánh giá buổi học để vẽ biểu đồ tiến độ'
+                            : 'Need more session ratings to draw progress chart',
+                        style: TextStyle(color: secondaryText, fontStyle: FontStyle.italic),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+
+              // --- NHẬT KÝ THI ĐUA & SỰ KIỆN ---
+              _buildSectionHeader(isVi ? 'NHẬT KÝ THI ĐUA' : 'COMPETITION LOG', Icons.stars_outlined),
+              const SizedBox(height: 8),
+              if (events.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Text(
+                      isVi ? 'Chưa có nhận xét hay sự kiện thi đua nào' : 'No comments or events logged yet',
+                      style: TextStyle(color: secondaryText, fontStyle: FontStyle.italic),
+                    ),
+                  ),
+                )
+              else
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: events.length,
+                  itemBuilder: (context, i) {
+                    final sk = events[i];
+                    final isTichCuc = sk.loaiSuKien == LoaiSuKien.tichCuc;
+                    return Card(
+                      color: cardColor,
+                      child: ListTile(
+                        leading: Icon(
+                          isTichCuc ? Icons.add_circle : Icons.remove_circle,
+                          color: isTichCuc ? Colors.greenAccent : Colors.redAccent,
+                        ),
+                        title: Text(sk.moTa, style: TextStyle(color: lightText)),
+                        subtitle: Text(
+                          isVi
+                              ? 'Ngày: ${DateFormat('dd/MM/yyyy').format(sk.ngayHoc)}'
+                              : 'Date: ${DateFormat('dd/MM/yyyy').format(sk.ngayHoc)}',
+                          style: TextStyle(color: secondaryText, fontSize: 11),
+                        ),
+                        trailing: Text(
+                          '${isTichCuc ? "+" : ""}${sk.diemThayDoi}',
+                          style: TextStyle(
+                            color: isTichCuc ? Colors.greenAccent : Colors.redAccent,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
         );
       },
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(color: secondaryText, fontSize: 12)),
+      ],
     );
   }
 }

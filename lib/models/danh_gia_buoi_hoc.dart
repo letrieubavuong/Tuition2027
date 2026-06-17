@@ -1,5 +1,7 @@
 // File: lib/models/danh_gia_buoi_hoc.dart
 
+import '../utils/number_parser.dart';
+
 class DanhGiaBuoiHoc {
   int? id;
   final int idDiemDanh;
@@ -34,9 +36,9 @@ class DanhGiaBuoiHoc {
     return DanhGiaBuoiHoc(
       id: map['id'] as int?,
       idDiemDanh: map['id_diem_danh'] as int,
-      diemThaiDo: map['diem_thai_do'] as double?,
-      diemHieuBai: map['diem_hieu_bai'] as double?,
-      diemBaiTap: map['diem_bai_tap'] as double?,
+      diemThaiDo: parseDoubleOrNullSafely(map['diem_thai_do']),
+      diemHieuBai: parseDoubleOrNullSafely(map['diem_hieu_bai']),
+      diemBaiTap: parseDoubleOrNullSafely(map['diem_bai_tap']),
       nhanXet: map['nhan_xet'] as String?,
     );
   }

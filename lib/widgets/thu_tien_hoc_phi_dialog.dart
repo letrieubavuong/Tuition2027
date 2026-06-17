@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
@@ -16,6 +17,7 @@ import '../services/caidat_service.dart';
 import '../services/lop_service.dart';
 import '../models/lop.dart';
 import '../utils/vietqr_util.dart';
+import '../utils/toast_helper.dart';
 
 class ThuTienHocPhiDialog extends StatefulWidget {
   final HocSinhNoHocPhi hocSinh;
@@ -161,17 +163,15 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
         );
         if (mounted) {
           final isVi = Localizations.localeOf(context).languageCode == 'vi';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(isVi 
+          ToastHelper.showSuccess(context, isVi 
               ? 'Đã thu ${formatCurrency.format(_soTienThuThem)} VNĐ của ${widget.hocSinh.tenHocSinh}'
-              : 'Collected ${formatCurrency.format(_soTienThuThem)} VND from ${widget.hocSinh.tenHocSinh}')),
-          );
+              : 'Collected ${formatCurrency.format(_soTienThuThem)} VND from ${widget.hocSinh.tenHocSinh}');
           Navigator.of(context).pop(true);
         }
       } catch (e) {
         if (mounted) {
           final isVi = Localizations.localeOf(context).languageCode == 'vi';
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isVi ? 'Lỗi: $e' : 'Error: $e')));
+          ToastHelper.showError(context, isVi ? 'Lỗi: $e' : 'Error: $e');
           setState(() => _isLoading = false);
         }
       }
@@ -245,9 +245,16 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
                 onPressed: () async {
                   final bytes = await _capturePng(qrKey);
                   if (bytes != null) {
+                    // Chuyển đổi widget.thang (định dạng YYYY-MM) thành MM/YYYY
+                    String formattedThang = widget.thang;
+                    final parts = widget.thang.split('-');
+                    if (parts.length == 2) {
+                      formattedThang = '${parts[1]}/${parts[0]}';
+                    }
+
                     final String shareText = isVi
-                        ? 'Kính gửi phụ huynh học sinh, đây là thông tin học phí ${widget.hocSinh.tenHocSinh}, tháng ${widget.thang} môn học: $_tenLop. Quý phụ huynh thanh toán vào đầu tháng. Xin chân thành cảm ơn.'
-                        : 'Dear parents, here is the tuition fee details for ${widget.hocSinh.tenHocSinh}, month ${widget.thang} subject: $_tenLop. Please settle at the beginning of the month. Thank you very much.';
+                        ? 'Kính gửi phụ huynh học sinh, đây là thông tin học phí ${widget.hocSinh.tenHocSinh}, tháng $formattedThang môn học: $_tenLop. Quý phụ huynh thanh toán vào đầu tháng. Xin chân thành cảm ơn.'
+                        : 'Dear parents, here is the tuition fee details for ${widget.hocSinh.tenHocSinh}, month $formattedThang subject: $_tenLop. Please settle at the beginning of the month. Thank you very much.';
                     _chiaSeMaQR(ctx, bytes, 'QR_${studentName}_${widget.thang}.png', shareText);
                   }
                 },
@@ -280,7 +287,7 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
     await file.writeAsBytes(bytes);
     if (context.mounted) {
       final isVi = Localizations.localeOf(context).languageCode == 'vi';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isVi ? 'Đã lưu vào Download' : 'Saved to Download')));
+      ToastHelper.showSuccess(context, isVi ? 'Đã lưu vào Download' : 'Saved to Download');
     }
   }
 
@@ -288,6 +295,17 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/$fileName');
     await file.writeAsBytes(bytes);
+
+    // Sao chép thông tin học phí vào bộ nhớ tạm để có thể dán (paste) ở Messenger/Zalo
+    await Clipboard.setData(ClipboardData(text: text));
+
+    if (context.mounted) {
+      final isVi = Localizations.localeOf(context).languageCode == 'vi';
+      ToastHelper.showInfo(context, isVi
+              ? 'Đã copy thông tin học phí vào bộ nhớ tạm. Bạn có thể dán (paste) khi gửi tin nhắn!'
+              : 'Tuition information copied to clipboard. You can paste it when sending the message!');
+    }
+
     await Share.shareXFiles([XFile(file.path)], text: text);
   }
 
@@ -297,13 +315,16 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
     final int conNoConLai = _gioiHanThanhToanThucTe - widget.soTienDaDongHienTai;
     return AlertDialog(
       backgroundColor: cardColor,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Center(child: Text(widget.hocSinh.tenHocSinh, style: TextStyle(color: lightText, fontWeight: FontWeight.bold))),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      content: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.9,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
             children: [
               _buildInfoRow(Icons.calendar_month, isVi ? 'Tháng' : 'Month', widget.thang),
               _buildInfoRow(Icons.payment, isVi ? 'Đã đóng' : 'Paid', '${formatCurrency.format(widget.soTienDaDongHienTai)}đ'),
@@ -329,37 +350,31 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
               ),
               const Divider(height: 32),
               // Các khoản thu phát sinh khác
-              Row(
-                children: [
-                  Expanded(
-                    flex: 4,
-                    child: TextFormField(
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(color: lightText),
-                      decoration: InputDecoration(
-                        labelText: isVi ? 'Thu thêm (Sách, tài liệu...)' : 'Extra fee (Books, docs...)',
-                        filled: true,
-                        fillColor: darkBackground,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onChanged: _capNhatKhoanThuKhac,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 5,
-                    child: TextFormField(
-                      style: TextStyle(color: lightText),
-                      decoration: InputDecoration(
-                        labelText: isVi ? 'Lý do thu thêm' : 'Reason for extra fee',
-                        filled: true,
-                        fillColor: darkBackground,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      onChanged: (v) => _lyDoThuKhac = v,
-                    ),
-                  ),
-                ],
+              TextFormField(
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: lightText, fontSize: 14),
+                decoration: InputDecoration(
+                  labelText: isVi ? 'Thu thêm (Sách, tài liệu...)' : 'Extra fee (Books, docs...)',
+                  labelStyle: const TextStyle(fontSize: 13),
+                  filled: true,
+                  fillColor: darkBackground,
+                  prefixIcon: Icon(Icons.add_circle_outline, color: accentColor, size: 20),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onChanged: _capNhatKhoanThuKhac,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                style: TextStyle(color: lightText, fontSize: 14),
+                decoration: InputDecoration(
+                  labelText: isVi ? 'Lý do thu thêm' : 'Reason for extra fee',
+                  labelStyle: const TextStyle(fontSize: 13),
+                  filled: true,
+                  fillColor: darkBackground,
+                  prefixIcon: Icon(Icons.description_outlined, color: accentColor, size: 20),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onChanged: (v) => _lyDoThuKhac = v,
               ),
               const SizedBox(height: 16),
               InkWell(
@@ -387,12 +402,41 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
           ),
         ),
       ),
+      ),
       actions: [
-        TextButton.icon(onPressed: _soTienThuThem > 0 ? _hienThiMaQR : null, icon: const Icon(Icons.qr_code), label: Text(isVi ? 'Mã QR' : 'QR Code')),
-        TextButton(onPressed: () => Navigator.pop(context), child: Text(isVi ? 'Hủy' : 'Cancel', style: TextStyle(color: secondaryText))),
-        _isLoading 
-          ? const CircularProgressIndicator()
-          : ElevatedButton(onPressed: _handleThanhToan, child: Text(isVi ? 'XÁC NHẬN' : 'CONFIRM')),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            TextButton.icon(
+              onPressed: _soTienThuThem > 0 ? _hienThiMaQR : null,
+              icon: const Icon(Icons.qr_code, size: 18),
+              label: Text(isVi ? 'Mã QR' : 'QR Code', style: const TextStyle(fontSize: 12)),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(isVi ? 'Hủy' : 'Cancel', style: TextStyle(color: secondaryText, fontSize: 13)),
+                ),
+                const SizedBox(width: 8),
+                _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : ElevatedButton(
+                        onPressed: _handleThanhToan,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        ),
+                        child: Text(isVi ? 'XÁC NHẬN' : 'CONFIRM', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                      ),
+              ],
+            ),
+          ],
+        ),
       ],
     );
   }

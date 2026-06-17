@@ -7,6 +7,7 @@ import '../services/quy_tac_diem_service.dart';
 
 import '../models/danh_gia_buoi_hoc.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/toast_helper.dart';
 
 class SuKienBuoiHocPage extends StatefulWidget {
   final int idDiemDanh;
@@ -229,18 +230,37 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
           ),
           const SizedBox(height: 12),
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final dg = await _loadEvaluationFuture;
+                  final autoText = _danhGiaService.sinhNhanXetTuDong(
+                    dg.diemThaiDo ?? 0.0,
+                    dg.diemHieuBai ?? 0.0,
+                    dg.diemBaiTap ?? 0.0,
+                  );
+                  setState(() {
+                    _nhanXetController.text = autoText;
+                  });
+                  await _luuNhanXet(autoText);
+                  if (mounted) {
+                    ToastHelper.showSuccess(context, isVi ? 'Đã tự sinh nhận xét!' : 'Remarks auto-generated!');
+                  }
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: accentColor,
+                  side: const BorderSide(color: accentColor),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: const Icon(Icons.auto_awesome, size: 18),
+                label: Text(isVi ? 'Tự sinh nhận xét' : 'Auto Remark'),
+              ),
               ElevatedButton.icon(
                 onPressed: () async {
                   await _luuNhanXet(_nhanXetController.text);
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(isVi ? 'Đã lưu nhận xét thành công!' : 'Comments saved successfully!'),
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
+                    ToastHelper.showSuccess(context, isVi ? 'Đã lưu nhận xét thành công!' : 'Comments saved successfully!');
                   }
                 },
                 style: ElevatedButton.styleFrom(
@@ -304,9 +324,9 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildScoreItem(isVi ? 'Thái độ' : 'Attitude', dg.diemThaiDo ?? 10.0),
-                  _buildScoreItem(isVi ? 'Hiểu bài' : 'Understanding', dg.diemHieuBai ?? 10.0),
-                  _buildScoreItem(isVi ? 'Bài tập' : 'Homework', dg.diemBaiTap ?? 10.0),
+                  _buildScoreItem(isVi ? 'Thái độ' : 'Attitude', dg.diemThaiDo ?? 0.0),
+                  _buildScoreItem(isVi ? 'Hiểu bài' : 'Understanding', dg.diemHieuBai ?? 0.0),
+                  _buildScoreItem(isVi ? 'Bài tập' : 'Homework', dg.diemBaiTap ?? 0.0),
                 ],
               ),
               const SizedBox(height: 12),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/lop.dart';
 import '../services/lop_service.dart'; // Import LopService
 import '../l10n/app_localizations.dart';
+import '../utils/toast_helper.dart';
 
 // Định nghĩa Class FormLop (StatefulWidget)
 class FormLop extends StatefulWidget {
@@ -73,9 +74,7 @@ class _FormLopState extends State<FormLop> {
       } catch (e) {
         if (mounted) {
           // Xử lý lỗi (ví dụ: tên lớp bị trùng)
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(isVi ? 'Lỗi lưu lớp: Tên lớp có thể bị trùng hoặc lỗi hệ thống.' : 'Error saving class: Class name might be duplicated or system error.')),
-          );
+          ToastHelper.showError(context, isVi ? 'Lỗi lưu lớp: Tên lớp có thể bị trùng hoặc lỗi hệ thống.' : 'Error saving class: Class name might be duplicated or system error.');
         }
       }
     }

@@ -26,18 +26,17 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
   // --- Định nghĩa màu sắc cho Dark Mode nhất quán ---
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
-  Color get lightText => Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
-  Color get secondaryText => Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+  Color get lightText =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+  Color get secondaryText =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
   Color get accentColor => Theme.of(context).primaryColor;
-  Color get presentColor => Colors.greenAccent; // Giữ màu xanh lá sáng cho Có mặt
+  Color get presentColor =>
+      Colors.greenAccent; // Giữ màu xanh lá sáng cho Có mặt
   Color get absentColor => Theme.of(context).colorScheme.error;
   // --------------------------------------------------
 
-  void _showInfoDialog(
-    String title,
-    String message, {
-    Color? titleColor,
-  }) {
+  void _showInfoDialog(String title, String message, {Color? titleColor}) {
     final effectiveTitleColor = titleColor ?? accentColor;
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
     showDialog(
@@ -46,13 +45,19 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
         backgroundColor: cardColor,
         title: Text(
           title,
-          style: TextStyle(color: effectiveTitleColor, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: effectiveTitleColor,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: Text(message, style: TextStyle(color: lightText)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(isVi ? 'Đóng' : 'Close', style: TextStyle(color: secondaryText)),
+            child: Text(
+              isVi ? 'Đóng' : 'Close',
+              style: TextStyle(color: secondaryText),
+            ),
           ),
         ],
       ),
@@ -124,7 +129,7 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
           style: TextStyle(color: lightText),
         ),
         content: Text(
-          isVi 
+          isVi
               ? 'Hệ thống sẽ tự động điền "Có mặt" cho tất cả các buổi học đã qua trong tháng này mà học sinh chưa có dữ liệu điểm danh. Các buổi đã điểm danh (vắng hoặc có mặt) sẽ không bị thay đổi.\n\nBạn có muốn tiếp tục không?'
               : 'The system will automatically mark "Present" for all past sessions this month that lack attendance data. Existing attendance records (absent or present) will not be modified.\n\nDo you want to continue?',
           style: TextStyle(color: secondaryText),
@@ -132,12 +137,18 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: Text(isVi ? 'Hủy' : 'Cancel', style: TextStyle(color: secondaryText)),
+            child: Text(
+              isVi ? 'Hủy' : 'Cancel',
+              style: TextStyle(color: secondaryText),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: ElevatedButton.styleFrom(backgroundColor: accentColor),
-            child: Text(isVi ? 'Đồng ý' : 'Agree', style: TextStyle(color: lightText)),
+            child: Text(
+              isVi ? 'Đồng ý' : 'Agree',
+              style: TextStyle(color: lightText),
+            ),
           ),
         ],
       ),
@@ -154,8 +165,11 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
         content: Row(
           children: [
             CircularProgressIndicator(color: accentColor),
-            const SizedBox(width: 20),
-            Text(isVi ? 'Đang xử lý...' : 'Processing...', style: TextStyle(color: lightText)),
+            const SizedBox(width: 10),
+            Text(
+              isVi ? 'Đang xử lý...' : 'Processing...',
+              style: TextStyle(color: lightText),
+            ),
           ],
         ),
       ),
@@ -195,7 +209,9 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
         if (mounted) {
           _showInfoDialog(
             isVi ? 'Thông báo' : 'Notification',
-            isVi ? 'Lớp này chưa được thiết lập lịch học.' : 'This class has no schedule set up.',
+            isVi
+                ? 'Lớp này chưa được thiết lập lịch học.'
+                : 'This class has no schedule set up.',
             titleColor: Colors.orangeAccent,
           );
         }
@@ -239,14 +255,20 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
       if (mounted) {
         _showInfoDialog(
           isVi ? 'Thành công' : 'Success',
-          isVi ? 'Đã hoàn tất điểm danh bù cho các buổi học còn trống!' : 'Makeup attendance completed for empty sessions!',
+          isVi
+              ? 'Đã hoàn tất điểm danh bù cho các buổi học còn trống!'
+              : 'Makeup attendance completed for empty sessions!',
         );
       }
     } catch (e) {
       if (mounted) Navigator.of(context).pop(); // Đóng loading
       if (mounted) {
         final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
-        _showInfoDialog(isVi ? 'Lỗi' : 'Error', isVi ? 'Đã có lỗi xảy ra: $e' : 'An error occurred: $e', titleColor: absentColor);
+        _showInfoDialog(
+          isVi ? 'Lỗi' : 'Error',
+          isVi ? 'Đã có lỗi xảy ra: $e' : 'An error occurred: $e',
+          titleColor: absentColor,
+        );
       }
     } finally {
       // SỬA: Tải lại dữ liệu sau khi điểm danh bù, bất kể thành công hay thất bại
@@ -271,10 +293,8 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (ctx) => SuKienBuoiHocPage(
-            idDiemDanh: idDiemDanh!,
-            tenHocSinh: tenHS,
-          ),
+          builder: (ctx) =>
+              SuKienBuoiHocPage(idDiemDanh: idDiemDanh!, tenHocSinh: tenHS),
         ),
       );
     }
@@ -298,14 +318,16 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8.0),
         side: BorderSide(
-          color: isPresent ? accentColor.withValues(alpha: 0.5) : Colors.transparent,
+          color: isPresent
+              ? accentColor.withValues(alpha: 0.5)
+              : Colors.transparent,
           width: 1,
         ),
       ),
       color: darkBackground,
       margin: const EdgeInsets.symmetric(vertical: 4.0),
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(8.0),
         child: Column(
           children: [
             Row(
@@ -333,7 +355,7 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
                               style: TextStyle(
                                 color: lightText,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 16,
+                                fontSize: 15,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -368,7 +390,10 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
                 // NÚT MỚI: Nhật ký buổi học (Chỉ hiện khi Có mặt)
                 if (isPresent)
                   IconButton(
-                    icon: const Icon(Icons.history_edu, color: Colors.blueAccent),
+                    icon: const Icon(
+                      Icons.history_edu,
+                      color: Colors.blueAccent,
+                    ),
                     tooltip: isVi ? 'Nhật ký buổi học' : 'Session log',
                     onPressed: () => _moTrangSuKien(currentRecord, hs.ten),
                   ),
@@ -393,7 +418,9 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
                     },
                     activeColor: presentColor,
                     checkColor: darkBackground,
-                    side: BorderSide(color: secondaryText.withValues(alpha: 0.7)),
+                    side: BorderSide(
+                      color: secondaryText.withValues(alpha: 0.7),
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -437,7 +464,9 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
           // HÀM MỚI: Nút điểm danh bù
           IconButton(
             icon: const Icon(Icons.event_repeat_outlined),
-            tooltip: isVi ? 'Điểm danh bù các ngày đã quên' : 'Makeup attendance for missed days',
+            tooltip: isVi
+                ? 'Điểm danh bù các ngày đã quên'
+                : 'Makeup attendance for missed days',
             onPressed: _diemDanhBu,
             color: accentColor,
           ),
@@ -453,9 +482,8 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
           Expanded(
             // SỬA: Dùng when để xử lý các trạng thái
             child: diemDanhAsync.when(
-              loading: () => Center(
-                child: CircularProgressIndicator(color: accentColor),
-              ),
+              loading: () =>
+                  Center(child: CircularProgressIndicator(color: accentColor)),
               error: (err, stack) => Center(
                 child: Text(
                   isVi ? 'Lỗi: $err' : 'Error: $err',
@@ -466,7 +494,9 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
                 if (data.caHocTrongNgay.isEmpty) {
                   return Center(
                     child: Text(
-                      isVi ? 'Lớp không có ca học nào trong ngày này.' : 'There are no sessions for this class on this day.',
+                      isVi
+                          ? 'Lớp không có ca học nào trong ngày này.'
+                          : 'There are no sessions for this class on this day.',
                       style: TextStyle(color: secondaryText),
                     ),
                   );
@@ -552,15 +582,13 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
                   decoration: BoxDecoration(
                     color: darkBackground,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: secondaryText.withValues(alpha: 0.5)),
+                    border: Border.all(
+                      color: secondaryText.withValues(alpha: 0.5),
+                    ),
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.calendar_today,
-                        color: accentColor,
-                        size: 18,
-                      ),
+                      Icon(Icons.calendar_today, color: accentColor, size: 18),
                       const SizedBox(width: 8),
                       Text(
                         DateFormat('dd/MM/yyyy').format(data.selectedDate),
@@ -610,14 +638,17 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
                         Navigator.of(context).pop(); // Đóng loading
                         _showInfoDialog(
                           isVi ? 'Thành công' : 'Success',
-                          isVi ? 'Đã lưu điểm danh thành công!' : 'Attendance saved successfully!',
+                          isVi
+                              ? 'Đã lưu điểm danh thành công!'
+                              : 'Attendance saved successfully!',
                         );
                       } catch (e) {
                         if (!mounted) return;
                         Navigator.of(context).pop(); // Đóng loading
                         _showInfoDialog(
                           isVi ? 'Lỗi' : 'Error',
-                          (isVi ? 'Lỗi khi lưu: ' : 'Error saving: ') + e.toString(),
+                          (isVi ? 'Lỗi khi lưu: ' : 'Error saving: ') +
+                              e.toString(),
                           titleColor: absentColor,
                         );
                       }
@@ -658,10 +689,7 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
           child: ExpansionTile(
             title: Text(
               'Ca ${caHoc.gioBatDau.substring(0, 5)} - ${caHoc.gioKetThuc.substring(0, 5)}',
-              style: TextStyle(
-                color: lightText,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: lightText, fontWeight: FontWeight.bold),
             ),
             subtitle: Text(
               '${hsCuaCa.length} ' + (isVi ? 'học sinh' : 'students'),
@@ -677,7 +705,9 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
                     Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Text(
-                        isVi ? 'Không có học sinh nào được gán cho ca này.' : 'No students assigned to this session.',
+                        isVi
+                            ? 'Không có học sinh nào được gán cho ca này.'
+                            : 'No students assigned to this session.',
                         style: TextStyle(color: secondaryText),
                       ),
                     ),
@@ -782,13 +812,18 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: cardColor,
-        title: Text(isVi ? 'Ghi chú' : 'Notes', style: TextStyle(color: lightText)),
+        title: Text(
+          isVi ? 'Ghi chú' : 'Notes',
+          style: TextStyle(color: lightText),
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
           style: TextStyle(color: lightText),
           decoration: InputDecoration(
-            hintText: isVi ? 'Nhập lý do nghỉ...' : 'Enter reason for absence...',
+            hintText: isVi
+                ? 'Nhập lý do nghỉ...'
+                : 'Enter reason for absence...',
             hintStyle: TextStyle(color: secondaryText),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             filled: true,
@@ -811,7 +846,10 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(isVi ? 'Đóng' : 'Close', style: TextStyle(color: accentColor)),
+            child: Text(
+              isVi ? 'Đóng' : 'Close',
+              style: TextStyle(color: accentColor),
+            ),
           ),
         ],
       ),

@@ -14,6 +14,7 @@ import '../services/hoc_sinh_service.dart';
 import '../services/truong_service.dart';
 import 'hs_detail.dart'; // Import Service Trường
 import '../l10n/app_localizations.dart'; // Import localization
+import '../utils/toast_helper.dart';
 
 class DSHocSinh extends StatefulWidget {
   final GlobalKey<MainScreenState> mainScreenKey;
@@ -41,8 +42,10 @@ class _DSHocSinhState extends State<DSHocSinh> {
 
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
-  Color get lightText => Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
-  Color get secondaryText => Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+  Color get lightText =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+  Color get secondaryText =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
   Color get accentColor => Theme.of(context).primaryColor;
   Color get deleteColor => Theme.of(context).colorScheme.error;
 
@@ -79,10 +82,13 @@ class _DSHocSinhState extends State<DSHocSinh> {
         final loc = AppLocalizations.of(context)!;
         setState(() {
           _dangTai = false; // Ẩn loading
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(loc.locale.languageCode == 'vi' ? 'Lỗi tải dữ liệu: $e' : 'Error loading data: $e')));
         });
+        ToastHelper.showError(
+          context,
+          loc.locale.languageCode == 'vi'
+              ? 'Lỗi tải dữ liệu: $e'
+              : 'Error loading data: $e',
+        );
       }
     }
   }
@@ -111,15 +117,13 @@ class _DSHocSinhState extends State<DSHocSinh> {
 
   // 3. Xóa Học Sinh THỰC TẾ (DELETE)
   Future<void> _xoaHS(int id) async {
+    final loc = AppLocalizations.of(context)!;
     final result = await _hsService.xoaHocSinh(id);
 
     if (result > 0) {
       _taiDSHS();
       if (mounted) {
-        final loc = AppLocalizations.of(context)!;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(loc.deleteStudentSuccess)),
-        );
+        ToastHelper.showSuccess(context, loc.deleteStudentSuccess);
       }
     }
   }
@@ -193,8 +197,11 @@ class _DSHocSinhState extends State<DSHocSinh> {
     var status = await Permission.manageExternalStorage.request();
     if (!mounted) return;
     if (!status.isGranted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(isVi ? 'Cần cấp quyền bộ nhớ để xuất file!' : 'Storage permission required to export file!')),
+      ToastHelper.showWarning(
+        context,
+        isVi
+            ? 'Cần cấp quyền bộ nhớ để xuất file!'
+            : 'Storage permission required to export file!',
       );
       return;
     }
@@ -235,16 +242,18 @@ class _DSHocSinhState extends State<DSHocSinh> {
       await file.writeAsBytes(bytes);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isVi ? 'Đã xuất file CSV thành công tại thư mục Download!' : 'Exported CSV file successfully to Download folder!'),
-        ),
+      ToastHelper.showSuccess(
+        context,
+        isVi
+            ? 'Đã xuất file CSV thành công tại thư mục Download!'
+            : 'Exported CSV file successfully to Download folder!',
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      ToastHelper.showError(
         context,
-      ).showSnackBar(SnackBar(content: Text(isVi ? 'Lỗi khi xuất file: $e' : 'Error exporting file: $e')));
+        isVi ? 'Lỗi khi xuất file: $e' : 'Error exporting file: $e',
+      );
     }
   }
 
@@ -265,7 +274,8 @@ class _DSHocSinhState extends State<DSHocSinh> {
       try {
         final file = File(result.files.single.path!);
         final csvString = await file.readAsString();
-        List<List<dynamic>> rowsAsListOfValues = const CsvToListConverter().convert(csvString);
+        List<List<dynamic>> rowsAsListOfValues = const CsvToListConverter()
+            .convert(csvString);
 
         if (rowsAsListOfValues.isEmpty) {
           setState(() => _dangTai = false);
@@ -299,20 +309,27 @@ class _DSHocSinhState extends State<DSHocSinh> {
         await _taiDSHS();
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(isVi ? 'Đã nhập thành công $count học sinh!' : 'Imported $count students successfully!')),
+          ToastHelper.showSuccess(
+            context,
+            isVi
+                ? 'Đã nhập thành công $count học sinh!'
+                : 'Imported $count students successfully!',
           );
         }
       } catch (e) {
         setState(() => _dangTai = false);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(isVi ? 'Lỗi: Định dạng file CSV không hợp lệ.' : 'Error: Invalid CSV file format.')),
+          ToastHelper.showError(
+            context,
+            isVi
+                ? 'Lỗi: Định dạng file CSV không hợp lệ.'
+                : 'Error: Invalid CSV file format.',
           );
         }
       }
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context)!;
@@ -362,7 +379,7 @@ class _DSHocSinhState extends State<DSHocSinh> {
         children: [
           // HÀM MỚI: Thanh tìm kiếm
           Padding(
-            padding: const EdgeInsets.all(12.0),
+            padding: const EdgeInsets.all(8.0),
             child: TextField(
               controller: _searchController,
               style: TextStyle(color: lightText),
@@ -390,9 +407,7 @@ class _DSHocSinhState extends State<DSHocSinh> {
           // Danh sách học sinh
           Expanded(
             child: _dangTai
-                ? Center(
-                    child: CircularProgressIndicator(color: accentColor),
-                  )
+                ? Center(child: CircularProgressIndicator(color: accentColor))
                 : _filteredDanhSachHS.isEmpty
                 ? Center(
                     child: Text(
@@ -430,7 +445,7 @@ class _DSHocSinhState extends State<DSHocSinh> {
     final isVi = loc.locale.languageCode == 'vi';
     return Card(
       color: cardColor,
-      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: InkWell(
         onTap: () {
@@ -466,7 +481,7 @@ class _DSHocSinhState extends State<DSHocSinh> {
                       hs.ten,
                       style: TextStyle(
                         color: lightText,
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -502,7 +517,10 @@ class _DSHocSinhState extends State<DSHocSinh> {
                     value: 'delete',
                     child: ListTile(
                       leading: Icon(Icons.delete, color: deleteColor),
-                      title: Text(loc.delete, style: TextStyle(color: deleteColor)),
+                      title: Text(
+                        loc.delete,
+                        style: TextStyle(color: deleteColor),
+                      ),
                     ),
                   ),
                 ],

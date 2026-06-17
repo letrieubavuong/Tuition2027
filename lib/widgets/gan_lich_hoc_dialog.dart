@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/hs_lop_view_model.dart';
 import '../models/lich_hoc_chung.dart';
 import '../services/lich_hoc_chung_service.dart';
+import '../utils/toast_helper.dart';
 
 class GanLichHocDialog extends StatefulWidget {
   final LichHocChung lichHocChung;
@@ -131,27 +132,18 @@ class _GanLichHocDialogState extends State<GanLichHocDialog> {
           message = isVi ? 'ℹ️ Không có thay đổi nào' : 'ℹ️ No changes made';
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message, style: TextStyle(color: lightText)),
-            backgroundColor: failCount > 0 ? Colors.orange : Colors.green,
-          ),
-        );
+        if (failCount > 0) {
+          ToastHelper.showWarning(context, message);
+        } else {
+          ToastHelper.showSuccess(context, message);
+        }
 
         Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
         final isVi = Localizations.localeOf(context).languageCode == 'vi';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isVi ? '❌ Lỗi: $e' : '❌ Error: $e',
-              style: TextStyle(color: lightText),
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
+        ToastHelper.showError(context, isVi ? 'Lỗi: $e' : 'Error: $e');
       }
     } finally {
       if (mounted) {

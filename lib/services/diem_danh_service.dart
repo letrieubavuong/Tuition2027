@@ -16,8 +16,6 @@ class DiemDanhService {
     return await DBHelper.instance.database;
   }
 
-  // 1. Thêm DiemDanh (CREATE/REPLACE)
-  // Dùng cho việc điểm danh 'Có mặt'/'Nghỉ'
   Future<int> themDiemDanh(DiemDanh diemDanh) async {
     final db = await _database;
     // Model DiemDanh hiện tại đã có idLop, hàm toMap() sẽ bao gồm nó.
@@ -369,7 +367,6 @@ class DiemDanhService {
     return await themDiemDanh(diemDanh);
   }
 
-  // 6. Xóa DiemDanh (DELETE) - Hàm cũ dùng id
   Future<int> xoaDiemDanh(int id) async {
     final db = await _database;
     return await db.delete(tenBangDD, where: 'id = ?', whereArgs: [id]);

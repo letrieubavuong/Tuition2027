@@ -1,3 +1,5 @@
+import '../utils/number_parser.dart';
+
 class QuyTacDiem {
   int? id;
   String loaiQuyTac; // 'CONG_DIEM' hoặc 'TRU_DIEM'
@@ -32,8 +34,8 @@ class QuyTacDiem {
       loaiQuyTac: map['loai_quy_tac'] as String,
       hangMuc: map['hang_muc'] as String? ?? 'THAI_DO',
       moTa: map['mo_ta'] as String,
-      // Ép kiểu num để xử lý an toàn cho cả int và double từ SQLite
-      diemThayDoi: (map['diem_thay_doi'] as num).toDouble(),
+      // Đọc an toàn kiểu số thực kể cả khi lưu chuỗi "9,5" hay "9.5"
+      diemThayDoi: parseDoubleSafely(map['diem_thay_doi']),
       thuTuHienThi: map['thu_tu_hien_thi'] as int? ?? 0,
     );
   }

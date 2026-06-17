@@ -14,8 +14,8 @@ import 'screens/hocphi.dart';
 import 'screens/home_page.dart'; // Import trang Home mới
 import 'screens/splash_screen.dart'; // Import màn hình chờ
 import 'services/notification_service.dart'; // Import dịch vụ thông báo
-import 'package:firebase_core/firebase_core.dart';
 import 'services/widget_sync_service.dart';
+import 'services/bank_notification_service.dart';
 
 // Tạo một GlobalKey để truy cập State của MainScreen từ bên ngoài
 final GlobalKey<MainScreenState> mainScreenKey = GlobalKey<MainScreenState>();
@@ -105,14 +105,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Khởi tạo dữ liệu ngôn ngữ cho package intl
   await initializeDateFormatting('vi_VN', null);
-  
-  // Khởi tạo Firebase
-  try {
-    await Firebase.initializeApp();
-    debugPrint('✅ Firebase initialized successfully');
-  } catch (e) {
-    debugPrint('⚠️ Firebase failed to initialize (likely missing google-services.json): $e');
-  }
 
   runApp(const ProviderScope(child: MyApp()));
 
@@ -124,6 +116,11 @@ void main() async {
       await NotificationService.instance.syncAllClassReminders();
       await WidgetSyncService.syncTodaySchedule();
       await WidgetSyncService.syncBankQRWidget();
+      
+      // Khởi tạo listener duyệt học phí tự động qua thông báo ngân hàng
+      // chỉ cần truy cập instance để đăng ký callback MethodChannel
+      final bankService = BankNotificationService.instance;
+      debugPrint('✅ BankNotificationService initialized');
     } catch (e) {
       debugPrint('Error starting NotificationService: $e');
     }

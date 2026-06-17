@@ -1,16 +1,21 @@
 // File: lib/screens/hoc_phi_page.dart (HOÀN THIỆN)
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/lop.dart';
 import '../models/hoc_phi_tong_hop.dart';
 import '../services/report_service.dart'; // <-- IMPORT SERVICE MỚI
 import '../services/lop_service.dart';
 import '../services/pdf_export_service.dart';
+import '../services/caidat_service.dart';
 import '../main.dart';
 import '../widgets/main_drawer.dart';
 import '../widgets/thu_tien_hoc_phi_dialog.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/toast_helper.dart';
 
 // --- Màu sắc động được định nghĩa trong _HocPhiPageState ---
 
@@ -43,10 +48,13 @@ class HocPhiPage extends StatefulWidget {
 class _HocPhiPageState extends State<HocPhiPage> {
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
-  Color get lightText => Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
-  Color get secondaryText => Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+  Color get lightText =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+  Color get secondaryText =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
   Color get accentColor => Theme.of(context).primaryColor;
-  Color get primaryButtonColor => Theme.of(context).brightness == Brightness.dark
+  Color get primaryButtonColor =>
+      Theme.of(context).brightness == Brightness.dark
       ? const Color(0xFF0F3460)
       : Theme.of(context).primaryColor.withValues(alpha: 0.15);
   Color get deleteColor => Theme.of(context).colorScheme.error;
@@ -56,14 +64,12 @@ class _HocPhiPageState extends State<HocPhiPage> {
 
   // Trạng thái tháng và năm đang chọn (YYYY-MM)
   late String _selectedMonthYear;
-  // Trạng thái năm đang hiển thị trên thanh trượt
+  // Trạng thái năm đang hiển thị
   late int _currentYear;
   // Future cho tất cả báo cáo của tất cả các lớp trong tháng
   late Future<List<LopHocPhiViewModel>> _tongHopFuture;
-  // Controller để tự động cuộn đến tháng hiện tại
-  late ScrollController _monthScrollController;
   // Trạng thái bộ lọc
-  bool _chiHienThiLopConNo = false;
+  int? _selectedLopId;
 
   @override
   void initState() {
@@ -77,53 +83,29 @@ class _HocPhiPageState extends State<HocPhiPage> {
       'yyyy-MM',
     ).format(DateTime(now.year, defaultMonth));
     _tongHopFuture = _taiDuLieuTongHop(_selectedMonthYear);
-
-    // Khởi tạo ScrollController
-    _monthScrollController = ScrollController();
-
-    // Cuộn đến tháng hiện tại sau khi frame đầu tiên được build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToSelectedMonth();
-    });
   }
 
   @override
   void dispose() {
-    _monthScrollController.dispose();
     super.dispose();
-  }
-
-  void _scrollToSelectedMonth() {
-    final int currentMonth = int.parse(_selectedMonthYear.substring(5, 7));
-    // (width + margin * 2) * (month_index) - (viewport_width / 2) + (item_width / 2)
-    final double offset =
-        (60.0 * (currentMonth - 1)) -
-        (MediaQuery.of(context).size.width / 2) +
-        30.0;
-    _monthScrollController.animateTo(
-      offset,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
-    );
   }
 
   // Hàm tải dữ liệu tổng hợp cho TẤT CẢ các lớp trong tháng
   Future<List<LopHocPhiViewModel>> _taiDuLieuTongHop(String thang) async {
     final List<Lop> lopList = await _lopService.docTatCaLop();
-    final List<LopHocPhiViewModel> results = [];
-
-    // Tải dữ liệu lần lượt, đồng thời kích hoạt việc tính toán học phí
-    for (var lop in lopList) {
+    final List<Future<LopHocPhiViewModel?>> tasks = lopList.map((lop) async {
       if (lop.id != null) {
-        // SỬA: Gọi hàm từ ReportService
         final report = await _reportService.layBaoCaoHocPhiThang(
           lop.id!,
           thang,
         );
-        results.add(LopHocPhiViewModel(lop: lop, report: report));
+        return LopHocPhiViewModel(lop: lop, report: report);
       }
-    }
-    return results;
+      return null;
+    }).toList();
+
+    final results = await Future.wait(tasks);
+    return results.whereType<LopHocPhiViewModel>().toList();
   }
 
   // Hàm xử lý khi chọn một tháng/năm mới
@@ -135,23 +117,11 @@ class _HocPhiPageState extends State<HocPhiPage> {
     if (newMonthYear != _selectedMonthYear) {
       setState(() {
         _selectedMonthYear = newMonthYear;
+        _selectedLopId = null; // SỬA: Reset lớp được chọn khi đổi tháng
         // Tải lại dữ liệu cho tháng mới
         _tongHopFuture = _taiDuLieuTongHop(newMonthYear);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollToSelectedMonth();
-        });
       });
     }
-  }
-
-  // Hàm xử lý thay đổi năm trên thanh trượt
-  void _thayDoiNam(int delta) {
-    setState(() {
-      _currentYear += delta;
-      // Giả sử: nếu đang chọn 2024-09, chuyển sang 2025 thì vẫn chọn 2025-09
-      int selectedMonth = int.parse(_selectedMonthYear.substring(5, 7));
-      _chonThangMoi(selectedMonth, _currentYear);
-    });
   }
 
   // HÀM MỚI: Xử lý mở trang thanh toán (Sử dụng Dialog giả lập)
@@ -183,13 +153,18 @@ class _HocPhiPageState extends State<HocPhiPage> {
             style: TextStyle(color: accentColor, fontWeight: FontWeight.bold),
           ),
           content: Text(
-            isVi ? 'Đã cập nhật thanh toán và làm mới dữ liệu!' : 'Payment updated and data refreshed!',
+            isVi
+                ? 'Đã cập nhật thanh toán và làm mới dữ liệu!'
+                : 'Payment updated and data refreshed!',
             style: TextStyle(color: lightText),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: Text(isVi ? 'Đóng' : 'Close', style: TextStyle(color: secondaryText)),
+              child: Text(
+                isVi ? 'Đóng' : 'Close',
+                style: TextStyle(color: secondaryText),
+              ),
             ),
           ],
         ),
@@ -197,8 +172,93 @@ class _HocPhiPageState extends State<HocPhiPage> {
     }
   }
 
+  void _chiaSeNoCaNhan(HocSinhNoHocPhi hs, String tenLop) async {
+    final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
+    final formatCurrency = NumberFormat('#,##0', 'vi_VN');
+    final caiDatService = CaiDatService();
+
+    // Đọc thông tin ngân hàng từ cài đặt
+    final String bankId =
+        (await caiDatService.layCaiDat('bank_id')) ?? 'sacombank';
+    final String accountNo =
+        (await caiDatService.layCaiDat('account_no')) ?? '0905073175';
+    final String accountName =
+        (await caiDatService.layCaiDat('account_name')) ?? 'LE TRIEU BA VUONG';
+
+    final StringBuffer buffer = StringBuffer();
+    final parts = _selectedMonthYear.split('-');
+    final formattedMonth = parts.reversed.join('/');
+
+    if (isVi) {
+      buffer.writeln(
+        'Kính gửi phụ huynh học sinh ${hs.tenHocSinh} (Lớp $tenLop),',
+      );
+      buffer.writeln('Học phí tháng $formattedMonth của học sinh là:');
+      buffer.writeln('- Cần nộp: ${formatCurrency.format(hs.soTienCanNop)}đ');
+      buffer.writeln('- Đã đóng: ${formatCurrency.format(hs.soTienDaDong)}đ');
+      buffer.writeln('- Còn nợ: ${formatCurrency.format(hs.soTienConNo)}đ');
+      buffer.writeln(
+        '\nQuý phụ huynh vui lòng thanh toán chuyển khoản vào tài khoản ngân hàng:',
+      );
+      buffer.writeln('- Ngân hàng: ${bankId.toUpperCase()}');
+      buffer.writeln('- Số tài khoản: $accountNo');
+      buffer.writeln('- Chủ tài khoản: $accountName');
+      buffer.writeln('Xin chân thành cảm ơn quý phụ huynh!');
+    } else {
+      buffer.writeln(
+        'Dear parent of student ${hs.tenHocSinh} (Class $tenLop),',
+      );
+      buffer.writeln('Tuition fee for month $formattedMonth:');
+      buffer.writeln(
+        '- Amount due: ${formatCurrency.format(hs.soTienCanNop)}đ',
+      );
+      buffer.writeln('- Paid: ${formatCurrency.format(hs.soTienDaDong)}đ');
+      buffer.writeln('- Debt: ${formatCurrency.format(hs.soTienConNo)}đ');
+      buffer.writeln('\nPlease settle the payment via bank transfer:');
+      buffer.writeln('- Bank: ${bankId.toUpperCase()}');
+      buffer.writeln('- Account Number: $accountNo');
+      buffer.writeln('- Account Name: $accountName');
+      buffer.writeln('Thank you very much!');
+    }
+
+    final String message = buffer.toString();
+
+    // Copy vào clipboard
+    await Clipboard.setData(ClipboardData(text: message));
+
+    if (mounted) {
+      ToastHelper.showInfo(
+        context,
+        isVi
+            ? 'Đã copy thông tin nhắc nợ của học sinh vào bộ nhớ tạm!'
+            : 'Copied student debt details to clipboard!',
+      );
+    }
+
+    await Share.share(message);
+  }
+
+  void _moZaloPhuHuynh(String sdt) async {
+    if (sdt.isEmpty) return;
+    final cleanSdt = sdt.replaceAll(RegExp(r'[^\d]'), '');
+    final url = Uri.parse('https://zalo.me/$cleanSdt');
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ToastHelper.showError(context, 'Không thể mở liên kết Zalo: $url');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastHelper.showError(context, 'Lỗi mở Zalo: $e');
+      }
+    }
+  }
+
   // Widget hiển thị Học sinh còn nợ (Tái sử dụng logic cũ)
-  Widget _buildHocSinhNoItem(HocSinhNoHocPhi hs, int idLop) {
+  Widget _buildHocSinhNoItem(HocSinhNoHocPhi hs, int idLop, String tenLop) {
     final formatCurrency = NumberFormat('#,##0', 'vi_VN');
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
     return Container(
@@ -206,23 +266,117 @@ class _HocPhiPageState extends State<HocPhiPage> {
         border: Border(top: BorderSide(color: Colors.white10, width: 0.5)),
       ),
       child: ListTile(
-        dense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        dense: false,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: CircleAvatar(
-          radius: 12,
-          backgroundColor: Colors.redAccent.withValues(alpha: 0.1),
+          radius: 18,
+          backgroundColor: Colors.redAccent.withOpacity(0.1),
           child: Text(
             hs.tenHocSinh.isNotEmpty ? hs.tenHocSinh[0].toUpperCase() : '?',
-            style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 10),
+            style: const TextStyle(
+              color: Colors.redAccent,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
           ),
         ),
         title: Text(
           hs.tenHocSinh,
-          style: TextStyle(color: lightText, fontWeight: FontWeight.w500, fontSize: 13),
+          style: TextStyle(
+            color: lightText,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
         ),
-        subtitle: Text(
-          (isVi ? 'Đã đóng: ' : 'Paid: ') + '${formatCurrency.format(hs.soTienDaDong)}đ',
-          style: TextStyle(color: secondaryText, fontSize: 11),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text(
+              (isVi ? 'Đã đóng: ' : 'Paid: ') +
+                  '${formatCurrency.format(hs.soTienDaDong)}đ',
+              style: TextStyle(color: secondaryText, fontSize: 12),
+            ),
+            if (hs.sdt != null && hs.sdt!.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                'SĐT: ${hs.sdt}',
+                style: TextStyle(color: secondaryText, fontSize: 12),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (hs.sdt != null && hs.sdt!.isNotEmpty) ...[
+                  InkWell(
+                    onTap: () => _moZaloPhuHuynh(hs.sdt!),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.blue, width: 0.5),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.message,
+                            size: 14,
+                            color: Colors.blue,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Zalo',
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                InkWell(
+                  onTap: () => _chiaSeNoCaNhan(hs, tenLop),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.orange, width: 0.5),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.share, size: 14, color: Colors.orange),
+                        const SizedBox(width: 4),
+                        Text(
+                          isVi ? 'Nhắc nợ' : 'Remind',
+                          style: TextStyle(
+                            color: Colors.orange,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -233,10 +387,20 @@ class _HocPhiPageState extends State<HocPhiPage> {
               style: const TextStyle(
                 color: Colors.redAccent,
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
+                fontSize: 15,
               ),
             ),
-            Icon(Icons.chevron_right, size: 14, color: secondaryText),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isVi ? 'Thu tiền' : 'Collect',
+                  style: TextStyle(color: accentColor, fontSize: 11),
+                ),
+                Icon(Icons.chevron_right, size: 14, color: accentColor),
+              ],
+            ),
           ],
         ),
         onTap: () => _moTrangThanhToan(hs, idLop),
@@ -244,100 +408,131 @@ class _HocPhiPageState extends State<HocPhiPage> {
     );
   }
 
-  // Widget hiển thị ô chọn Tháng
-  Widget _buildMonthBox(int month) {
-    final isSelected =
-        _selectedMonthYear ==
-        '$_currentYear-${month.toString().padLeft(2, '0')}';
+  Widget _buildMonthYearSelector() {
+    final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
+    final currentMonth = int.parse(_selectedMonthYear.substring(5, 7));
 
-    return GestureDetector(
-      onTap: () => _chonThangMoi(month, _currentYear),
-      child: Container(
-        width: 52, // Giảm chiều rộng
-        margin: const EdgeInsets.symmetric(horizontal: 4.0),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? primaryButtonColor
-              : cardColor, // Màu nền của ô tháng
-          borderRadius: BorderRadius.circular(10), // Giảm bo góc
-          border: Border.all(
-            color: isSelected ? accentColor : secondaryText.withValues(alpha: 0.3),
-            width: isSelected ? 2.0 : 1.0,
+    // Generate list of years (e.g. from current year - 3 to current year + 3)
+    final int baseYear = DateTime.now().year;
+    final List<int> yearsList = List.generate(
+      7,
+      (index) => baseYear - 3 + index,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              // Chọn Tháng Dropdown
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  value: currentMonth,
+                  dropdownColor: cardColor,
+                  style: TextStyle(color: lightText, fontSize: 14),
+                  decoration: InputDecoration(
+                    labelText: isVi ? 'Tháng' : 'Month',
+                    labelStyle: TextStyle(
+                      color: accentColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    filled: true,
+                    fillColor: cardColor,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.white24),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.white12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: accentColor, width: 1.5),
+                    ),
+                  ),
+                  items: List.generate(12, (index) {
+                    final m = index + 1;
+                    return DropdownMenuItem<int>(
+                      value: m,
+                      child: Text('${isVi ? "Tháng" : "Month"} $m'),
+                    );
+                  }),
+                  onChanged: (newMonth) {
+                    if (newMonth != null) {
+                      _chonThangMoi(newMonth, _currentYear);
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Chọn Năm Dropdown
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  value: _currentYear,
+                  dropdownColor: cardColor,
+                  style: TextStyle(color: lightText, fontSize: 14),
+                  decoration: InputDecoration(
+                    labelText: isVi ? 'Năm' : 'Year',
+                    labelStyle: TextStyle(
+                      color: accentColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    filled: true,
+                    fillColor: cardColor,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.white24),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.white12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: accentColor, width: 1.5),
+                    ),
+                  ),
+                  items: yearsList.map((y) {
+                    return DropdownMenuItem<int>(
+                      value: y,
+                      child: Text('${isVi ? "Năm" : "Year"} $y'),
+                    );
+                  }).toList(),
+                  onChanged: (newYear) {
+                    if (newYear != null) {
+                      setState(() {
+                        _currentYear = newYear;
+                        _chonThangMoi(currentMonth, newYear);
+                      });
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
-        ),
-        child: Center(
-          child: Text(
-            '$month', // Chỉ hiển thị số tháng
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: isSelected ? lightText : secondaryText,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              fontSize: 16, // Tăng kích thước số cho dễ nhìn
-            ),
-          ),
-        ),
+          //const SizedBox(height: 8),
+          //const Divider(color: Colors.white10, height: 16, thickness: 1),
+        ],
       ),
     );
   }
 
-  Widget _buildMonthYearSelector() {
-    final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
-    return Column(
-      children: [
-        // Chọn Năm
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                icon: Icon(
-                  Icons.arrow_left,
-                  color: accentColor,
-                  size: 30,
-                ),
-                onPressed: () => _thayDoiNam(-1),
-              ),
-              Text(
-                (isVi ? 'NĂM ' : 'YEAR ') + '$_currentYear',
-                style: TextStyle(
-                  color: lightText,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              IconButton(
-                icon: Icon(
-                  Icons.arrow_right,
-                  color: accentColor,
-                  size: 30,
-                ),
-                onPressed: () => _thayDoiNam(1),
-              ),
-            ],
-          ),
-        ),
-
-        // Thanh trượt chọn Tháng
-        SizedBox(
-          height: 50, // Giảm chiều cao thanh trượt
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            controller: _monthScrollController, // Gán controller
-            itemCount: 12,
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            itemBuilder: (context, index) {
-              final month = index + 1; // 1 đến 12
-              return _buildMonthBox(month);
-            },
-          ),
-        ),
-        const Divider(color: Colors.white10, height: 16, thickness: 1),
-      ],
-    );
-  }
-
-  Widget _buildTotalSummaryItem(String label, String value, Color color, IconData icon) {
+  Widget _buildTotalSummaryItem(
+    String label,
+    String value,
+    Color color,
+    IconData icon,
+  ) {
     return Expanded(
       child: Column(
         children: [
@@ -348,7 +543,11 @@ class _HocPhiPageState extends State<HocPhiPage> {
               const SizedBox(width: 6),
               Text(
                 label,
-                style: TextStyle(color: secondaryText, fontSize: 10, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: secondaryText,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -400,27 +599,6 @@ class _HocPhiPageState extends State<HocPhiPage> {
           // THANH TRƯỢT CHỌN THÁNG/NĂM
           _buildMonthYearSelector(),
 
-          // BỘ LỌC: Chỉ hiển thị lớp còn nợ
-          Container(
-            color: cardColor,
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  isVi ? 'Chỉ hiển thị lớp còn nợ' : 'Only show classes with debt',
-                  style: TextStyle(color: secondaryText),
-                ),
-                Switch(
-                  value: _chiHienThiLopConNo,
-                  onChanged: (bool value) {
-                    setState(() => _chiHienThiLopConNo = value);
-                  },
-                  activeThumbColor: accentColor,
-                ),
-              ],
-            ),
-          ),
           Expanded(
             child: FutureBuilder<List<LopHocPhiViewModel>>(
               future: _tongHopFuture,
@@ -433,7 +611,9 @@ class _HocPhiPageState extends State<HocPhiPage> {
                 if (snapshot.hasError) {
                   return Center(
                     child: Text(
-                      isVi ? 'Lỗi tải dữ liệu: ${snapshot.error}' : 'Error loading data: ${snapshot.error}',
+                      isVi
+                          ? 'Lỗi tải dữ liệu: ${snapshot.error}'
+                          : 'Error loading data: ${snapshot.error}',
                       style: TextStyle(color: deleteColor),
                     ),
                   );
@@ -444,34 +624,38 @@ class _HocPhiPageState extends State<HocPhiPage> {
                 if (dataList.isEmpty) {
                   return Center(
                     child: Text(
-                      isVi ? 'Chưa có lớp nào được tạo.' : 'No classes created yet.',
+                      isVi
+                          ? 'Chưa có lớp nào được tạo.'
+                          : 'No classes created yet.',
                       style: TextStyle(color: secondaryText),
                     ),
                   );
                 }
 
-                // ÁP DỤNG BỘ LỌC
-                final List<LopHocPhiViewModel> filteredList =
-                    _chiHienThiLopConNo
-                    ? dataList
-                          .where((item) => item.report.tongSoTienConNo > 0)
-                          .toList()
-                    : dataList;
+                // Lọc danh sách lớp còn nợ
+                final List<LopHocPhiViewModel> classesWithDebt = dataList
+                    .where((item) => item.report.tongSoTienConNo > 0)
+                    .toList();
 
-                if (filteredList.isEmpty) {
-                  return Center(
-                    child: Text(
-                      _chiHienThiLopConNo
-                          ? (isVi ? 'Tất cả các lớp đã hoàn thành học phí.' : 'All classes completed fee payments.')
-                          : (isVi ? 'Chưa có lớp nào được tạo.' : 'No classes created yet.'),
-                      style: TextStyle(color: secondaryText),
-                    ),
-                  );
+                // Tính toán lớp đang được chọn
+                int? activeId = _selectedLopId;
+                if (classesWithDebt.isNotEmpty) {
+                  if (activeId == null ||
+                      !classesWithDebt.any((x) => x.lop.id == activeId)) {
+                    activeId = classesWithDebt.first.lop.id;
+                  }
+                } else {
+                  activeId = null;
                 }
+
+                // Tìm viewModel tương ứng với lớp đang được chọn
+                final activeViewModel = activeId != null
+                    ? classesWithDebt.firstWhere((x) => x.lop.id == activeId)
+                    : null;
 
                 int tongTienDaThu = 0;
                 int tongTienConNo = 0;
-                for (var item in filteredList) {
+                for (var item in dataList) {
                   tongTienDaThu += item.report.tongSoTienDaThu;
                   tongTienConNo += item.report.tongSoTienConNo;
                 }
@@ -483,12 +667,17 @@ class _HocPhiPageState extends State<HocPhiPage> {
                   children: [
                     // Vùng Tổng kết toàn bộ
                     Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 4,
+                      ),
+                      margin: const EdgeInsets.fromLTRB(8, 8, 8, 8),
                       decoration: BoxDecoration(
                         color: cardColor,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.05),
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -498,7 +687,11 @@ class _HocPhiPageState extends State<HocPhiPage> {
                             accentColor,
                             Icons.check_circle_outline,
                           ),
-                          Container(height: 20, width: 1, color: Colors.white10),
+                          Container(
+                            height: 20,
+                            width: 1,
+                            color: Colors.white10,
+                          ),
                           _buildTotalSummaryItem(
                             isVi ? 'CÒN NỢ' : 'DEBT',
                             '${formatCurrency.format(tongTienConNo)}đ',
@@ -509,106 +702,141 @@ class _HocPhiPageState extends State<HocPhiPage> {
                       ),
                     ),
 
-                    // Danh sách chi tiết từng lớp
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                        itemCount: filteredList.length,
-                        itemBuilder: (context, index) {
-                          final item = filteredList[index];
-                          final lop = item.lop;
-                          final report = item.report;
-                          final totalClassAmount = report.tongSoTienCanThu;
-                          final progress = totalClassAmount > 0 
-                              ? report.tongSoTienDaThu / totalClassAmount 
-                              : 0.0;
-                          final Color deptColorLop = report.tongSoTienConNo > 0
-                              ? deleteColor
-                              : accentColor;
-
-                          return Card(
-                            color: cardColor,
-                            elevation: 0,
-                            margin: const EdgeInsets.only(bottom: 8),
-                            shape: RoundedRectangleBorder(
+                    if (classesWithDebt.isEmpty)
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            isVi
+                                ? 'Tất cả các lớp đã hoàn thành học phí!'
+                                : 'All classes completed tuition fees!',
+                            style: TextStyle(
+                              color: accentColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      )
+                    else ...[
+                      // Combobox chọn lớp còn nợ
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8.0,
+                          vertical: 4.0,
+                        ),
+                        child: DropdownButtonFormField<int>(
+                          value: activeId,
+                          dropdownColor: cardColor,
+                          style: TextStyle(color: lightText, fontSize: 14),
+                          decoration: InputDecoration(
+                            labelText: isVi
+                                ? 'Lớp học còn nợ'
+                                : 'Class with debt',
+                            labelStyle: TextStyle(
+                              color: accentColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            filled: true,
+                            fillColor: cardColor,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.05),
+                              borderSide: const BorderSide(
+                                color: Colors.white24,
                               ),
                             ),
-                            child: ExpansionTile(
-                              tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                              leading: CircleAvatar(
-                                radius: 14,
-                                backgroundColor: accentColor.withValues(alpha: 0.1),
-                                child: Text(
-                                  lop.khoi.toString(),
-                                  style: TextStyle(color: accentColor, fontWeight: FontWeight.bold, fontSize: 11),
-                                ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Colors.white12,
                               ),
-                              title: Text(
-                                lop.ten,
-                                style: TextStyle(color: lightText, fontWeight: FontWeight.bold, fontSize: 14),
-                              ),
-                              subtitle: Padding(
-                                padding: const EdgeInsets.only(top: 4, bottom: 8),
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          (isVi ? 'Nợ: ' : 'Debt: ') + '${formatCurrency.format(report.tongSoTienConNo)}đ',
-                                          style: TextStyle(color: deptColorLop, fontSize: 12),
-                                        ),
-                                        Text(
-                                          '${(progress * 100).round()}%',
-                                          style: TextStyle(color: secondaryText, fontSize: 11),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(2),
-                                      child: LinearProgressIndicator(
-                                        value: progress,
-                                        backgroundColor: Colors.white.withValues(alpha: 0.05),
-                                        color: progress == 1.0 ? accentColor : Colors.orangeAccent,
-                                        minHeight: 3,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              collapsedIconColor: secondaryText,
-                              iconColor: accentColor,
-                              children: (report.dsHocSinhConNo.isEmpty)
-                                  ? [
-                                      Padding(
-                                        padding: const EdgeInsets.all(20.0),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(Icons.check_circle_outline, color: accentColor, size: 20),
-                                            const SizedBox(width: 10),
-                                            Flexible(
-                                              child: Text(
-                                                isVi ? 'Lớp đã hoàn thành học phí' : 'Class has completed tuition fees',
-                                                style: TextStyle(color: accentColor, fontStyle: FontStyle.italic),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ]
-                                  : report.dsHocSinhConNo.map((hs) {
-                                      return _buildHocSinhNoItem(hs, lop.id!);
-                                    }).toList(),
                             ),
-                          );
-                        },
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: accentColor,
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                          items: classesWithDebt.map((item) {
+                            return DropdownMenuItem<int>(
+                              value: item.lop.id,
+                              child: Text(
+                                '${item.lop.ten} (Còn nợ: ${formatCurrency.format(item.report.tongSoTienConNo)}đ)',
+                                style: TextStyle(color: lightText),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (newId) {
+                            setState(() {
+                              _selectedLopId = newId;
+                            });
+                          },
+                        ),
                       ),
-                    ),
+
+                      // Danh sách học sinh nợ của lớp được chọn
+                      if (activeViewModel != null) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                isVi
+                                    ? 'Học sinh chưa hoàn thành học phí:'
+                                    : 'Students with unpaid tuition fees:',
+                                style: TextStyle(
+                                  color: secondaryText,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              // Nút xuất PDF báo cáo lớp
+                              IconButton(
+                                icon: const Icon(Icons.picture_as_pdf),
+                                color: accentColor,
+                                tooltip: isVi
+                                    ? 'Xuất PDF báo cáo lớp'
+                                    : 'Export Class PDF Report',
+                                onPressed: () {
+                                  PdfExportService().generateAndOpenHocPhiPdf(
+                                    activeViewModel,
+                                    _selectedMonthYear,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 0,
+                            ),
+                            itemCount:
+                                activeViewModel.report.dsHocSinhConNo.length,
+                            itemBuilder: (context, idx) {
+                              final hs =
+                                  activeViewModel.report.dsHocSinhConNo[idx];
+                              return _buildHocSinhNoItem(
+                                hs,
+                                activeViewModel.lop.id!,
+                                activeViewModel.lop.ten,
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ],
                   ],
                 );
               },

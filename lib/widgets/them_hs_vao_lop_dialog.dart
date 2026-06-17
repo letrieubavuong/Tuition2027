@@ -9,6 +9,7 @@ import '../models/lop_hoc_sinh.dart';
 import '../services/lop_hoc_sinh_service.dart';
 import '../services/hoc_sinh_service.dart';
 import 'hs_form.dart';
+import '../utils/toast_helper.dart';
 
 // --- HẰNG SỐ MÀU SẮC (Lấy từ LopDetail để đồng bộ) ---
 // const Color darkBackground = Color(0xFF1A1A2E);
@@ -112,9 +113,7 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
       } catch (e) {
         if (mounted) {
           final isVi = Localizations.localeOf(context).languageCode == 'vi';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(isVi ? 'Lỗi khi thêm học sinh mới vào lớp: $e' : 'Error adding new student to class: $e')),
-          );
+          ToastHelper.showError(context, isVi ? 'Lỗi khi thêm học sinh mới vào lớp: $e' : 'Error adding new student to class: $e');
         }
       }
     }
@@ -149,9 +148,7 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
           errorMessage = isVi ? 'Lỗi: Học sinh này đã có trong lớp!' : 'Error: This student is already in the class!';
         }
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(errorMessage)));
+          ToastHelper.showError(context, errorMessage);
         }
       }
     }

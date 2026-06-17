@@ -1,5 +1,7 @@
 // File: lib/models/su_kien_hoc_tap.dart
 
+import '../utils/number_parser.dart';
+
 enum LoaiSuKien { tichCuc, tieuCuc, thaiDo, hieuBai, baiTap, khac }
 
 class SuKienHocTap {
@@ -36,7 +38,7 @@ class SuKienHocTap {
         orElse: () => LoaiSuKien.khac,
       ),
       moTa: map['mo_ta'] as String,
-      diemThayDoi: (map['diem_thay_doi'] as num).toDouble(),
+      diemThayDoi: parseDoubleSafely(map['diem_thay_doi']),
     );
   }
 }

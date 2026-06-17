@@ -22,15 +22,19 @@ class CaiDatService {
     return null;
   }
 
-  // Cập nhật giá trị Setting
+  // Cập nhật giá trị Setting (Tạo mới nếu chưa có)
   Future<int> capNhatCaiDat(String khoa, String giaTri) async {
     final db = await dbHelper.database;
-    return db.update(
+    return db.insert(
       tenBang,
-      {'gia_tri': giaTri},
-      where: 'khoa = ?',
-      whereArgs: [khoa],
+      {'khoa': khoa, 'gia_tri': giaTri},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  // Đọc giá trị có fallback mặc định
+  Future<String> docGiaTri(String khoa, {String macDinh = ''}) async {
+    final val = await layCaiDat(khoa);
+    return val ?? macDinh;
   }
 }

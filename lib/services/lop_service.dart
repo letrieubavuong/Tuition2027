@@ -19,7 +19,8 @@ class LopService {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
     // Trả về đối tượng Lop với ID mới được gán
-    return lop.copyWith(id: id);
+    final savedLop = lop.copyWith(id: id);
+    return savedLop;
   }
 
   // 2. Doc Tat Ca Lop (Read All)
@@ -39,11 +40,10 @@ class LopService {
     return result.map((json) => Lop.fromMap(json)).toList();
   }
 
-  // 3. Cap Nhat Lop (Update)
   Future<int> capNhatLop(Lop lop) async {
     final db = await dbHelper.database;
     // Cập nhật theo ID
-    return db.update(
+    return await db.update(
       tenBang,
       lop.toMap(),
       where: 'id = ?',
@@ -51,7 +51,6 @@ class LopService {
     );
   }
 
-  // 4. Xoa Lop (Delete)
   Future<int> xoaLop(int id) async {
     final db = await dbHelper.database;
     // Xóa theo ID

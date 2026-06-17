@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:tuition2025/main.dart';
 import 'package:tuition2025/l10n/app_localizations.dart';
+import 'pin_lock_screen.dart';
+import '../services/caidat_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -128,7 +130,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       const SizedBox(height: 32),
                       // App Name
                       Text(
-                        'Tuition 2025',
+                        'Tuition 2026',
                         style: theme.textTheme.headlineLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.5,
@@ -188,12 +190,24 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   child: Column(
                     children: [
                       ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (context) => MainScreen(key: mainScreenKey),
-                            ),
-                          );
+                        onPressed: () async {
+                          final isPinEnabled = await CaiDatService().layCaiDat('app_pin_enabled');
+                          final savedPin = await CaiDatService().layCaiDat('app_pin_code');
+                          if (context.mounted) {
+                            if (isPinEnabled == 'true' && savedPin != null && savedPin.isNotEmpty) {
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(
+                                  builder: (context) => const PinLockScreen(isConfiguring: false),
+                                ),
+                              );
+                            } else {
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(
+                                  builder: (context) => MainScreen(key: mainScreenKey),
+                                ),
+                              );
+                            }
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: theme.primaryColor,

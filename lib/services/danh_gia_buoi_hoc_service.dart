@@ -84,11 +84,11 @@ class DanhGiaBuoiHocService {
       }
     }
 
-    // 2. Tính điểm cuối cùng (bắt đầu từ 10 và cộng/trừ)
-    // Giới hạn điểm trong khoảng từ 0 đến 10
-    final diemThaiDo = (10.0 + diemThayDoiThaiDo).clamp(0.0, 10.0);
-    final diemHieuBai = (10.0 + diemThayDoiHieuBai).clamp(0.0, 10.0);
-    final diemBaiTap = (10.0 + diemThayDoiBaiTap).clamp(0.0, 10.0);
+    // 2. Tính điểm cuối cùng (bắt đầu từ 0.0 và cộng/trừ)
+    // Giới hạn điểm trong khoảng từ -10 đến 10
+    final diemThaiDo = (0.0 + diemThayDoiThaiDo).clamp(-10.0, 10.0);
+    final diemHieuBai = (0.0 + diemThayDoiHieuBai).clamp(-10.0, 10.0);
+    final diemBaiTap = (0.0 + diemThayDoiBaiTap).clamp(-10.0, 10.0);
 
     // 3. Lấy hoặc tạo bản ghi đánh giá buổi học
     final danhGia = await layHoacTaoDanhGia(idDiemDanh);
@@ -98,6 +98,14 @@ class DanhGiaBuoiHocService {
     danhGia.diemHieuBai = diemHieuBai;
     danhGia.diemBaiTap = diemBaiTap;
 
+    // Tự động sinh nhận xét nếu nhận xét cũ trống hoặc là nhận xét tự động mặc định
+    if (danhGia.nhanXet == null ||
+        danhGia.nhanXet!.isEmpty ||
+        danhGia.nhanXet == 'Tự động đánh giá' ||
+        danhGia.nhanXet!.startsWith('Em ')) {
+      danhGia.nhanXet = sinhNhanXetTuDong(diemThaiDo, diemHieuBai, diemBaiTap);
+    }
+
     // 5. Lưu lại vào CSDL
     final db = await _database;
     await db.insert(
@@ -105,6 +113,50 @@ class DanhGiaBuoiHocService {
       danhGia.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  /// Tự động sinh nhận xét buổi học dựa trên điểm thái độ, hiểu bài, bài tập.
+  String sinhNhanXetTuDong(double thaiDo, double hieuBai, double baiTap) {
+    String nxThaiDo = '';
+    if (thaiDo >= 5.0) {
+      nxThaiDo = 'thái độ học tập rất tích cực, chủ động phát biểu';
+    } else if (thaiDo >= 1.5) {
+      nxThaiDo = 'thái độ học tập tốt, tập trung nghe giảng';
+    } else if (thaiDo >= 0.0) {
+      nxThaiDo = 'ngoan ngoãn, hoàn thành nhiệm vụ trong lớp';
+    } else if (thaiDo >= -2.5) {
+      nxThaiDo = 'đôi lúc còn mất tập trung, nói chuyện riêng';
+    } else {
+      nxThaiDo = 'thiếu tập trung, cần giáo viên nhắc nhở nhiều';
+    }
+
+    String nxHieuBai = '';
+    if (hieuBai >= 5.0) {
+      nxHieuBai = 'tiếp thu bài rất nhanh, làm bài trôi chảy';
+    } else if (hieuBai >= 1.5) {
+      nxHieuBai = 'hiểu bài tốt, nắm vững kiến thức';
+    } else if (hieuBai >= 0.0) {
+      nxHieuBai = 'hiểu bài ở mức cơ bản';
+    } else if (hieuBai >= -2.5) {
+      nxHieuBai = 'tiếp thu bài còn hơi chậm';
+    } else {
+      nxHieuBai = 'tiếp thu bài chậm, gặp nhiều khó khăn';
+    }
+
+    String nxBaiTap = '';
+    if (baiTap >= 5.0) {
+      nxBaiTap = 'hoàn thành bài tập về nhà xuất sắc, sạch đẹp';
+    } else if (baiTap >= 1.5) {
+      nxBaiTap = 'làm bài tập đầy đủ, tự giác';
+    } else if (baiTap >= 0.0) {
+      nxBaiTap = 'có làm bài tập nhưng chưa đầy đủ';
+    } else if (baiTap >= -2.5) {
+      nxBaiTap = 'bài tập làm đối phó hoặc nộp muộn';
+    } else {
+      nxBaiTap = 'không làm bài tập về nhà';
+    }
+
+    return 'Em $nxThaiDo, $nxHieuBai và $nxBaiTap.';
   }
 
   /// Lấy toàn bộ lịch sử đánh giá của một học sinh, sắp xếp theo ngày mới nhất.
