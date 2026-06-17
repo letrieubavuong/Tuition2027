@@ -36,12 +36,11 @@ workflows:
 
       - name: Set up code signing
         script: |
-          keychain initialize
-          use-profiles
+          echo "Skipping keychain initialization for unsigned build..."
 
-      - name: Build iOS IPA
+      - name: Build iOS App
         script: |
-          flutter build ipa --release
+          flutter build ios --release --no-codesign
 
     artifacts:
-      - build/ios/ipa/*.ipa
+      - build/ios/iphoneos/Runner.app
