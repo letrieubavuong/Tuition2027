@@ -202,13 +202,14 @@ class _SplashScreenState extends State<SplashScreen>
                       ElevatedButton(
                         onPressed: () async {
                           try {
-                            final isPinEnabled =
-                                await CaiDatService().layCaiDat(
-                              'app_pin_enabled',
-                            );
-                            final savedPin = await CaiDatService().layCaiDat(
-                              'app_pin_code',
-                            );
+                            final isPinEnabled = await CaiDatService()
+                                .layCaiDat('app_pin_enabled')
+                                .timeout(const Duration(milliseconds: 800),
+                                    onTimeout: () => null);
+                            final savedPin = await CaiDatService()
+                                .layCaiDat('app_pin_code')
+                                .timeout(const Duration(milliseconds: 800),
+                                    onTimeout: () => null);
                             if (context.mounted) {
                               if (isPinEnabled == 'true' &&
                                   savedPin != null &&
