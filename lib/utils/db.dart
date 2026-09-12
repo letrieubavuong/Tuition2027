@@ -1,8 +1,9 @@
 // File: lib/utils/db.dart (Chi con khoi tao va tao bang)
 
 import 'dart:developer' as developer;
-
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi_web/sqflite_web.dart';
 import 'package:path/path.dart';
 
 class DBHelper {
@@ -41,6 +42,17 @@ class DBHelper {
   }
 
   Future<Database> _khoiTaoDB(String filePath) async {
+    if (kIsWeb) {
+      databaseFactory = databaseFactoryFfiWeb;
+      return await databaseFactory.openDatabase(
+        filePath,
+        options: OpenDatabaseOptions(
+          version: _dbVersion,
+          onCreate: _taoDB,
+          onUpgrade: _onUpgrade,
+        ),
+      );
+    }
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
     return await openDatabase(

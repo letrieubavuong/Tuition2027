@@ -201,30 +201,37 @@ class _SplashScreenState extends State<SplashScreen>
                     children: [
                       ElevatedButton(
                         onPressed: () async {
-                          final isPinEnabled = await CaiDatService().layCaiDat(
-                            'app_pin_enabled',
-                          );
-                          final savedPin = await CaiDatService().layCaiDat(
-                            'app_pin_code',
-                          );
-                          if (context.mounted) {
-                            if (isPinEnabled == 'true' &&
-                                savedPin != null &&
-                                savedPin.isNotEmpty) {
-                              Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const PinLockScreen(isConfiguring: false),
-                                ),
-                              );
-                            } else {
-                              Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      MainScreen(key: mainScreenKey),
-                                ),
-                              );
+                          try {
+                            final isPinEnabled =
+                                await CaiDatService().layCaiDat(
+                              'app_pin_enabled',
+                            );
+                            final savedPin = await CaiDatService().layCaiDat(
+                              'app_pin_code',
+                            );
+                            if (context.mounted) {
+                              if (isPinEnabled == 'true' &&
+                                  savedPin != null &&
+                                  savedPin.isNotEmpty) {
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const PinLockScreen(isConfiguring: false),
+                                  ),
+                                );
+                                return;
+                              }
                             }
+                          } catch (e) {
+                            debugPrint('SplashScreen navigate error: $e');
+                          }
+                          if (context.mounted) {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    MainScreen(key: mainScreenKey),
+                              ),
+                            );
                           }
                         },
                         style: ElevatedButton.styleFrom(

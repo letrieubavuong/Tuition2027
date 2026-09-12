@@ -13,6 +13,7 @@ import 'screens/ds_hs.dart';
 import 'screens/hocphi.dart';
 import 'screens/home_page.dart'; // Import trang Home mới
 import 'screens/splash_screen.dart'; // Import màn hình chờ
+import 'package:flutter/foundation.dart';
 import 'services/notification_service.dart'; // Import dịch vụ thông báo
 import 'services/widget_sync_service.dart';
 import 'services/bank_notification_service.dart';
@@ -109,14 +110,15 @@ void main() async {
   Future.microtask(() async {
     try {
       await FirebaseSyncService.instance.initialize();
-      await NotificationService.instance.initialize();
-      await NotificationService.instance.requestPermissions();
-      await NotificationService.instance.syncAllClassReminders();
-      await WidgetSyncService.syncTodaySchedule();
-      await WidgetSyncService.syncBankQRWidget();
-
-      BankNotificationService.instance;
-      debugPrint('✅ Firebase & BankNotificationService initialized');
+      if (!kIsWeb) {
+        await NotificationService.instance.initialize();
+        await NotificationService.instance.requestPermissions();
+        await NotificationService.instance.syncAllClassReminders();
+        await WidgetSyncService.syncTodaySchedule();
+        await WidgetSyncService.syncBankQRWidget();
+        BankNotificationService.instance;
+      }
+      debugPrint('✅ Firebase & Services initialized');
     } catch (e) {
       debugPrint('Error starting background services: $e');
     }
