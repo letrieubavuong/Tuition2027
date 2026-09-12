@@ -43,15 +43,19 @@ class DBHelper {
 
   Future<Database> _khoiTaoDB(String filePath) async {
     if (kIsWeb) {
-      databaseFactory = databaseFactoryFfiWeb;
-      return await databaseFactory.openDatabase(
-        filePath,
-        options: OpenDatabaseOptions(
-          version: _dbVersion,
-          onCreate: _taoDB,
-          onUpgrade: _onUpgrade,
-        ),
-      );
+      try {
+        databaseFactory = databaseFactoryFfiWeb;
+        return await databaseFactory.openDatabase(
+          inMemoryDatabasePath,
+          options: OpenDatabaseOptions(
+            version: _dbVersion,
+            onCreate: _taoDB,
+          ),
+        );
+      } catch (e) {
+        developer.log('Error initializing web database: $e', name: 'DBHelper');
+        rethrow;
+      }
     }
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
