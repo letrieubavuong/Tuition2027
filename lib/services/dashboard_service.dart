@@ -65,100 +65,108 @@ class DashboardService {
   }
 
   Future<DashboardData> getDashboardData() async {
-    final db = await _database;
+    try {
+      final db = await _database.timeout(const Duration(seconds: 3));
 
-    // 1. Đếm tổng số lớp
-    final soLopHocResult = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM ${DBHelper.tenBangLop}',
-    );
-    final int soLopHoc = Sqflite.firstIntValue(soLopHocResult) ?? 0;
+      // 1. Đếm tổng số lớp
+      final soLopHocResult = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM ${DBHelper.tenBangLop}',
+      );
+      final int soLopHoc = Sqflite.firstIntValue(soLopHocResult) ?? 0;
 
-    // 2. Đếm tổng số học sinh
-    final soHocSinhResult = await db.rawQuery(
-      'SELECT COUNT(*) as count FROM ${DBHelper.tenBangHS}',
-    );
-    final int soHocSinh = Sqflite.firstIntValue(soHocSinhResult) ?? 0;
+      // 2. Đếm tổng số học sinh
+      final soHocSinhResult = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM ${DBHelper.tenBangHS}',
+      );
+      final int soHocSinh = Sqflite.firstIntValue(soHocSinhResult) ?? 0;
 
-    // 3. Đếm và lấy danh sách ca học hôm nay
-    final now = DateTime.now();
-    final int thuHienTai = now.weekday; // 1=Mon, ..., 7=Sun
-    final int thuTrongTuanDB = (thuHienTai == 7) ? 1 : thuHienTai + 1;
+      // 3. Đếm và lấy danh sách ca học hôm nay
+      final now = DateTime.now();
+      final int thuHienTai = now.weekday; // 1=Mon, ..., 7=Sun
+      final int thuTrongTuanDB = (thuHienTai == 7) ? 1 : thuHienTai + 1;
 
-    final List<Map<String, dynamic>> caHocHomNayResult = await db.rawQuery(
-      '''
-      SELECT L.id as idLop, L.ten as tenLop, LH.gioBatDau, LH.gioKetThuc
-      FROM ${DBHelper.tenBangLichHoc} LH
-      JOIN ${DBHelper.tenBangLop} L ON LH.id_lop = L.id
-      WHERE LH.thuTrongTuan = ?
-      ORDER BY LH.gioBatDau ASC
-    ''',
-      [thuTrongTuanDB],
-    );
+      final List<Map<String, dynamic>> caHocHomNayResult = await db.rawQuery(
+        '''
+        SELECT L.id as idLop, L.ten as tenLop, LH.gioBatDau, LH.gioKetThuc
+        FROM ${DBHelper.tenBangLichHoc} LH
+        JOIN ${DBHelper.tenBangLop} L ON LH.id_lop = L.id
+        WHERE LH.thuTrongTuan = ?
+        ORDER BY LH.gioBatDau ASC
+      ''',
+        [thuTrongTuanDB],
+      );
 
-    final int soCaHocHomNay = caHocHomNayResult.length;
-    final List<CaHocHomNay> dsCaHocHomNay = caHocHomNayResult
-        .map((map) => CaHocHomNay.fromMap(map))
-        .toList();
+      final int soCaHocHomNay = caHocHomNayResult.length;
+      final List<CaHocHomNay> dsCaHocHomNay = caHocHomNayResult
+          .map((map) => CaHocHomNay.fromMap(map))
+          .toList();
 
-    // 4. Tính tổng số tiền còn nợ trong tháng hiện tại
-    final thangHienTai = DateFormat('yyyy-MM').format(now);
-    final tongTienNoResult = await db.rawQuery(
-      '''
-      SELECT SUM(tong_thanh_toan - so_tien_da_dong) as total_debt
-      FROM ${DBHelper.tenBangThanhToan}
-      WHERE thang = ? AND (tong_thanh_toan > so_tien_da_dong)
-    ''',
-      [thangHienTai],
-    );
+      // 4. Tính tổng số tiền còn nợ trong tháng hiện tại
+      final thangHienTai = DateFormat('yyyy-MM').format(now);
+      final tongTienNoResult = await db.rawQuery(
+        '''
+        SELECT SUM(tong_thanh_toan - so_tien_da_dong) as total_debt
+        FROM ${DBHelper.tenBangThanhToan}
+        WHERE thang = ? AND (tong_thanh_toan > so_tien_da_dong)
+      ''',
+        [thangHienTai],
+      );
 
-    int tongTienNo = 0;
-    if (tongTienNoResult.isNotEmpty &&
-        tongTienNoResult.first['total_debt'] != null) {
-      tongTienNo = (tongTienNoResult.first['total_debt'] as num).toInt();
+      int tongTienNo = 0;
+      if (tongTienNoResult.isNotEmpty &&
+          tongTienNoResult.first['total_debt'] != null) {
+        tongTienNo = (tongTienNoResult.first['total_debt'] as num).toInt();
+      }
+
+      // 4.1 Tính tổng số tiền đã thu trong tháng hiện tại
+      final tongTienThuResult = await db.rawQuery(
+        '''
+        SELECT SUM(so_tien_da_dong) as total_collected
+        FROM ${DBHelper.tenBangThanhToan}
+        WHERE thang = ?
+      ''',
+        [thangHienTai],
+      );
+
+      int tongTienThu = 0;
+      if (tongTienThuResult.isNotEmpty &&
+          tongTienThuResult.first['total_collected'] != null) {
+        tongTienThu = (tongTienThuResult.first['total_collected'] as num).toInt();
+      }
+
+      // 5. Lấy phân bố học sinh theo khối
+      final List<Map<String, dynamic>> phanBoResult = await db.rawQuery('''
+        SELECT L.khoi, COUNT(DISTINCT LHS.id_hoc_sinh) as so_luong
+        FROM ${DBHelper.tenBangLopHS} LHS
+        JOIN ${DBHelper.tenBangLop} L ON LHS.id_lop = L.id
+        GROUP BY L.khoi
+        ORDER BY L.khoi ASC
+      ''');
+
+      final List<HocSinhTheoKhoi> phanBoHocSinh = phanBoResult
+          .map(
+            (map) => HocSinhTheoKhoi(
+              khoi: (map['khoi'] is int)
+                  ? map['khoi'] as int
+                  : (int.tryParse(map['khoi']?.toString() ?? '0') ?? 0),
+              soLuong: (map['so_luong'] is num)
+                  ? (map['so_luong'] as num).toInt()
+                  : (int.tryParse(map['so_luong']?.toString() ?? '0') ?? 0),
+            ),
+          )
+          .toList();
+
+      return DashboardData(
+        soLopHoc: soLopHoc,
+        soHocSinh: soHocSinh,
+        soCaHocHomNay: soCaHocHomNay,
+        tongTienNo: tongTienNo,
+        tongTienThu: tongTienThu,
+        dsCaHocHomNay: dsCaHocHomNay,
+        phanBoHocSinh: phanBoHocSinh,
+      );
+    } catch (e) {
+      return DashboardData();
     }
-
-    // 4.1 Tính tổng số tiền đã thu trong tháng hiện tại
-    final tongTienThuResult = await db.rawQuery(
-      '''
-      SELECT SUM(so_tien_da_dong) as total_collected
-      FROM ${DBHelper.tenBangThanhToan}
-      WHERE thang = ?
-    ''',
-      [thangHienTai],
-    );
-
-    int tongTienThu = 0;
-    if (tongTienThuResult.isNotEmpty &&
-        tongTienThuResult.first['total_collected'] != null) {
-      tongTienThu = (tongTienThuResult.first['total_collected'] as num).toInt();
-    }
-
-    // 5. Lấy phân bố học sinh theo khối
-    final List<Map<String, dynamic>> phanBoResult = await db.rawQuery('''
-      SELECT L.khoi, COUNT(DISTINCT LHS.id_hoc_sinh) as so_luong
-      FROM ${DBHelper.tenBangLopHS} LHS
-      JOIN ${DBHelper.tenBangLop} L ON LHS.id_lop = L.id
-      GROUP BY L.khoi
-      ORDER BY L.khoi ASC
-    ''');
-
-    final List<HocSinhTheoKhoi> phanBoHocSinh = phanBoResult
-        .map(
-          (map) => HocSinhTheoKhoi(
-            khoi: map['khoi'] as int,
-            soLuong: map['so_luong'] as int,
-          ),
-        )
-        .toList();
-
-    return DashboardData(
-      soLopHoc: soLopHoc,
-      soHocSinh: soHocSinh,
-      soCaHocHomNay: soCaHocHomNay,
-      tongTienNo: tongTienNo,
-      tongTienThu: tongTienThu, // <-- TRẢ VỀ GIÁ TRỊ MỚI
-      dsCaHocHomNay: dsCaHocHomNay,
-      phanBoHocSinh: phanBoHocSinh,
-    );
   }
 }

@@ -9,6 +9,7 @@ import 'package:path/path.dart';
 class DBHelper {
   static final DBHelper instance = DBHelper._init();
   static Database? _database;
+  static Future<Database>? _initFuture;
 
   // current database version - tăng khi cần migration mới
   static const int _dbVersion = 27;
@@ -36,8 +37,9 @@ class DBHelper {
   DBHelper._init();
 
   Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _khoiTaoDB('quan_ly_hs.db');
+    if (_database != null && _database!.isOpen) return _database!;
+    _initFuture ??= _khoiTaoDB('quan_ly_hs.db');
+    _database = await _initFuture!;
     return _database!;
   }
 
@@ -46,15 +48,23 @@ class DBHelper {
       try {
         databaseFactory = databaseFactoryFfiWeb;
         return await databaseFactory.openDatabase(
+          'quan_ly_hs_web.db',
+          options: OpenDatabaseOptions(
+            version: _dbVersion,
+            onCreate: _taoDB,
+            onUpgrade: _onUpgrade,
+          ),
+        );
+      } catch (e) {
+        developer.log('Web IndexedDB open error: $e, fallback to in-memory DB', name: 'DBHelper');
+        databaseFactory = databaseFactoryFfiWeb;
+        return await databaseFactory.openDatabase(
           inMemoryDatabasePath,
           options: OpenDatabaseOptions(
             version: _dbVersion,
             onCreate: _taoDB,
           ),
         );
-      } catch (e) {
-        developer.log('Error initializing web database: $e', name: 'DBHelper');
-        rethrow;
       }
     }
     final dbPath = await getDatabasesPath();

@@ -149,10 +149,10 @@ class FirebaseSyncService {
 
   /// Đồng bộ dữ liệu Map nhận từ Firebase vào SQLite database cục bộ
   Future<void> _dongBoMapVaoLocal(String tableName, Map rawMap) async {
-    if (kIsWeb) return; // Trên Web sử dụng trực tiếp dữ liệu Firebase
     try {
       final db = await DBHelper.instance.database;
-      rawMap.forEach((key, val) async {
+      for (final entry in rawMap.entries) {
+        final val = entry.value;
         if (val is Map) {
           final Map<String, dynamic> row = {};
           val.forEach((k, v) {
@@ -164,7 +164,7 @@ class FirebaseSyncService {
             conflictAlgorithm: ConflictAlgorithm.replace,
           );
         }
-      });
+      }
     } catch (e) {
       developer.log(
         'Lỗi lưu local $tableName: $e',
