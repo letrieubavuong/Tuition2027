@@ -297,7 +297,32 @@ export default function HocPhiPage() {
                         )}
                       </td>
                       <td style={{ textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                        <div style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-end" }}>
+                          {studentPhone && (
+                            <button
+                              onClick={() => {
+                                const clean = studentPhone.replace(/[^0-9]/g, "");
+                                window.open(`https://zalo.me/${clean}`, "_blank");
+                              }}
+                              style={{
+                                backgroundColor: "#0068ff",
+                                color: "#ffffff",
+                                border: "none",
+                                borderRadius: "var(--radius-md)",
+                                padding: "0.4rem 0.65rem",
+                                fontSize: "0.8rem",
+                                fontWeight: "600",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.25rem",
+                              }}
+                              title="Nhắn tin Zalo phụ huynh"
+                            >
+                              Zalo
+                            </button>
+                          )}
+
                           {conNo > 0 && (
                             <button
                               onClick={() =>

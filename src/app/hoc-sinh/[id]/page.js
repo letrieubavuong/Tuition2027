@@ -2,19 +2,42 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { db, ref, onValue } from "@/lib/firebase";
+import { db, ref, onValue, set, push, remove } from "@/lib/firebase";
 import Link from "next/link";
-import { ArrowLeft, User, Phone, School, FileText, Calendar, CreditCard, Award, GraduationCap } from "lucide-react";
+import {
+  ArrowLeft,
+  User,
+  Phone,
+  School,
+  FileText,
+  Calendar,
+  CreditCard,
+  Award,
+  GraduationCap,
+  MessageCircle,
+  Plus,
+  Trash2,
+  PauseCircle,
+  PlayCircle,
+  CheckCircle2,
+  XCircle,
+  Clock
+} from "lucide-react";
 
 export default function StudentDetailContainer() {
   const params = useParams();
   const studentId = params.id;
 
   const [student, setStudent] = useState(null);
-  const [enrolledClasses, setEnrolledClasses] = useState([]);
+  const [allClasses, setAllClasses] = useState([]);
+  const [enrolledRecords, setEnrolledRecords] = useState([]);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [paymentLogs, setPaymentLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Modal State for Assigning to Class
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedClassToAssign, setSelectedClassToAssign] = useState("");
 
   useEffect(() => {
     if (!studentId) return;
@@ -27,57 +50,137 @@ export default function StudentDetailContainer() {
       setLoading(false);
     });
 
-    // 2. Fetch Enrolled Classes
-    const lhsRef = ref(db, "lop_hoc_sinh");
-    const lopRef = ref(db, "lop");
-    const unsubLhs = onValue(lhsRef, (snapshotLhs) => {
-      const lhsVal = snapshotLhs.val();
-      if (lhsVal) {
-        const lhsList = Array.isArray(lhsVal) ? lhsVal.filter(Boolean) : Object.values(lhsVal);
-        const myLhs = lhsList.filter((lhs) => String(lhs.id_hoc_sinh) === String(studentId));
-
-        onValue(lopRef, (snapshotLop) => {
-          const lopVal = snapshotLop.val();
-          if (lopVal) {
-            const lopList = Array.isArray(lopVal) ? lopVal.filter(Boolean) : Object.values(lopVal);
-            const myClasses = myLhs
-              .map((lhs) => lopList.find((l) => String(l.id) === String(lhs.id_lop)))
-              .filter(Boolean);
-            setEnrolledClasses(myClasses);
-          }
-        });
+    // 2. Fetch All Classes
+    const lopRef = ref(db, "lop_hoc");
+    const unsubLop = onValue(lopRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        let list = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+        setAllClasses(list);
       }
     });
 
-    // 3. Fetch Attendance History
+    // 3. Fetch Enrolled Class Connections (lop_hoc_sinh)
+    const lhsRef = ref(db, "lop_hoc_sinh");
+    const unsubLhs = onValue(lhsRef, (snapshotLhs) => {
+      const lhsVal = snapshotLhs.val();
+      if (lhsVal) {
+        let lhsList = [];
+        if (Array.isArray(lhsVal)) {
+          lhsList = lhsVal
+            .map((item, idx) => (item ? { ...item, _key: item.id || idx } : null))
+            .filter(Boolean);
+        } else {
+          lhsList = Object.entries(lhsVal).map(([k, v]) => ({ ...v, _key: k }));
+        }
+
+        const myRecords = lhsList.filter(
+          (lhs) => String(lhs.id_hoc_sinh || lhs.hoc_sinh_id) === String(studentId)
+        );
+        setEnrolledRecords(myRecords);
+      } else {
+        setEnrolledRecords([]);
+      }
+    });
+
+    // 4. Fetch Attendance History
     const ddRef = ref(db, "diem_danh");
     const unsubDd = onValue(ddRef, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        const list = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
-        const myLogs = list.filter((dd) => String(dd.id_hoc_sinh) === String(studentId));
+        let list = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
+        const myLogs = [];
+        list.forEach((dd) => {
+          if (dd.danh_sach && dd.danh_sach[studentId]) {
+            myLogs.push({
+              ngay: dd.ngay,
+              lop_id: dd.lop_id,
+              trang_thai: dd.danh_sach[studentId],
+            });
+          }
+        });
         setAttendanceLogs(myLogs);
       }
     });
 
-    // 4. Fetch Payment History
+    // 5. Fetch Payment History
     const ttRef = ref(db, "thanh_toan");
     const unsubTt = onValue(ttRef, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        const list = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
-        const myLogs = list.filter((tt) => String(tt.id_hoc_sinh) === String(studentId));
+        let list = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
+        const myLogs = list.filter(
+          (tt) => String(tt.id_hoc_sinh || tt.hoc_sinh_id) === String(studentId)
+        );
         setPaymentLogs(myLogs);
       }
     });
 
     return () => {
       unsubHs();
+      unsubLop();
       unsubLhs();
       unsubDd();
       unsubTt();
     };
   }, [studentId]);
+
+  // Clean phone number for Zalo
+  const phone = student?.sdt_phu_huynh || student?.sdt || "";
+  const cleanPhone = phone.replace(/[^0-9]/g, "");
+
+  const handleOpenZalo = () => {
+    if (!cleanPhone) {
+      alert("Học sinh này chưa có số điện thoại phụ huynh!");
+      return;
+    }
+    window.open(`https://zalo.me/${cleanPhone}`, "_blank");
+  };
+
+  // Assign Student to a new Class
+  const handleAssignToClass = async (e) => {
+    e.preventDefault();
+    if (!selectedClassToAssign) return;
+
+    try {
+      const newId = Date.now();
+      const itemRef = ref(db, `lop_hoc_sinh/${newId}`);
+      await set(itemRef, {
+        id: newId,
+        id_hoc_sinh: Number(studentId) || studentId,
+        id_lop: Number(selectedClassToAssign) || selectedClassToAssign,
+        ngay_tham_gia: new Date().toISOString().split("T")[0],
+        trang_thai: "DANG_HOC",
+      });
+      setShowAssignModal(false);
+      setSelectedClassToAssign("");
+    } catch (err) {
+      alert("Lỗi khi xếp lớp cho học sinh: " + err.message);
+    }
+  };
+
+  // Change Student Class Status (DANG_HOC, TAM_NGHI, DA_NGHI)
+  const handleChangeClassStatus = async (recordKey, newStatus) => {
+    try {
+      const itemRef = ref(db, `lop_hoc_sinh/${recordKey}/trang_thai`);
+      await set(itemRef, newStatus);
+    } catch (err) {
+      alert("Lỗi cập nhật trạng thái lớp: " + err.message);
+    }
+  };
+
+  // Remove from Class
+  const handleRemoveFromClass = async (recordKey) => {
+    if (confirm("Bạn có chắc chắn muốn xóa học sinh khỏi lớp này?")) {
+      try {
+        await remove(ref(db, `lop_hoc_sinh/${recordKey}`));
+      } catch (err) {
+        alert("Lỗi xóa khỏi lớp: " + err.message);
+      }
+    }
+  };
 
   const formatCurrency = (num) => {
     return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(num || 0);
@@ -106,41 +209,86 @@ export default function StudentDetailContainer() {
         <ArrowLeft size={16} /> Quay lại danh sách học sinh
       </Link>
 
-      {/* Student Profile Card */}
+      {/* Student Profile Card Header */}
       <div className="glass-panel" style={{ padding: "1.75rem", marginBottom: "1.5rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "1.25rem", flexWrap: "wrap" }}>
-          <div
-            style={{
-              width: "64px",
-              height: "64px",
-              borderRadius: "50%",
-              background: "var(--accent-gradient)",
-              color: "#ffffff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "1.75rem",
-              fontWeight: "800",
-              boxShadow: "0 6px 20px var(--accent-glow)",
-            }}
-          >
-            {student.ten ? student.ten.charAt(0).toUpperCase() : "H"}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1.25rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "1.25rem", flexWrap: "wrap" }}>
+            <div
+              style={{
+                width: "64px",
+                height: "64px",
+                borderRadius: "50%",
+                background: "var(--accent-gradient)",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.75rem",
+                fontWeight: "800",
+                boxShadow: "0 6px 20px var(--accent-glow)",
+              }}
+            >
+              {student.ten ? student.ten.charAt(0).toUpperCase() : "H"}
+            </div>
+
+            <div>
+              <h2 style={{ fontSize: "1.6rem", fontWeight: "800" }}>{student.ten}</h2>
+              <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", marginTop: "0.4rem", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+                {phone && (
+                  <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                    <Phone size={15} color="var(--accent-primary)" /> SĐT: {phone}
+                  </span>
+                )}
+                {student.truong && (
+                  <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                    <School size={15} color="var(--info)" /> Trường: {student.truong}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: "1.6rem", fontWeight: "800" }}>{student.ten}</h2>
-            <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap", marginTop: "0.4rem", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-              {(student.sdt_phu_huynh || student.sdt) && (
-                <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                  <Phone size={15} color="var(--accent-primary)" /> Phụ huynh: {student.sdt_phu_huynh || student.sdt}
-                </span>
-              )}
-              {student.truong && (
-                <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                  <School size={15} color="var(--info)" /> Trường: {student.truong}
-                </span>
-              )}
-            </div>
+          {/* Quick Action Buttons: Zalo, Call, Assign Class */}
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            {cleanPhone && (
+              <button
+                onClick={handleOpenZalo}
+                style={{
+                  backgroundColor: "#0068ff",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "0.6rem 1rem",
+                  borderRadius: "var(--radius-md)",
+                  fontWeight: "600",
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  boxShadow: "0 4px 12px rgba(0, 104, 255, 0.3)",
+                }}
+              >
+                <MessageCircle size={16} /> Nhắn Zalo Phụ Huynh
+              </button>
+            )}
+
+            {phone && (
+              <a
+                href={`tel:${phone}`}
+                className="btn-secondary"
+                style={{ display: "flex", alignItems: "center", gap: "0.4rem", textDecoration: "none" }}
+              >
+                <Phone size={15} /> Gọi Điện
+              </a>
+            )}
+
+            <button
+              onClick={() => setShowAssignModal(true)}
+              className="btn-primary"
+              style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              <Plus size={16} /> Xếp Vào Lớp Học
+            </button>
           </div>
         </div>
 
@@ -151,29 +299,105 @@ export default function StudentDetailContainer() {
         )}
       </div>
 
-      {/* Enrolled Classes Section */}
+      {/* Enrolled Classes & Status Section */}
       <div className="glass-panel" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
-        <h3 style={{ fontSize: "1.1rem", fontWeight: "700", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <GraduationCap size={18} color="var(--accent-primary)" /> Lớp Học Đang Theo Học ({enrolledClasses.length})
-        </h3>
-        {enrolledClasses.length === 0 ? (
-          <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Học sinh chưa xếp vào lớp học nào.</p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <h3 style={{ fontSize: "1.1rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <GraduationCap size={18} color="var(--accent-primary)" /> Danh Sách Lớp Theo Học ({enrolledRecords.length})
+          </h3>
+        </div>
+
+        {enrolledRecords.length === 0 ? (
+          <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Học sinh chưa xếp vào lớp học nào. Nhấp "Xếp Vào Lớp Học" ở trên để gán lớp.</p>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "1rem" }}>
-            {enrolledClasses.map((c) => (
-              <div key={c.id} style={{ padding: "1rem", borderRadius: "var(--radius-md)", backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}>
-                <span className="badge badge-info" style={{ marginBottom: "0.35rem" }}>Khối {c.khoi}</span>
-                <h4 style={{ fontWeight: "700", fontSize: "1.05rem" }}>{c.ten}</h4>
-                <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-                  Học phí: {formatCurrency(c.hoc_phi_buoi)} / buổi
-                </p>
-              </div>
-            ))}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "1rem" }}>
+            {enrolledRecords.map((rec) => {
+              const lopId = rec.id_lop || rec.lop_id;
+              const lopInfo = allClasses.find(
+                (c) => String(c._key) === String(lopId) || String(c.id) === String(lopId)
+              );
+              const status = rec.trang_thai || "DANG_HOC";
+
+              return (
+                <div
+                  key={rec._key}
+                  style={{
+                    padding: "1rem",
+                    borderRadius: "var(--radius-md)",
+                    backgroundColor: "var(--bg-secondary)",
+                    border: "1px solid var(--border-color)",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    gap: "0.75rem",
+                  }}
+                >
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                      <span className="badge badge-info">
+                        Khối {lopInfo?.khoi || "Chung"}
+                      </span>
+                      {status === "DANG_HOC" ? (
+                        <span className="badge badge-success" style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                          <CheckCircle2 size={12} /> Đang học
+                        </span>
+                      ) : status === "TAM_NGHI" ? (
+                        <span className="badge badge-warning" style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                          <PauseCircle size={12} /> Tạm nghỉ
+                        </span>
+                      ) : (
+                        <span className="badge" style={{ backgroundColor: "rgba(239, 68, 68, 0.2)", color: "var(--danger)" }}>
+                          Đã nghỉ hẳn
+                        </span>
+                      )}
+                    </div>
+
+                    <h4 style={{ fontWeight: "700", fontSize: "1.05rem" }}>
+                      {lopInfo ? (lopInfo.ten_lop || lopInfo.ten) : "Lớp #" + lopId}
+                    </h4>
+                    <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
+                      Học phí: {formatCurrency(lopInfo?.hoc_phi_buoi || lopInfo?.hoc_phi)} / buổi
+                    </p>
+                  </div>
+
+                  {/* Status Change Buttons */}
+                  <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", paddingTop: "0.5rem", borderTop: "1px dashed var(--border-color)" }}>
+                    {status !== "TAM_NGHI" && (
+                      <button
+                        onClick={() => handleChangeClassStatus(rec._key, "TAM_NGHI")}
+                        className="btn-secondary"
+                        style={{ padding: "0.3rem 0.6rem", fontSize: "0.75rem", color: "var(--warning)" }}
+                      >
+                        <PauseCircle size={13} /> Cho Tạm Nghỉ
+                      </button>
+                    )}
+
+                    {status !== "DANG_HOC" && (
+                      <button
+                        onClick={() => handleChangeClassStatus(rec._key, "DANG_HOC")}
+                        className="btn-secondary"
+                        style={{ padding: "0.3rem 0.6rem", fontSize: "0.75rem", color: "var(--success)" }}
+                      >
+                        <PlayCircle size={13} /> Học Lại
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => handleRemoveFromClass(rec._key)}
+                      className="btn-secondary"
+                      style={{ padding: "0.3rem 0.6rem", fontSize: "0.75rem", color: "var(--danger)", marginLeft: "auto" }}
+                    >
+                      <Trash2 size={13} /> Xóa Lớp
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Payment & Attendance History Grid */}
+      {/* Payment & Attendance Logs Grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1.5rem" }}>
         {/* Payment History */}
         <div className="glass-panel" style={{ padding: "1.5rem" }}>
@@ -187,14 +411,10 @@ export default function StudentDetailContainer() {
               {paymentLogs.map((p, idx) => (
                 <div key={idx} style={{ padding: "0.75rem 1rem", borderRadius: "var(--radius-md)", backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
-                    <div style={{ fontWeight: "700" }}>Tháng {p.thang}</div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Đã đóng: {formatCurrency(p.so_tien_da_dong)}</div>
+                    <div style={{ fontWeight: "700" }}>Tháng {p.thang || p.thang_nam}</div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Đã đóng: {formatCurrency(p.so_tien || p.so_tien_da_dong)}</div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: "700", color: p.so_tien_da_dong >= p.tong_thanh_toan ? "var(--success)" : "var(--danger)" }}>
-                      {p.so_tien_da_dong >= p.tong_thanh_toan ? "Đã xong" : `Nợ ${formatCurrency(p.tong_thanh_toan - p.so_tien_da_dong)}`}
-                    </div>
-                  </div>
+                  <span className="badge badge-success">Đã thanh toán</span>
                 </div>
               ))}
             </div>
@@ -213,11 +433,11 @@ export default function StudentDetailContainer() {
               {attendanceLogs.map((dd, idx) => (
                 <div key={idx} style={{ padding: "0.75rem 1rem", borderRadius: "var(--radius-md)", backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
-                    <div style={{ fontWeight: "600", fontSize: "0.9rem" }}>{dd.gio_diem_danh || "Buổi học"}</div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{dd.ghi_chu || "Đã điểm danh"}</div>
+                    <div style={{ fontWeight: "600", fontSize: "0.9rem" }}>{dd.ngay}</div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Buổi học lớp #{dd.lop_id}</div>
                   </div>
-                  <span className={dd.co_mat !== false ? "badge badge-success" : "badge badge-warning"}>
-                    {dd.co_mat !== false ? "Có mặt" : "Vắng"}
+                  <span className={dd.trang_thai === "CoMat" ? "badge badge-success" : dd.trang_thai === "Muon" ? "badge badge-warning" : "badge badge-danger"}>
+                    {dd.trang_thai === "CoMat" ? "Có mặt" : dd.trang_thai === "Muon" ? "Đi muộn" : "Vắng"}
                   </span>
                 </div>
               ))}
@@ -225,6 +445,60 @@ export default function StudentDetailContainer() {
           )}
         </div>
       </div>
+
+      {/* Modal Dialog Assign Student to Class */}
+      {showAssignModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: "1rem",
+          }}
+        >
+          <div className="glass-panel" style={{ width: "100%", maxWidth: "450px", padding: "1.75rem", backgroundColor: "var(--bg-secondary)" }}>
+            <h3 style={{ fontSize: "1.25rem", fontWeight: "700", marginBottom: "1.25rem" }}>
+              Xếp Học Sinh Vào Lớp Học
+            </h3>
+
+            <form onSubmit={handleAssignToClass} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
+                  Chọn Lớp Học *
+                </label>
+                <select
+                  required
+                  value={selectedClassToAssign}
+                  onChange={(e) => setSelectedClassToAssign(e.target.value)}
+                  className="input-control"
+                  style={{ width: "100%" }}
+                >
+                  <option value="">-- Chọn Lớp --</option>
+                  {allClasses.map((c) => (
+                    <option key={c._key} value={c._key}>
+                      {c.ten_lop || c.ten} {c.mon ? `(${c.mon})` : ""} - Khối {c.khoi || "--"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1rem" }}>
+                <button type="button" onClick={() => setShowAssignModal(false)} className="btn-secondary">
+                  Hủy
+                </button>
+                <button type="submit" className="btn-primary">
+                  Xác Nhận Xếp Lớp
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

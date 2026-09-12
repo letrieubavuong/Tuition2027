@@ -305,35 +305,101 @@ export default function LopDetailContainer() {
                   <thead>
                     <tr>
                       <th>Tên Học Sinh</th>
-                      <th>SĐT Phụ Huynh</th>
+                      <th>Trạng Thái</th>
+                      <th>SĐT Phụ Huynh / Zalo</th>
                       <th>Trường Học</th>
                       <th style={{ textAlign: "right" }}>Thao Tác</th>
                     </tr>
                   </thead>
                   <tbody>
                     {classStudents.map((lhs) => {
-                      const student = allStudents.find((s) => String(s.id) === String(lhs.id_hoc_sinh)) || {};
+                      const student = allStudents.find((s) => String(s.id) === String(lhs.id_hoc_sinh) || String(s._key) === String(lhs.id_hoc_sinh)) || {};
+                      const phone = student.sdt_phu_huynh || student.sdt || "";
+                      const cleanPhone = phone.replace(/[^0-9]/g, "");
+                      const status = lhs.trang_thai || "DANG_HOC";
+
                       return (
-                        <tr key={lhs.id_hoc_sinh}>
-                          <td style={{ fontWeight: "700" }}>{student.ten || `Học sinh #${lhs.id_hoc_sinh}`}</td>
+                        <tr key={lhs.id_hoc_sinh || lhs._key}>
+                          <td style={{ fontWeight: "700" }}>
+                            <Link href={`/hoc-sinh/${student.id || student._key || lhs.id_hoc_sinh}`} style={{ color: "var(--text-primary)", textDecoration: "none" }}>
+                              {student.ten || `Học sinh #${lhs.id_hoc_sinh}`}
+                            </Link>
+                          </td>
                           <td>
-                            {student.sdt_phu_huynh || student.sdt ? (
-                              <a href={`tel:${student.sdt_phu_huynh || student.sdt}`} style={{ color: "var(--accent-primary)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                                <Phone size={14} /> {student.sdt_phu_huynh || student.sdt}
-                              </a>
+                            {status === "DANG_HOC" ? (
+                              <span className="badge badge-success">Đang học</span>
+                            ) : status === "TAM_NGHI" ? (
+                              <span className="badge badge-warning">Tạm nghỉ</span>
+                            ) : (
+                              <span className="badge" style={{ backgroundColor: "rgba(239,68,68,0.2)", color: "var(--danger)" }}>
+                                Đã nghỉ
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {phone ? (
+                              <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                                <a href={`tel:${phone}`} style={{ color: "var(--accent-primary)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                                  <Phone size={14} /> {phone}
+                                </a>
+                                {cleanPhone && (
+                                  <button
+                                    type="button"
+                                    onClick={() => window.open(`https://zalo.me/${cleanPhone}`, "_blank")}
+                                    style={{
+                                      backgroundColor: "#0068ff",
+                                      color: "#fff",
+                                      border: "none",
+                                      borderRadius: "4px",
+                                      padding: "0.2rem 0.4rem",
+                                      fontSize: "0.75rem",
+                                      fontWeight: "600",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    Zalo
+                                  </button>
+                                )}
+                              </div>
                             ) : (
                               "--"
                             )}
                           </td>
                           <td>{student.truong || "--"}</td>
                           <td style={{ textAlign: "right" }}>
+                            {status !== "TAM_NGHI" ? (
+                              <button
+                                onClick={async () => {
+                                  const key = lhs._key || `${lhs.id_hoc_sinh}_${classId}`;
+                                  await set(ref(db, `lop_hoc_sinh/${key}/trang_thai`), "TAM_NGHI");
+                                }}
+                                className="btn-secondary"
+                                style={{ padding: "0.35rem 0.65rem", marginRight: "0.4rem", color: "var(--warning)" }}
+                                title="Cho học sinh tạm nghỉ"
+                              >
+                                Tạm nghỉ
+                              </button>
+                            ) : (
+                              <button
+                                onClick={async () => {
+                                  const key = lhs._key || `${lhs.id_hoc_sinh}_${classId}`;
+                                  await set(ref(db, `lop_hoc_sinh/${key}/trang_thai`), "DANG_HOC");
+                                }}
+                                className="btn-secondary"
+                                style={{ padding: "0.35rem 0.65rem", marginRight: "0.4rem", color: "var(--success)" }}
+                                title="Học sinh đi học lại"
+                              >
+                                Học lại
+                              </button>
+                            )}
+
                             <button
                               onClick={() => handleRemoveStudentFromClass(lhs.id_hoc_sinh)}
                               className="btn-secondary"
                               style={{ padding: "0.35rem 0.65rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.3)" }}
                               title="Loại khỏi lớp"
                             >
-                              <Trash2 size={14} /> Xóa khỏi lớp
+                              <Trash2 size={14} />
                             </button>
                           </td>
                         </tr>

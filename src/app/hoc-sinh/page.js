@@ -220,12 +220,34 @@ export default function HocSinhPage() {
                     </td>
                     <td>
                       {hs.sdt_phu_huynh || hs.sdt ? (
-                        <a
-                          href={`tel:${hs.sdt_phu_huynh || hs.sdt}`}
-                          style={{ color: "var(--accent-primary)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
-                        >
-                          <Phone size={14} /> {hs.sdt_phu_huynh || hs.sdt}
-                        </a>
+                        <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                          <a
+                            href={`tel:${hs.sdt_phu_huynh || hs.sdt}`}
+                            style={{ color: "var(--accent-primary)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}
+                          >
+                            <Phone size={14} /> {hs.sdt_phu_huynh || hs.sdt}
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const clean = (hs.sdt_phu_huynh || hs.sdt || "").replace(/[^0-9]/g, "");
+                              if (clean) window.open(`https://zalo.me/${clean}`, "_blank");
+                            }}
+                            style={{
+                              backgroundColor: "#0068ff",
+                              color: "#ffffff",
+                              border: "none",
+                              borderRadius: "4px",
+                              padding: "0.25rem 0.45rem",
+                              fontSize: "0.75rem",
+                              fontWeight: "600",
+                              cursor: "pointer",
+                            }}
+                            title="Mở Zalo"
+                          >
+                            Zalo
+                          </button>
+                        </div>
                       ) : (
                         <span style={{ color: "var(--text-muted)" }}>--</span>
                       )}
