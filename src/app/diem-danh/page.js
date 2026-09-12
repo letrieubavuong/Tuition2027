@@ -11,25 +11,31 @@ import {
   Save,
   Users,
   Award,
-  BookOpen,
-  Check
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarIcon,
+  Sparkles,
+  BookOpen
 } from "lucide-react";
 
 export default function DiemDanhPage() {
   const [classes, setClasses] = useState([]);
   const [students, setStudents] = useState([]);
   const [classStudents, setClassStudents] = useState([]);
+  const [schedules, setSchedules] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState("");
-  const [attendanceDate, setAttendanceDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+
+  // Date State - Default to Today YYYY-MM-DD
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [attendanceDate, setAttendanceDate] = useState(todayStr);
+
   const [attendanceMap, setAttendanceMap] = useState({});
   const [ratingsMap, setRatingsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
 
-  // Load Classes and Students
+  // Load Classes, Students, Schedules from Firebase Realtime DB
   useEffect(() => {
     const classRef = ref(db, "lop_hoc");
     const unsubClasses = onValue(classRef, (snapshot) => {
@@ -67,13 +73,17 @@ export default function DiemDanhPage() {
     const unsubLopHs = onValue(lopHsRef, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        let list = [];
-        if (Array.isArray(val)) {
-          list = val.filter(Boolean);
-        } else {
-          list = Object.values(val);
-        }
+        let list = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
         setClassStudents(list);
+      }
+    });
+
+    const schedRef = ref(db, "lich_hoc_chung");
+    const unsubSched = onValue(schedRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        let list = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
+        setSchedules(list);
       }
     });
 
@@ -81,8 +91,38 @@ export default function DiemDanhPage() {
       unsubClasses();
       unsubHs();
       unsubLopHs();
+      unsubSched();
     };
   }, []);
+
+  // Helper Date Functions for PickDate Controls
+  const adjustDate = (daysOffset) => {
+    const curDate = new Date(attendanceDate);
+    curDate.setDate(curDate.getDate() + daysOffset);
+    setAttendanceDate(curDate.toISOString().split("T")[0]);
+  };
+
+  const getDayOfWeekName = (dateString) => {
+    const d = new Date(dateString);
+    const dayIndex = d.getDay(); // 0 is Sunday, 1 is Monday...
+    const days = [
+      "Chủ Nhật",
+      "Thứ Hai",
+      "Thứ Ba",
+      "Thứ Tư",
+      "Thứ Năm",
+      "Thứ Sáu",
+      "Thứ Bảy",
+    ];
+    return days[dayIndex];
+  };
+
+  const getDayOfWeekKey = (dateString) => {
+    const d = new Date(dateString);
+    const dayIndex = d.getDay();
+    const mapKeys = ["CN", "Thu2", "Thu3", "Thu4", "Thu5", "Thu6", "Thu7"];
+    return mapKeys[dayIndex];
+  };
 
   // Filter students by selected class
   const targetStudentIds = classStudents
@@ -104,7 +144,6 @@ export default function DiemDanhPage() {
       if (val && val.danh_sach) {
         setAttendanceMap(val.danh_sach);
       } else {
-        // Default all to CoMat
         const initMap = {};
         filteredStudents.forEach((s) => {
           const sid = s.id || s._key;
@@ -142,7 +181,6 @@ export default function DiemDanhPage() {
     try {
       const recordKey = `dd_${selectedClassId}_${attendanceDate.replace(/-/g, "")}`;
       
-      // Save Attendance
       await set(ref(db, `diem_danh/${recordKey}`), {
         lop_id: selectedClassId,
         ngay: attendanceDate,
@@ -150,7 +188,6 @@ export default function DiemDanhPage() {
         updated_at: new Date().toISOString(),
       });
 
-      // Save Detailed Ratings if filled
       if (Object.keys(ratingsMap).length > 0) {
         await set(ref(db, `danh_gia_buoi_hoc/${recordKey}`), {
           lop_id: selectedClassId,
@@ -160,7 +197,7 @@ export default function DiemDanhPage() {
         });
       }
 
-      setSuccessMsg("Đã lưu điểm danh & đánh giá thành công vào Cloud Firebase!");
+      setSuccessMsg(`Đã lưu điểm danh lớp cho ngày ${attendanceDate} thành công!`);
       setTimeout(() => setSuccessMsg(""), 4000);
     } catch (err) {
       alert("Lỗi khi lưu điểm danh: " + err.message);
@@ -170,6 +207,7 @@ export default function DiemDanhPage() {
   };
 
   const currentClass = classes.find((c) => String(c._key) === String(selectedClassId));
+  const currentDayKey = getDayOfWeekKey(attendanceDate);
 
   const stats = {
     total: filteredStudents.length,
@@ -181,7 +219,7 @@ export default function DiemDanhPage() {
 
   return (
     <div>
-      {/* Header */}
+      {/* Page Header */}
       <div
         style={{
           display: "flex",
@@ -189,20 +227,20 @@ export default function DiemDanhPage() {
           alignItems: "center",
           flexWrap: "wrap",
           gap: "1rem",
-          marginBottom: "1.75rem",
+          marginBottom: "1.5rem",
         }}
       >
         <div>
           <h2 style={{ fontSize: "1.75rem", fontWeight: "700" }}>Điểm Danh Buổi Học</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-            Ghi nhận chuyên cần, thái độ học tập và điểm thưởng theo buổi
+            Công cụ PickDate thông minh & Chọn ca học theo thời khóa biểu
           </p>
         </div>
         <button
           onClick={handleSaveAttendance}
           disabled={saving || filteredStudents.length === 0}
           className="btn-primary"
-          style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+          style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1.25rem" }}
         >
           <Save size={18} />
           {saving ? "Đang Lưu Cloud..." : "Lưu Điểm Danh"}
@@ -228,38 +266,180 @@ export default function DiemDanhPage() {
         </div>
       )}
 
-      {/* Control Panel: Select Class & Date */}
+      {/* 1. PICKDATE CONTROL BAR */}
       <div className="glass-panel" style={{ padding: "1.25rem", marginBottom: "1.5rem" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.25rem" }}>
-          <div>
-            <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
-              Chọn Lớp Học
-            </label>
-            <select
-              value={selectedClassId}
-              onChange={(e) => setSelectedClassId(e.target.value)}
-              className="input-control"
-              style={{ width: "100%" }}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "1rem",
+            }}
+          >
+            {/* PickDate Widget with Arrows & Presets */}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  backgroundColor: "var(--bg-secondary)",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-color)",
+                  padding: "0.25rem",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => adjustDate(-1)}
+                  className="btn-secondary"
+                  style={{ border: "none", padding: "0.5rem", borderRadius: "6px" }}
+                  title="Ngày trước"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+
+                <div style={{ padding: "0 0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <CalendarIcon size={18} color="var(--accent-primary)" />
+                  <input
+                    type="date"
+                    value={attendanceDate}
+                    onChange={(e) => setAttendanceDate(e.target.value)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--text-primary)",
+                      fontWeight: "700",
+                      fontSize: "1rem",
+                      cursor: "pointer",
+                      outline: "none",
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => adjustDate(1)}
+                  className="btn-secondary"
+                  style={{ border: "none", padding: "0.5rem", borderRadius: "6px" }}
+                  title="Ngày sau"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+
+              {/* Preset Buttons */}
+              <button
+                type="button"
+                onClick={() => setAttendanceDate(todayStr)}
+                style={{
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-color)",
+                  backgroundColor: attendanceDate === todayStr ? "var(--accent-primary)" : "var(--bg-secondary)",
+                  color: attendanceDate === todayStr ? "#ffffff" : "var(--text-secondary)",
+                  fontSize: "0.85rem",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "var(--transition)",
+                }}
+              >
+                Hôm nay
+              </button>
+
+              <button
+                type="button"
+                onClick={() => adjustDate(-1)}
+                style={{
+                  padding: "0.55rem 0.9rem",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-color)",
+                  backgroundColor: "var(--bg-secondary)",
+                  color: "var(--text-secondary)",
+                  fontSize: "0.85rem",
+                  fontWeight: "500",
+                  cursor: "pointer",
+                }}
+              >
+                Hôm qua
+              </button>
+            </div>
+
+            {/* Date Display Badge */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                fontSize: "0.95rem",
+                fontWeight: "700",
+                color: "var(--accent-primary)",
+                backgroundColor: "rgba(13, 148, 136, 0.12)",
+                padding: "0.5rem 1rem",
+                borderRadius: "var(--radius-md)",
+              }}
             >
-              {classes.map((c) => (
-                <option key={c._key} value={c._key}>
-                  {c.ten_lop || c.ten} {c.mon ? `(${c.mon})` : ""} - Sỉ số: {c.si_so || 0}
-                </option>
-              ))}
-            </select>
+              <Sparkles size={16} />
+              <span>{getDayOfWeekName(attendanceDate)} ({attendanceDate.split("-").reverse().join("/")})</span>
+            </div>
           </div>
 
-          <div>
-            <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
-              Chọn Ngày Điểm Danh
-            </label>
-            <input
-              type="date"
-              value={attendanceDate}
-              onChange={(e) => setAttendanceDate(e.target.value)}
-              className="input-control"
-              style={{ width: "100%" }}
-            />
+          {/* 2. SMART CLASS SELECTOR CHIPS */}
+          <div style={{ paddingTop: "0.75rem", borderTop: "1px dashed var(--border-color)" }}>
+            <p style={{ fontSize: "0.8rem", fontWeight: "600", color: "var(--text-muted)", marginBottom: "0.6rem" }}>
+              CHỌN LỚP ĐIỂM DANH:
+            </p>
+            <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+              {classes.map((c) => {
+                const cid = c._key;
+                const isSelected = String(cid) === String(selectedClassId);
+                // Check if class has schedule on this day
+                const hasScheduleToday = schedules.some(
+                  (sc) => String(sc.lop_id) === String(cid) && sc.thu === currentDayKey
+                );
+
+                return (
+                  <button
+                    key={cid}
+                    type="button"
+                    onClick={() => setSelectedClassId(cid)}
+                    style={{
+                      padding: "0.6rem 1rem",
+                      borderRadius: "var(--radius-md)",
+                      border: isSelected ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
+                      backgroundColor: isSelected ? "var(--accent-primary)" : "var(--bg-secondary)",
+                      color: isSelected ? "#ffffff" : "var(--text-primary)",
+                      fontWeight: isSelected ? "700" : "500",
+                      fontSize: "0.88rem",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      boxShadow: isSelected ? "0 4px 12px var(--accent-glow)" : "none",
+                      transition: "all 0.2s ease",
+                      position: "relative",
+                    }}
+                  >
+                    <span>{c.ten_lop || c.ten} {c.mon ? `(${c.mon})` : ""}</span>
+                    {hasScheduleToday && (
+                      <span
+                        style={{
+                          fontSize: "0.68rem",
+                          backgroundColor: isSelected ? "rgba(255,255,255,0.25)" : "var(--success)",
+                          color: "#ffffff",
+                          padding: "0.15rem 0.4rem",
+                          borderRadius: "10px",
+                          fontWeight: "700",
+                        }}
+                      >
+                        Lịch hôm nay
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -295,11 +475,11 @@ export default function DiemDanhPage() {
         </div>
       </div>
 
-      {/* Roster & Attendance Marking */}
+      {/* Student Attendance marking list */}
       <div className="glass-panel" style={{ padding: "1.5rem" }}>
         <h3 style={{ fontSize: "1.1rem", fontWeight: "700", marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <Users size={20} color="var(--accent-primary)" />
-          Danh Sách Điểm Danh & Nhận Xét ({currentClass?.ten_lop || "Lớp"})
+          Danh Sách Điểm Danh & Nhận Xét ({currentClass?.ten_lop || currentClass?.ten || "Lớp"})
         </h3>
 
         {loading ? (
