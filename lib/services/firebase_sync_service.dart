@@ -50,6 +50,11 @@ class FirebaseSyncService {
 
       // Bắt đầu lắng nghe thay đổi dữ liệu từ Cloud về máy
       _batDauLangNgheCloudSync();
+
+      // Đẩy toàn bộ dữ liệu SQLite cũ từ điện thoại lên Cloud (tránh mất dữ liệu)
+      if (!kIsWeb) {
+        unawaited(pushAllLocalDataToCloud());
+      }
     } catch (e) {
       developer.log(
         'Lỗi khởi tạo Firebase: $e',
@@ -164,6 +169,46 @@ class FirebaseSyncService {
       developer.log(
         'Lỗi lưu local $tableName: $e',
         name: 'FirebaseSyncService',
+      );
+    }
+  }
+
+  /// Đẩy toàn bộ dữ liệu SQLite hiện có từ điện thoại lên Firebase Realtime Database
+  Future<void> pushAllLocalDataToCloud() async {
+    if (kIsWeb) return;
+    if (!_isInitialized) await initialize();
+
+    final tables = [
+      DBHelper.tenBangHS,
+      DBHelper.tenBangLop,
+      DBHelper.tenBangLopHS,
+      DBHelper.tenBangDiemDanh,
+      DBHelper.tenBangThanhToan,
+      DBHelper.tenBangNhanXetThang,
+      DBHelper.tenBangCaiDat,
+    ];
+
+    try {
+      final db = await DBHelper.instance.database;
+      for (final table in tables) {
+        final rows = await db.query(table);
+        for (final row in rows) {
+          final idKey =
+              row['id'] ?? row['key'] ?? row['id_hoc_sinh'] ?? row['id_lop'];
+          if (idKey != null) {
+            await pushRecordToCloud(table, idKey.toString(), row);
+          }
+        }
+      }
+      developer.log(
+        'Successfully pushed all local SQLite data to Firebase Realtime Database!',
+        name: 'FirebaseSyncService',
+      );
+    } catch (e) {
+      developer.log(
+        'Lỗi push dữ liệu local lên Firebase: $e',
+        name: 'FirebaseSyncService',
+        error: e,
       );
     }
   }
