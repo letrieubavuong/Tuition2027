@@ -30,9 +30,10 @@ class FirebaseSyncService {
         );
       }
 
+      final cleanUrl = DefaultFirebaseOptions.databaseURL.replaceAll(RegExp(r'/$'), '');
       _db = FirebaseDatabase.instanceFor(
         app: Firebase.app(),
-        databaseURL: DefaultFirebaseOptions.databaseURL,
+        databaseURL: cleanUrl,
       );
 
       // Kích hoạt tính năng Persistence cho bản native (Android/iOS)
@@ -44,9 +45,20 @@ class FirebaseSyncService {
 
       _isInitialized = true;
       developer.log(
-        'Firebase Realtime Database initialized successfully: ${DefaultFirebaseOptions.databaseURL}',
+        'Firebase Realtime Database initialized successfully: $cleanUrl',
         name: 'FirebaseSyncService',
       );
+
+      // Đẩy bản tin hệ thống để khôi phục nút gốc Firebase không bị null
+      try {
+        await _db.ref().child('system_info').set({
+          'app_name': 'Tuition2026',
+          'last_sync': DateTime.now().toIso8601String(),
+          'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
+        });
+      } catch (e) {
+        developer.log('System info ping error: $e');
+      }
 
       // Bắt đầu lắng nghe thay đổi dữ liệu từ Cloud về máy
       _batDauLangNgheCloudSync();
@@ -174,8 +186,8 @@ class FirebaseSyncService {
   }
 
   /// Đẩy toàn bộ dữ liệu SQLite hiện có từ điện thoại lên Firebase Realtime Database
-  Future<void> pushAllLocalDataToCloud() async {
-    if (kIsWeb) return;
+  Future<int> pushAllLocalDataToCloud() async {
+    if (kIsWeb) return 0;
     if (!_isInitialized) await initialize();
 
     final tables = [
@@ -188,6 +200,7 @@ class FirebaseSyncService {
       DBHelper.tenBangCaiDat,
     ];
 
+    int totalPushed = 0;
     try {
       final db = await DBHelper.instance.database;
       for (final table in tables) {
@@ -205,11 +218,12 @@ class FirebaseSyncService {
             recordId = 'item_$idx';
           }
           await pushRecordToCloud(table, recordId, row);
+          totalPushed++;
           idx++;
         }
       }
       developer.log(
-        'Successfully pushed all local SQLite data to Firebase Realtime Database!',
+        'Successfully pushed $totalPushed records to Firebase Realtime Database!',
         name: 'FirebaseSyncService',
       );
     } catch (e) {
@@ -219,6 +233,7 @@ class FirebaseSyncService {
         error: e,
       );
     }
+    return totalPushed;
   }
 
   /// Hủy các listener khi ứng dụng tắt

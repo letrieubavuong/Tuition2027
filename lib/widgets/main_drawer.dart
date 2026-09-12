@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:tuition2025/widgets/xuat_bao_cao_pdf_dialog.dart';
+import '../services/firebase_sync_service.dart';
 import '../main.dart';
 
 // Import các screens mà Drawer cần điều hướng đến
@@ -367,6 +368,30 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
                       context,
                       const BangXepHangKhoiPage(),
                     ),
+                    context: context,
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.cloud_sync_rounded,
+                    text: loc.locale.languageCode == 'vi'
+                        ? 'Đồng bộ Cloud (Firebase)'
+                        : 'Sync Firebase Cloud',
+                    onTap: () async {
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('⚡ Đang đẩy dữ liệu từ máy lên Firebase Cloud...'),
+                        ),
+                      );
+                      final count = await FirebaseSyncService.instance.pushAllLocalDataToCloud();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('✅ Đã đồng bộ $count bản ghi lên Firebase Cloud thành công!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    },
                     context: context,
                   ),
                 ],
