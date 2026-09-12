@@ -128,29 +128,30 @@ class FirebaseSyncService {
     }
   }
 
+  List<String> get _allTables => [
+        DBHelper.tenBangHS,
+        DBHelper.tenBangLop,
+        DBHelper.tenBangLopHS,
+        DBHelper.tenBangLichHoc,
+        DBHelper.tenBangDiemDanh,
+        DBHelper.tenBangThanhToan,
+        DBHelper.tenBangNhanXetThang,
+        DBHelper.tenBangCaiDat,
+        DBHelper.tenBangQuyTacDiem,
+        DBHelper.tenBangSuKienHocTap,
+      ];
+
   /// Đăng ký lắng nghe các thay đổi thời gian thực từ Cloud và cập nhật về SQLite/UI
   void _batDauLangNgheCloudSync() {
-    final tables = [
-      DBHelper.tenBangHS,
-      DBHelper.tenBangLop,
-      DBHelper.tenBangLopHS,
-      DBHelper.tenBangDiemDanh,
-      DBHelper.tenBangThanhToan,
-      DBHelper.tenBangNhanXetThang,
-      DBHelper.tenBangCaiDat,
-    ];
-
-    for (final table in tables) {
+    for (final table in _allTables) {
       final ref = _db.ref().child(table);
 
       // Lắng nghe sự kiện thêm/sửa bản ghi trên Cloud
       final sub = ref.onValue.listen((event) async {
         if (event.snapshot.value == null) return;
         final data = event.snapshot.value;
-        if (data is Map) {
-          await _dongBoMapVaoLocal(table, data);
-          TuitionEventService().notifyTuitionChanged();
-        }
+        await _dongBoDataVaoLocal(table, data);
+        TuitionEventService().notifyTuitionChanged();
       }, onError: (err) {
         developer.log('Lỗi sync bảng $table: $err', name: 'FirebaseSyncService');
       });
@@ -159,22 +160,38 @@ class FirebaseSyncService {
     }
   }
 
-  /// Đồng bộ dữ liệu Map nhận từ Firebase vào SQLite database cục bộ
-  Future<void> _dongBoMapVaoLocal(String tableName, Map rawMap) async {
+  /// Đồng bộ dữ liệu Map hoặc List nhận từ Firebase vào SQLite database cục bộ
+  Future<void> _dongBoDataVaoLocal(String tableName, dynamic rawData) async {
     try {
       final db = await DBHelper.instance.database;
-      for (final entry in rawMap.entries) {
-        final val = entry.value;
-        if (val is Map) {
-          final Map<String, dynamic> row = {};
-          val.forEach((k, v) {
-            row[k.toString()] = v;
-          });
-          await db.insert(
-            tableName,
-            row,
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
+      if (rawData is Map) {
+        for (final entry in rawData.entries) {
+          final val = entry.value;
+          if (val is Map) {
+            final Map<String, dynamic> row = {};
+            val.forEach((k, v) {
+              row[k.toString()] = v;
+            });
+            await db.insert(
+              tableName,
+              row,
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
+        }
+      } else if (rawData is List) {
+        for (final val in rawData) {
+          if (val is Map) {
+            final Map<String, dynamic> row = {};
+            val.forEach((k, v) {
+              row[k.toString()] = v;
+            });
+            await db.insert(
+              tableName,
+              row,
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
         }
       }
     } catch (e) {
@@ -190,27 +207,17 @@ class FirebaseSyncService {
     if (kIsWeb) return 0;
     if (!_isInitialized) await initialize();
 
-    final tables = [
-      DBHelper.tenBangHS,
-      DBHelper.tenBangLop,
-      DBHelper.tenBangLopHS,
-      DBHelper.tenBangDiemDanh,
-      DBHelper.tenBangThanhToan,
-      DBHelper.tenBangNhanXetThang,
-      DBHelper.tenBangCaiDat,
-    ];
-
     int totalPushed = 0;
     try {
       final db = await DBHelper.instance.database;
-      for (final table in tables) {
+      for (final table in _allTables) {
         final rows = await db.query(table);
         int idx = 0;
         for (final row in rows) {
           String recordId;
-          if (row['id'] != null) {
+          if (row['id'] != null && row['id'].toString().isNotEmpty) {
             recordId = row['id'].toString();
-          } else if (row['khoa'] != null) {
+          } else if (row['khoa'] != null && row['khoa'].toString().isNotEmpty) {
             recordId = row['khoa'].toString();
           } else if (row['id_hoc_sinh'] != null && row['id_lop'] != null) {
             recordId = '${row['id_hoc_sinh']}_${row['id_lop']}';
