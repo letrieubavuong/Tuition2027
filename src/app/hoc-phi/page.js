@@ -2,18 +2,38 @@
 
 import { useEffect, useState } from "react";
 import { db, ref, onValue, set } from "@/lib/firebase";
-import { CreditCard, CheckCircle2, AlertTriangle, QrCode, Search, DollarSign } from "lucide-react";
+import { CreditCard, CheckCircle2, AlertTriangle, QrCode, Search, DollarSign, Calendar, Filter, Phone } from "lucide-react";
 
 export default function HocPhiPage() {
   const [payments, setPayments] = useState([]);
+  const [studentsMap, setStudentsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"); // all, paid, debt
+  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [availableMonths, setAvailableMonths] = useState([]);
   const [selectedQr, setSelectedQr] = useState(null);
 
   useEffect(() => {
+    // 1. Lắng nghe danh sách học sinh để map ID -> Tên học sinh
+    const hsRef = ref(db, "hoc_sinh");
+    const unsubHs = onValue(hsRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        const sMap = {};
+        const list = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
+        list.forEach((s) => {
+          if (s && s.id !== undefined) {
+            sMap[s.id] = s;
+          }
+        });
+        setStudentsMap(sMap);
+      }
+    });
+
+    // 2. Lắng nghe danh sách đóng tiền
     const thanhToanRef = ref(db, "thanh_toan");
-    const unsub = onValue(thanhToanRef, (snapshot) => {
+    const unsubPay = onValue(thanhToanRef, (snapshot) => {
       const val = snapshot.val();
       if (val) {
         let list = [];
@@ -28,13 +48,27 @@ export default function HocPhiPage() {
           }));
         }
         setPayments(list);
+
+        // Thu thập danh sách các tháng có dữ liệu
+        const months = Array.from(
+          new Set(list.map((p) => p.thang).filter(Boolean))
+        ).sort((a, b) => b.localeCompare(a));
+        setAvailableMonths(months);
+
+        // Mặc định chọn tháng mới nhất nếu có
+        if (months.length > 0 && selectedMonth === "all") {
+          setSelectedMonth(months[0]);
+        }
       } else {
         setPayments([]);
       }
       setLoading(false);
     });
 
-    return () => unsub();
+    return () => {
+      unsubHs();
+      unsubPay();
+    };
   }, []);
 
   const formatCurrency = (num) => {
@@ -42,6 +76,22 @@ export default function HocPhiPage() {
       style: "currency",
       currency: "VND",
     }).format(num || 0);
+  };
+
+  const getStudentName = (p) => {
+    if (p.ten_hoc_sinh && p.ten_hoc_sinh.trim() !== "") {
+      return p.ten_hoc_sinh;
+    }
+    const s = studentsMap[p.id_hoc_sinh];
+    if (s && s.ten) {
+      return s.ten;
+    }
+    return `Học sinh #${p.id_hoc_sinh}`;
+  };
+
+  const getStudentPhone = (p) => {
+    const s = studentsMap[p.id_hoc_sinh];
+    return s ? (s.sdt_phu_huynh || s.sdt || "") : "";
   };
 
   const handleUpdatePaidAmount = async (payment, newAmount) => {
@@ -58,18 +108,28 @@ export default function HocPhiPage() {
   };
 
   const filteredPayments = payments.filter((p) => {
+    const sName = getStudentName(p);
     const matchesSearch =
-      (p.ten_hoc_sinh && p.ten_hoc_sinh.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (sName && sName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (p.thang && p.thang.includes(searchQuery));
+
+    const matchesMonth = selectedMonth === "all" || p.thang === selectedMonth;
 
     const daDong = Number(p.so_tien_da_dong) || 0;
     const tong = Number(p.tong_thanh_toan) || 0;
     const isPaid = daDong >= tong && tong > 0;
 
-    if (statusFilter === "paid") return matchesSearch && isPaid;
-    if (statusFilter === "debt") return matchesSearch && !isPaid;
-    return matchesSearch;
+    if (!matchesMonth || !matchesSearch) return false;
+
+    if (statusFilter === "paid") return isPaid;
+    if (statusFilter === "debt") return !isPaid;
+    return true;
   });
+
+  // Calculate monthly stats
+  const totalMonthAmount = filteredPayments.reduce((sum, p) => sum + (Number(p.tong_thanh_toan) || 0), 0);
+  const totalMonthPaid = filteredPayments.reduce((sum, p) => sum + (Number(p.so_tien_da_dong) || 0), 0);
+  const totalMonthDebt = Math.max(0, totalMonthAmount - totalMonthPaid);
 
   return (
     <div>
@@ -77,13 +137,14 @@ export default function HocPhiPage() {
       <div style={{ marginBottom: "1.75rem" }}>
         <h2 style={{ fontSize: "1.75rem", fontWeight: "700" }}>Quản Lý Học Phí & Thu Ngân</h2>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-          Theo dõi công nợ, học phí tháng và tạo mã VietQR nhắc đóng học phí
+          Theo dõi công nợ, chọn tháng cần xem và tạo mã VietQR nhắc đóng học phí
         </p>
       </div>
 
-      {/* Control Bar */}
-      <div className="glass-panel" style={{ padding: "1rem 1.25rem", marginBottom: "1.5rem" }}>
-        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+      {/* Control Bar & Month Selector */}
+      <div className="glass-panel" style={{ padding: "1.25rem", marginBottom: "1.5rem" }}>
+        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+          {/* Search Box */}
           <div style={{ position: "relative", flex: 1, minWidth: "260px" }}>
             <Search
               size={18}
@@ -92,7 +153,7 @@ export default function HocPhiPage() {
             />
             <input
               type="text"
-              placeholder="Tìm theo tên học sinh, tháng..."
+              placeholder="Tìm tên học sinh..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="input-control"
@@ -100,6 +161,26 @@ export default function HocPhiPage() {
             />
           </div>
 
+          {/* Month Dropdown Selector */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Calendar size={18} color="var(--accent-primary)" />
+            <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>Chọn Tháng:</span>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="input-control"
+              style={{ padding: "0.6rem 1rem", fontSize: "0.9rem", fontWeight: "600", cursor: "pointer" }}
+            >
+              <option value="all">📅 Tất cả các tháng</option>
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>
+                  🗓️ Tháng {m}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Filter Tabs */}
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <button
               onClick={() => setStatusFilter("all")}
@@ -124,6 +205,31 @@ export default function HocPhiPage() {
             </button>
           </div>
         </div>
+
+        {/* Monthly Summary Bar */}
+        <div
+          style={{
+            marginTop: "1.25rem",
+            paddingTop: "1rem",
+            borderTop: "1px solid var(--border-color)",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: "1rem",
+          }}
+        >
+          <div>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: "600" }}>TỔNG CẦN THU:</span>
+            <div style={{ fontSize: "1.2rem", fontWeight: "800" }}>{formatCurrency(totalMonthAmount)}</div>
+          </div>
+          <div>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: "600" }}>ĐÃ THU:</span>
+            <div style={{ fontSize: "1.2rem", fontWeight: "800", color: "var(--success)" }}>{formatCurrency(totalMonthPaid)}</div>
+          </div>
+          <div>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: "600" }}>CÒN NỢ:</span>
+            <div style={{ fontSize: "1.2rem", fontWeight: "800", color: "var(--danger)" }}>{formatCurrency(totalMonthDebt)}</div>
+          </div>
+        </div>
       </div>
 
       {/* Payment Data Table */}
@@ -134,14 +240,15 @@ export default function HocPhiPage() {
           </div>
         ) : filteredPayments.length === 0 ? (
           <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
-            Không tìm thấy bản ghi học phí nào.
+            Không tìm thấy bản ghi học phí nào cho {selectedMonth === "all" ? "tất cả các tháng" : `tháng ${selectedMonth}`}.
           </div>
         ) : (
           <div className="data-table-container">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Tháng / Học Sinh</th>
+                  <th>Họ & Tên Học Sinh</th>
+                  <th>Tháng</th>
                   <th>Tổng Tiền</th>
                   <th>Đã Đóng</th>
                   <th>Còn Nợ</th>
@@ -151,6 +258,8 @@ export default function HocPhiPage() {
               </thead>
               <tbody>
                 {filteredPayments.map((p) => {
+                  const studentName = getStudentName(p);
+                  const studentPhone = getStudentPhone(p);
                   const daDong = Number(p.so_tien_da_dong) || 0;
                   const tong = Number(p.tong_thanh_toan) || 0;
                   const conNo = Math.max(0, tong - daDong);
@@ -159,8 +268,17 @@ export default function HocPhiPage() {
                   return (
                     <tr key={p._key}>
                       <td>
-                        <div style={{ fontWeight: "700" }}>{p.ten_hoc_sinh || `Học sinh #${p.id_hoc_sinh}`}</div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Tháng: {p.thang || "--"}</div>
+                        <div style={{ fontWeight: "700", color: "var(--text-primary)", fontSize: "0.95rem" }}>
+                          {studentName}
+                        </div>
+                        {studentPhone && (
+                          <div style={{ fontSize: "0.78rem", color: "var(--accent-primary)", marginTop: "0.15rem", display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                            <Phone size={12} /> {studentPhone}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <span className="badge badge-info">Tháng {p.thang || "--"}</span>
                       </td>
                       <td style={{ fontWeight: "600" }}>{formatCurrency(tong)}</td>
                       <td style={{ color: "var(--success)", fontWeight: "600" }}>{formatCurrency(daDong)}</td>
@@ -170,7 +288,7 @@ export default function HocPhiPage() {
                       <td>
                         {isPaid ? (
                           <span className="badge badge-success">
-                            <CheckCircle2 size={12} /> Đã hoàn thành
+                            <CheckCircle2 size={12} /> Đã xong
                           </span>
                         ) : (
                           <span className="badge badge-warning">
@@ -184,14 +302,14 @@ export default function HocPhiPage() {
                             <button
                               onClick={() =>
                                 setSelectedQr({
-                                  ten: p.ten_hoc_sinh,
+                                  ten: studentName,
                                   sotien: conNo,
-                                  noidung: `HOCPHI THANG ${p.thang || ""} ${p.ten_hoc_sinh || ""}`,
+                                  noidung: `HOCPHI THANG ${p.thang || ""} ${studentName}`,
                                 })
                               }
                               className="btn-secondary"
                               style={{ padding: "0.4rem 0.65rem", color: "var(--accent-primary)" }}
-                              title="Tạo VietQR chuyển khoản"
+                              title="Tạo mã VietQR chuyển khoản"
                             >
                               <QrCode size={14} /> VietQR
                             </button>
@@ -199,7 +317,7 @@ export default function HocPhiPage() {
 
                           <button
                             onClick={() => {
-                              const val = prompt("Nhập số tiền đã đóng mới (VND):", daDong);
+                              const val = prompt(`Cập nhật số tiền đã đóng cho ${studentName} (VND):`, daDong);
                               if (val !== null && !isNaN(val)) {
                                 handleUpdatePaidAmount(p, val);
                               }
