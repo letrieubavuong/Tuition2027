@@ -1,0 +1,346 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { db, ref, onValue, set, remove, push } from "@/lib/firebase";
+import { Users, Search, Plus, Trash2, Edit, CheckCircle, Phone, Mail, Filter } from "lucide-react";
+
+export default function HocSinhPage() {
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [editingHs, setEditingHs] = useState(null);
+
+  // Form State
+  const [formData, setFormData] = useState({
+    ten: "",
+    sdt_phu_huynh: "",
+    email: "",
+    truong: "",
+    ghi_chu: "",
+  });
+
+  useEffect(() => {
+    const hsRef = ref(db, "hoc_sinh");
+    const unsub = onValue(hsRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        let list = [];
+        if (Array.isArray(val)) {
+          list = val
+            .map((item, idx) => (item ? { ...item, _key: item.id || idx } : null))
+            .filter(Boolean);
+        } else if (typeof val === "object") {
+          list = Object.entries(val).map(([key, item]) => ({
+            ...item,
+            _key: key,
+          }));
+        }
+        setStudents(list);
+      } else {
+        setStudents([]);
+      }
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, []);
+
+  const handleOpenModal = (hs = null) => {
+    if (hs) {
+      setEditingHs(hs);
+      setFormData({
+        ten: hs.ten || "",
+        sdt_phu_huynh: hs.sdt_phu_huynh || hs.sdt || "",
+        email: hs.email || "",
+        truong: hs.truong || "",
+        ghi_chu: hs.ghi_chu || "",
+      });
+    } else {
+      setEditingHs(null);
+      setFormData({
+        ten: "",
+        sdt_phu_huynh: "",
+        email: "",
+        truong: "",
+        ghi_chu: "",
+      });
+    }
+    setShowModal(true);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!formData.ten.trim()) return;
+
+    try {
+      if (editingHs) {
+        const itemRef = ref(db, `hoc_sinh/${editingHs._key}`);
+        await set(itemRef, {
+          ...editingHs,
+          ...formData,
+          updated_at: new Date().toISOString(),
+        });
+      } else {
+        const newId = Date.now();
+        const itemRef = ref(db, `hoc_sinh/${newId}`);
+        await set(itemRef, {
+          id: newId,
+          ...formData,
+          created_at: new Date().toISOString(),
+        });
+      }
+      setShowModal(false);
+    } catch (err) {
+      alert("Lỗi lưu học sinh: " + err.message);
+    }
+  };
+
+  const handleDelete = async (key) => {
+    if (confirm("Bạn có chắc chắn muốn xóa học sinh này?")) {
+      try {
+        await remove(ref(db, `hoc_sinh/${key}`));
+      } catch (err) {
+        alert("Lỗi xóa học sinh: " + err.message);
+      }
+    }
+  };
+
+  const filteredStudents = students.filter(
+    (s) =>
+      (s.ten && s.ten.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (s.sdt_phu_huynh && s.sdt_phu_huynh.includes(searchQuery)) ||
+      (s.truong && s.truong.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  return (
+    <div>
+      {/* Page Header */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "1rem",
+          marginBottom: "1.75rem",
+        }}
+      >
+        <div>
+          <h2 style={{ fontSize: "1.75rem", fontWeight: "700" }}>Quản Lý Học Sinh</h2>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+            Danh sách và thông tin liên lạc phụ huynh học sinh
+          </p>
+        </div>
+        <button onClick={() => handleOpenModal()} className="btn-primary">
+          <Plus size={18} /> Thêm Học Sinh Mới
+        </button>
+      </div>
+
+      {/* Filter & Search Bar */}
+      <div className="glass-panel" style={{ padding: "1rem 1.25rem", marginBottom: "1.5rem" }}>
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <Search
+              size={18}
+              color="var(--text-muted)"
+              style={{ position: "absolute", left: "1rem", top: "50%", transform: "translateY(-50%)" }}
+            />
+            <input
+              type="text"
+              placeholder="Tìm kiếm theo tên học sinh, SĐT phụ huynh, trường học..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="input-control"
+              style={{ width: "100%", paddingLeft: "2.75rem" }}
+            />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--text-secondary)" }}>
+            <Filter size={18} />
+            <span style={{ fontSize: "0.9rem", fontWeight: "500" }}>{filteredStudents.length} Học sinh</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Student List Table */}
+      <div className="glass-panel" style={{ overflow: "hidden" }}>
+        {loading ? (
+          <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
+            Đang nạp danh sách học sinh từ Realtime Cloud...
+          </div>
+        ) : filteredStudents.length === 0 ? (
+          <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
+            Không tìm thấy học sinh nào phù hợp.
+          </div>
+        ) : (
+          <div className="data-table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Họ & Tên Học Sinh</th>
+                  <th>SĐT Phụ Huynh</th>
+                  <th>Trường Học</th>
+                  <th>Ghi Chú</th>
+                  <th style={{ textAlign: "right" }}>Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStudents.map((hs) => (
+                  <tr key={hs._key}>
+                    <td style={{ fontWeight: "600" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                        <div
+                          style={{
+                            width: "36px",
+                            height: "36px",
+                            borderRadius: "50%",
+                            backgroundColor: "rgba(13, 148, 136, 0.15)",
+                            color: "var(--accent-primary)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: "700",
+                            fontSize: "0.9rem",
+                          }}
+                        >
+                          {hs.ten ? hs.ten.charAt(0).toUpperCase() : "H"}
+                        </div>
+                        <div>
+                          <div>{hs.ten || "Chưa nhập tên"}</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>ID: #{hs.id || hs._key}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      {hs.sdt_phu_huynh || hs.sdt ? (
+                        <a
+                          href={`tel:${hs.sdt_phu_huynh || hs.sdt}`}
+                          style={{ color: "var(--accent-primary)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
+                        >
+                          <Phone size={14} /> {hs.sdt_phu_huynh || hs.sdt}
+                        </a>
+                      ) : (
+                        <span style={{ color: "var(--text-muted)" }}>--</span>
+                      )}
+                    </td>
+                    <td>{hs.truong || "--"}</td>
+                    <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{hs.ghi_chu || "--"}</td>
+                    <td style={{ textAlign: "right" }}>
+                      <button
+                        onClick={() => handleOpenModal(hs)}
+                        className="btn-secondary"
+                        style={{ padding: "0.4rem 0.65rem", marginRight: "0.5rem" }}
+                        title="Chỉnh sửa"
+                      >
+                        <Edit size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(hs._key)}
+                        className="btn-secondary"
+                        style={{ padding: "0.4rem 0.65rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.3)" }}
+                        title="Xóa"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Modal Dialog Add / Edit Student */}
+      {showModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: "1rem",
+          }}
+        >
+          <div className="glass-panel" style={{ width: "100%", maxWidth: "500px", padding: "1.75rem", backgroundColor: "var(--bg-secondary)" }}>
+            <h3 style={{ fontSize: "1.25rem", fontWeight: "700", marginBottom: "1.25rem" }}>
+              {editingHs ? "Chỉnh Sửa Thông Tin Học Sinh" : "Thêm Học Sinh Mới"}
+            </h3>
+
+            <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
+                  Họ và tên học sinh *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ví dụ: Nguyễn Văn An"
+                  value={formData.ten}
+                  onChange={(e) => setFormData({ ...formData, ten: e.target.value })}
+                  className="input-control"
+                  style={{ width: "100%" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
+                  Số điện thoại phụ huynh
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: 0987654321"
+                  value={formData.sdt_phu_huynh}
+                  onChange={(e) => setFormData({ ...formData, sdt_phu_huynh: e.target.value })}
+                  className="input-control"
+                  style={{ width: "100%" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
+                  Trường học
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: THPT Lê Hồng Phong"
+                  value={formData.truong}
+                  onChange={(e) => setFormData({ ...formData, truong: e.target.value })}
+                  className="input-control"
+                  style={{ width: "100%" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
+                  Ghi chú
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Ghi chú về học lực, miễn giảm..."
+                  value={formData.ghi_chu}
+                  onChange={(e) => setFormData({ ...formData, ghi_chu: e.target.value })}
+                  className="input-control"
+                  style={{ width: "100%", resize: "vertical" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1rem" }}>
+                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">
+                  Hủy
+                </button>
+                <button type="submit" className="btn-primary">
+                  {editingHs ? "Cập Nhật" : "Tạo Mới"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
