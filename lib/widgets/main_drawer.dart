@@ -380,14 +380,57 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('⚡ Đang đẩy dữ liệu từ máy lên Firebase Cloud...'),
+                          duration: Duration(seconds: 2),
                         ),
                       );
+
                       final count = await FirebaseSyncService.instance.pushAllLocalDataToCloud();
+
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('✅ Đã đồng bộ $count bản ghi lên Firebase Cloud thành công!'),
-                            backgroundColor: Colors.green,
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            title: Row(
+                              children: const [
+                                Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Đồng Bộ Thành Công',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Đã tải lên và đồng bộ thành công $count bản ghi thuộc toàn bộ 20 bảng dữ liệu SQLite từ điện thoại lên Firebase Cloud!',
+                                  style: const TextStyle(fontSize: 15),
+                                ),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  '🌐 Dữ liệu hiện tại đã được cập nhật thời gian thực tới phiên bản Web (tuition2027.vercel.app).',
+                                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                            actions: [
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: const Text('Đóng'),
+                              ),
+                            ],
                           ),
                         );
                       }
