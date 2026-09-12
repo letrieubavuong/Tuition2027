@@ -192,12 +192,20 @@ class FirebaseSyncService {
       final db = await DBHelper.instance.database;
       for (final table in tables) {
         final rows = await db.query(table);
+        int idx = 0;
         for (final row in rows) {
-          final idKey =
-              row['id'] ?? row['key'] ?? row['id_hoc_sinh'] ?? row['id_lop'];
-          if (idKey != null) {
-            await pushRecordToCloud(table, idKey.toString(), row);
+          String recordId;
+          if (row['id'] != null) {
+            recordId = row['id'].toString();
+          } else if (row['khoa'] != null) {
+            recordId = row['khoa'].toString();
+          } else if (row['id_hoc_sinh'] != null && row['id_lop'] != null) {
+            recordId = '${row['id_hoc_sinh']}_${row['id_lop']}';
+          } else {
+            recordId = 'item_$idx';
           }
+          await pushRecordToCloud(table, recordId, row);
+          idx++;
         }
       }
       developer.log(
