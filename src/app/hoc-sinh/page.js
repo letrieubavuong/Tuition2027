@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { db, ref, onValue, set, remove, push } from "@/lib/firebase";
-import { Users, Search, Plus, Trash2, Edit, CheckCircle, Phone, Mail, Filter } from "lucide-react";
+import { Users, Search, Plus, Trash2, Edit, CheckCircle, Phone, Mail, Filter, Eye } from "lucide-react";
 
 export default function HocSinhPage() {
   const [students, setStudents] = useState([]);
@@ -206,7 +207,13 @@ export default function HocSinhPage() {
                           {hs.ten ? hs.ten.charAt(0).toUpperCase() : "H"}
                         </div>
                         <div>
-                          <div>{hs.ten || "Chưa nhập tên"}</div>
+                          <Link
+                            href={`/hoc-sinh/${hs.id || hs._key}`}
+                            style={{ color: "var(--text-primary)", fontWeight: "600", textDecoration: "none" }}
+                            className="hover-underline"
+                          >
+                            {hs.ten || "Chưa nhập tên"}
+                          </Link>
                           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>ID: #{hs.id || hs._key}</div>
                         </div>
                       </div>
@@ -226,6 +233,14 @@ export default function HocSinhPage() {
                     <td>{hs.truong || "--"}</td>
                     <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{hs.ghi_chu || "--"}</td>
                     <td style={{ textAlign: "right" }}>
+                      <Link
+                        href={`/hoc-sinh/${hs.id || hs._key}`}
+                        className="btn-secondary"
+                        style={{ padding: "0.4rem 0.65rem", marginRight: "0.5rem", display: "inline-flex", alignItems: "center" }}
+                        title="Xem chi tiết hồ sơ"
+                      >
+                        <Eye size={14} />
+                      </Link>
                       <button
                         onClick={() => handleOpenModal(hs)}
                         className="btn-secondary"

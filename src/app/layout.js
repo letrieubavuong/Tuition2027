@@ -10,6 +10,10 @@ import {
   GraduationCap,
   CreditCard,
   CalendarCheck,
+  Calendar,
+  BarChart3,
+  Trophy,
+  Settings,
   Moon,
   Sun,
   Menu,
@@ -34,7 +38,12 @@ export default function RootLayout({ children }) {
     { name: "Trang Chủ", href: "/", icon: LayoutDashboard },
     { name: "Lớp Học", href: "/lop-hoc", icon: GraduationCap },
     { name: "Học Sinh", href: "/hoc-sinh", icon: Users },
-    { name: "Học Phí", href: "/hoc-phi", icon: CreditCard },
+    { name: "Điểm Danh", href: "/diem-danh", icon: CalendarCheck },
+    { name: "Học Phí & VietQR", href: "/hoc-phi", icon: CreditCard },
+    { name: "Lịch Dạy", href: "/lich-day", icon: Calendar },
+    { name: "Thống Kê", href: "/thong-ke", icon: BarChart3 },
+    { name: "Bảng Xếp Hạng", href: "/bang-xep-hang", icon: Trophy },
+    { name: "Cài Đặt", href: "/cai-dat", icon: Settings },
   ];
 
   return (
