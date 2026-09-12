@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { db, ref, onValue, set, remove } from "@/lib/firebase";
+import Link from "next/link";
 import { GraduationCap, Plus, Search, Edit, Trash2, Users, BookOpen } from "lucide-react";
 
 export default function LopHocPage() {
@@ -177,10 +178,19 @@ export default function LopHocPage() {
               </div>
 
               <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: "0.75rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Học phí / Buổi:</span>
-                <span style={{ fontWeight: "700", color: "var(--accent-primary)", fontSize: "1.05rem" }}>
-                  {formatCurrency(c.hoc_phi_buoi || 0)}
-                </span>
+                <div>
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "block" }}>Học phí / Buổi:</span>
+                  <span style={{ fontWeight: "700", color: "var(--accent-primary)", fontSize: "1.05rem" }}>
+                    {formatCurrency(c.hoc_phi_buoi || 0)}
+                  </span>
+                </div>
+                <Link
+                  href={`/lop-hoc/${c.id || c._key}`}
+                  className="btn-primary"
+                  style={{ padding: "0.45rem 0.85rem", fontSize: "0.8rem", textDecoration: "none" }}
+                >
+                  Chi Tiết Lớp &rarr;
+                </Link>
               </div>
             </div>
           ))}
