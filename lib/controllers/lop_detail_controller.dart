@@ -36,6 +36,7 @@ class LopSummary {
 class LopDetailState {
   final Lop lop;
   final List<HSLopViewModel> hocSinhs;
+  final List<HSLopViewModel> hocSinhsDaNghi;
   final List<LichHoc> lichHocs;
   final int siSo;
   final LopSummary summary;
@@ -43,6 +44,7 @@ class LopDetailState {
   LopDetailState({
     required this.lop,
     this.hocSinhs = const [],
+    this.hocSinhsDaNghi = const [],
     this.lichHocs = const [],
     this.siSo = 0,
     LopSummary? summary,
@@ -51,6 +53,7 @@ class LopDetailState {
   LopDetailState copyWith({
     Lop? lop,
     List<HSLopViewModel>? hocSinhs,
+    List<HSLopViewModel>? hocSinhsDaNghi,
     List<LichHoc>? lichHocs,
     int? siSo,
     LopSummary? summary,
@@ -58,6 +61,7 @@ class LopDetailState {
     return LopDetailState(
       lop: lop ?? this.lop,
       hocSinhs: hocSinhs ?? this.hocSinhs,
+      hocSinhsDaNghi: hocSinhsDaNghi ?? this.hocSinhsDaNghi,
       lichHocs: lichHocs ?? this.lichHocs,
       siSo: siSo ?? this.siSo,
       summary: summary ?? this.summary,
@@ -86,7 +90,13 @@ class LopDetailController extends _$LopDetailController {
     final thangHienTai = DateFormat('yyyy-MM').format(DateTime.now());
 
     // Tải dữ liệu cơ bản
-    final hocSinhs = await _lhsService.docDSHSThuocLop(lopId);
+    final tatCaHocSinh = await _lhsService.docDSHSThuocLop(lopId);
+    final hocSinhs = tatCaHocSinh
+        .where((hs) => _lhsService.hoatDongTrongNgay(hs, DateTime.now()))
+        .toList();
+    final hocSinhsDaNghi = tatCaHocSinh
+        .where((hs) => !_lhsService.hoatDongTrongNgay(hs, DateTime.now()))
+        .toList();
     final lichHocs = await _lichHocService.layLichHocTheoLop(lopId);
 
     // Tải báo cáo học phí
@@ -131,6 +141,7 @@ class LopDetailController extends _$LopDetailController {
     return LopDetailState(
       lop: lop,
       hocSinhs: hocSinhs,
+      hocSinhsDaNghi: hocSinhsDaNghi,
       lichHocs: lichHocs,
       siSo: hocSinhs.length,
       summary: LopSummary(
@@ -205,7 +216,10 @@ class LopDetailController extends _$LopDetailController {
     }
 
     // Gán cho nhiều học sinh
-    final addedCount = await _lhcService.ganLichChoNhieuHS(hsIds, finalLhc!.id!);
+    final addedCount = await _lhcService.ganLichChoNhieuHS(
+      hsIds,
+      finalLhc!.id!,
+    );
 
     // Không cần reload vì logic này không thay đổi UI chính của LopDetail
     return addedCount;

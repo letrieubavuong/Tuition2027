@@ -3,6 +3,7 @@
 import 'package:sqflite/sqflite.dart';
 import '../utils/db.dart'; // Import DBHelper
 import '../models/lop.dart'; // Import Model Lop
+import 'dart:developer' as developer;
 
 class LopService {
   final dbHelper = DBHelper.instance;
@@ -32,7 +33,13 @@ class LopService {
         L.*, 
         COUNT(LHS.id_hoc_sinh) as si_so
       FROM $tenBang L
-      LEFT JOIN ${DBHelper.tenBangLopHS} LHS ON L.id = LHS.id_lop
+      LEFT JOIN ${DBHelper.tenBangLopHS} LHS
+        ON L.id = LHS.id_lop
+        AND (
+          LHS.ngay_nghi_hoc IS NULL
+          OR LHS.ngay_nghi_hoc > date('now', 'localtime')
+          OR LHS.ngay_hoc_lai_sau_nghi <= date('now', 'localtime')
+        )
       GROUP BY L.id
       ORDER BY L.khoi ASC, L.ten ASC
     ''');
@@ -53,8 +60,59 @@ class LopService {
 
   Future<int> xoaLop(int id) async {
     final db = await dbHelper.database;
-    // Xóa theo ID
-    return await db.delete(tenBang, where: 'id = ?', whereArgs: [id]);
+    try {
+      return await db.transaction((txn) async {
+        // lich_hoc_chung chưa có ON DELETE CASCADE. Phải xóa các bản ghi
+        // gán lịch cá nhân trước rồi mới xóa lịch chung của lớp.
+        await txn.rawDelete(
+          '''
+          DELETE FROM ${DBHelper.tenBangLichHocCaNhan}
+          WHERE id_lich_hoc_chung IN (
+            SELECT id FROM ${DBHelper.tenBangLichHocChung} WHERE id_lop = ?
+          )
+          ''',
+          [id],
+        );
+        await txn.delete(
+          DBHelper.tenBangLichHocChung,
+          where: 'id_lop = ?',
+          whereArgs: [id],
+        );
+
+        // Các bảng cũ không khai báo khóa ngoại id_lop nên cần dọn rõ ràng.
+        await txn.delete(
+          DBHelper.tenBangThanhToan,
+          where: 'id_lop = ?',
+          whereArgs: [id],
+        );
+        await txn.delete(
+          DBHelper.tenBangNhanXetThang,
+          where: 'id_lop = ?',
+          whereArgs: [id],
+        );
+        await txn.delete(
+          DBHelper.tenBangLopHS,
+          where: 'id_lop = ?',
+          whereArgs: [id],
+        );
+        await txn.delete(
+          'payment_transactions',
+          where: 'lop_id = ?',
+          whereArgs: [id],
+        );
+
+        // Các bảng có ON DELETE CASCADE sẽ được SQLite dọn tại đây.
+        return txn.delete(tenBang, where: 'id = ?', whereArgs: [id]);
+      });
+    } catch (error, stackTrace) {
+      developer.log(
+        'Không thể xóa lớp ID $id',
+        name: 'LopService.xoaLop',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return 0;
+    }
   }
 
   // 5. Doc Lop Theo ID (Optional Read Single)

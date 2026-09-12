@@ -23,8 +23,10 @@ class GanLichHocDialog extends StatefulWidget {
 class _GanLichHocDialogState extends State<GanLichHocDialog> {
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
-  Color get lightText => Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
-  Color get secondaryText => Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+  Color get lightText =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+  Color get secondaryText =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
   Color get accentColor => Theme.of(context).primaryColor;
   Color get deleteColor => Theme.of(context).colorScheme.error;
 
@@ -63,7 +65,7 @@ class _GanLichHocDialogState extends State<GanLichHocDialog> {
         }
       }
     } catch (e) {
-      print('Lỗi khi load danh sách đã gán: $e');
+      debugPrint('Lỗi khi load danh sách đã gán: $e');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -125,7 +127,7 @@ class _GanLichHocDialogState extends State<GanLichHocDialog> {
               ? '⚠️ Cập nhật thành công $successCount, thất bại $failCount học sinh'
               : '⚠️ Updated successfully $successCount, failed $failCount students';
         } else if (failCount > 0) {
-          message = isVi 
+          message = isVi
               ? '❌ Cập nhật thất bại cho $failCount học sinh'
               : '❌ Update failed for $failCount students';
         } else {
@@ -180,11 +182,7 @@ class _GanLichHocDialogState extends State<GanLichHocDialog> {
               children: [
                 Row(
                   children: [
-                    Icon(
-                      Icons.calendar_today,
-                      color: accentColor,
-                      size: 16,
-                    ),
+                    Icon(Icons.calendar_today, color: accentColor, size: 16),
                     const SizedBox(width: 8),
                     Text(
                       widget.lichHocChung.ngayTrongTuan,
@@ -219,7 +217,9 @@ class _GanLichHocDialogState extends State<GanLichHocDialog> {
             : widget.danhSachHocSinh.isEmpty
             ? Center(
                 child: Text(
-                  isVi ? 'Không có học sinh nào trong lớp' : 'No students in the class',
+                  isVi
+                      ? 'Không có học sinh nào trong lớp'
+                      : 'No students in the class',
                   style: TextStyle(color: secondaryText),
                 ),
               )
@@ -229,13 +229,10 @@ class _GanLichHocDialogState extends State<GanLichHocDialog> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: Text(
-                      isVi 
+                      isVi
                           ? 'Chọn học sinh (${_selectedHocSinhIds.length}/${widget.danhSachHocSinh.length})'
                           : 'Select students (${_selectedHocSinhIds.length}/${widget.danhSachHocSinh.length})',
-                      style: TextStyle(
-                        color: secondaryText,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: secondaryText, fontSize: 14),
                     ),
                   ),
                   Expanded(
@@ -285,7 +282,10 @@ class _GanLichHocDialogState extends State<GanLichHocDialog> {
       actions: [
         TextButton(
           onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-          child: Text(isVi ? 'Hủy' : 'Cancel', style: TextStyle(color: secondaryText)),
+          child: Text(
+            isVi ? 'Hủy' : 'Cancel',
+            style: TextStyle(color: secondaryText),
+          ),
         ),
         ElevatedButton(
           onPressed: _isSaving ? null : _luuThayDoi,
@@ -302,7 +302,10 @@ class _GanLichHocDialogState extends State<GanLichHocDialog> {
                     valueColor: AlwaysStoppedAnimation<Color>(lightText),
                   ),
                 )
-              : Text(isVi ? 'Lưu' : 'Save', style: TextStyle(color: darkBackground)),
+              : Text(
+                  isVi ? 'Lưu' : 'Save',
+                  style: TextStyle(color: darkBackground),
+                ),
         ),
       ],
     );

@@ -1,6 +1,87 @@
-// File: lib/utils/vietqr_util.dart
+import 'package:intl/intl.dart';
 
 class VietQRUtil {
+  /// Hàm bỏ dấu tiếng Việt chuẩn không bị mất chữ
+  static String removeVietnameseAccents(String str) {
+    const accents =
+        'àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ'
+        'ÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ';
+    const withoutAccents =
+        'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyy'
+        'dAAAAAAAAAAAAAAAAAEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYD';
+    String result = str;
+    for (int i = 0; i < accents.length; i++) {
+      result = result.replaceAll(accents[i], withoutAccents[i]);
+    }
+    return result.replaceAll(RegExp(r'[^a-zA-Z0-9 ]'), '').trim();
+  }
+
+  /// Tạo nội dung thông báo học phí đồng bộ chuẩn cho Zalo/Messenger/SMS/QR
+  static String taoNoiDungThongBaoHocPhi({
+    required String tenHocSinh,
+    required String tenLop,
+    required String thang,
+    required int soBuoiDu,
+    int tongSoBuoi = 12,
+    int? soBuoiCoMat,
+    int? soBuoiNghiCoPhep,
+    int? soBuoiNghiKhongPhep,
+    required int soTienCanNop,
+    required int soTienDaDong,
+    required int soTienConNo,
+    required String bankId,
+    required String accountNo,
+    required String accountName,
+    bool isVi = true,
+  }) {
+    final formatCurrency = NumberFormat('#,##0', 'vi_VN');
+    final StringBuffer buffer = StringBuffer();
+
+    String formattedThang = thang;
+    if (thang.contains('-')) {
+      final parts = thang.split('-');
+      if (parts.length == 2) {
+        formattedThang = '${parts[1]}/${parts[0]}';
+      }
+    }
+
+    final String studentNameNoAccent = removeVietnameseAccents(tenHocSinh);
+
+    if (isVi) {
+      buffer.writeln('Kính gửi phụ huynh học sinh $tenHocSinh (Lớp $tenLop),');
+      buffer.writeln('Hệ thống gửi thông tin học phí tháng $formattedThang:');
+      buffer.writeln('- Số buổi dư tích lũy: $soBuoiDu buổi');
+      buffer.writeln('- Số buổi dự kiến: $tongSoBuoi buổi');
+      buffer.writeln('\nChi tiết học phí:');
+      buffer.writeln('- Cần nộp: ${formatCurrency.format(soTienCanNop)}đ');
+      buffer.writeln('- Đã đóng: ${formatCurrency.format(soTienDaDong)}đ');
+      buffer.writeln('- Còn nợ: ${formatCurrency.format(soTienConNo)}đ');
+      buffer.writeln('\nQuý phụ huynh vui lòng chuyển khoản thanh toán:');
+      buffer.writeln('- Ngân hàng: ${bankId.toUpperCase()}');
+      buffer.writeln('- Số tài khoản: $accountNo');
+      buffer.writeln('- Chủ tài khoản: $accountName');
+      buffer.writeln('- Nội dung CK: Hoc phi $studentNameNoAccent thang $formattedThang');
+      buffer.writeln('\nXin chân thành cảm ơn quý phụ huynh!');
+    } else {
+      buffer.writeln('Dear parent of student $tenHocSinh (Class $tenLop),');
+      buffer.writeln('Tuition summary for month $formattedThang:');
+      buffer.writeln('- Rollover excess sessions: $soBuoiDu');
+      buffer.writeln('- Expected sessions: $tongSoBuoi');
+      buffer.writeln('\nFee details:');
+      buffer.writeln('- Amount due: ${formatCurrency.format(soTienCanNop)}đ');
+      buffer.writeln('- Amount paid: ${formatCurrency.format(soTienDaDong)}đ');
+      buffer.writeln('- Remaining debt: ${formatCurrency.format(soTienConNo)}đ');
+      buffer.writeln('\nBank transfer details:');
+      buffer.writeln('- Bank: ${bankId.toUpperCase()}');
+      buffer.writeln('- Account Number: $accountNo');
+      buffer.writeln('- Account Name: $accountName');
+      buffer.writeln('- Reference: Hoc phi $studentNameNoAccent thang $formattedThang');
+      buffer.writeln('\nThank you very much!');
+    }
+
+    return buffer.toString();
+  }
+
   /// Map of common Vietnamese banks to their 6-digit BIN codes
   static const Map<String, String> bankBinMap = {
     'sacombank': '970403',
@@ -66,7 +147,10 @@ class VietQRUtil {
     String bankInfo = _formatTag('00', bin);
     bankInfo += _formatTag('01', accountNo);
     merchantInfo += _formatTag('01', bankInfo);
-    merchantInfo += _formatTag('02', 'QRIBFTTA'); // Service Code: Napas 247 chuyển khoản đến tài khoản
+    merchantInfo += _formatTag(
+      '02',
+      'QRIBFTTA',
+    ); // Service Code: Napas 247 chuyển khoản đến tài khoản
     payload += _formatTag('38', merchantInfo);
 
     // 53: Transaction Currency (704: VND)
@@ -93,7 +177,7 @@ class VietQRUtil {
   static String _calculateCRC(String data) {
     int crc = 0xFFFF;
     List<int> bytes = data.codeUnits;
-    
+
     for (int byte in bytes) {
       crc ^= (byte << 8) & 0xFFFF;
       for (int i = 0; i < 8; i++) {

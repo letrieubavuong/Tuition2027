@@ -1,5 +1,7 @@
 // File: lib/utils/db.dart (Chi con khoi tao va tao bang)
 
+import 'dart:developer' as developer;
+
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -8,7 +10,7 @@ class DBHelper {
   static Database? _database;
 
   // current database version - tăng khi cần migration mới
-  static const int _dbVersion = 20;
+  static const int _dbVersion = 27;
 
   // Hằng số cho tên Bảng
   static const String tenBangHS = 'hoc_sinh';
@@ -27,6 +29,9 @@ class DBHelper {
   static const String tenBangDanhGiaBuoiHoc = 'danh_gia_buoi_hoc'; // Bảng mới
   static const String tenBangQuyTacDiem = 'quy_tac_diem'; // Bảng mới
   static const String tenBangSuKienHocTap = 'su_kien_hoc_tap'; // Bảng mới
+  static const String tenBangDonNghiHoc = 'don_nghi_hoc';
+  static const String tenBangKhoanThu = 'khoan_thu';
+  static const String tenBangKhoanThuHocSinh = 'khoan_thu_hoc_sinh';
   DBHelper._init();
 
   Future<Database> get database async {
@@ -54,7 +59,7 @@ class DBHelper {
 
   // onUpgrade sẽ gọi _migrate để áp dụng các bước nâng cấp theo phiên bản
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    print('DB Upgrade: $oldVersion -> $newVersion');
+    developer.log('DB Upgrade: $oldVersion -> $newVersion', name: 'DBHelper');
     await _migrate(db, oldVersion, newVersion);
   }
 
@@ -65,12 +70,12 @@ class DBHelper {
         switch (v) {
           case 2:
             // Ví dụ: thêm cột email cho bảng hoc_sinh (nullable)
-            print('Applying migration v2: add email to $tenBangHS');
+            developer.log('Applying migration v2: add email to $tenBangHS');
             await db.execute('ALTER TABLE $tenBangHS ADD COLUMN email TEXT');
             break;
           case 3:
             // Ví dụ: thêm cột created_at cho lich_hoc_chung (nullable)
-            print(
+            developer.log(
               'Applying migration v3: add created_at to $tenBangLichHocChung',
             );
             await db.execute(
@@ -78,7 +83,7 @@ class DBHelper {
             );
             break;
           case 4:
-            print(
+            developer.log(
               'Applying migration v4: Fix thanh_toan UNIQUE constraint and add assigned_count to lich_hoc',
             );
             // Thêm cột mới vào lich_hoc
@@ -90,11 +95,11 @@ class DBHelper {
             await _createThanhToanTable(db);
             break;
           case 5:
-            print('Applying migration v5: add $tenBangNhiemVu table');
+            developer.log('Applying migration v5: add $tenBangNhiemVu table');
             await _createNhiemVuTable(db);
             break;
           case 6:
-            print(
+            developer.log(
               'Applying migration v6: add trang_thai to $tenBangNhiemVu table',
             );
             await db.execute(
@@ -102,14 +107,16 @@ class DBHelper {
             );
             break;
           case 7:
-            print('Applying migration v7: Refactor nhiem_vu table');
+            developer.log('Applying migration v7: Refactor nhiem_vu table');
             await _createNhiemVuHocSinhTable(db);
             await db.execute(
               'ALTER TABLE $tenBangNhiemVu DROP COLUMN trang_thai',
             );
             break;
           case 8:
-            print('Applying migration v8: Add ON DELETE CASCADE to tables');
+            developer.log(
+              'Applying migration v8: Add ON DELETE CASCADE to tables',
+            );
             // Tạo lại các bảng với ON DELETE CASCADE
             await db.execute('DROP TABLE IF EXISTS $tenBangLopHS');
             await _createLopHocSinhTable(db);
@@ -119,19 +126,25 @@ class DBHelper {
             await _createLichHocCaNhanTable(db);
             break;
           case 9:
-            print('Applying migration v9: add $tenBangNhanXetThang table');
+            developer.log(
+              'Applying migration v9: add $tenBangNhanXetThang table',
+            );
             await _createNhanXetThangTable(db);
             break;
           case 10:
-            print('Applying migration v10: add $tenBangDanhGiaBuoiHoc table');
+            developer.log(
+              'Applying migration v10: add $tenBangDanhGiaBuoiHoc table',
+            );
             await _createDanhGiaBuoiHocTable(db);
             break;
           case 11:
-            print('Applying migration v11: add $tenBangSuKienHocTap table');
+            developer.log(
+              'Applying migration v11: add $tenBangSuKienHocTap table',
+            );
             await _createSuKienHocTapTable(db);
             break;
           case 12:
-            print(
+            developer.log(
               'Applying migration v12: add mien_giam and so_buoi_du to $tenBangHS',
             );
             try {
@@ -139,18 +152,22 @@ class DBHelper {
                 'ALTER TABLE $tenBangHS ADD COLUMN mien_giam INTEGER NOT NULL DEFAULT 0',
               );
             } catch (e) {
-              print('Warning: Column mien_giam might already exist: $e');
+              developer.log(
+                'Warning: Column mien_giam might already exist: $e',
+              );
             }
             try {
               await db.execute(
                 'ALTER TABLE $tenBangHS ADD COLUMN so_buoi_du INTEGER NOT NULL DEFAULT 0',
               );
             } catch (e) {
-              print('Warning: Column so_buoi_du might already exist: $e');
+              developer.log(
+                'Warning: Column so_buoi_du might already exist: $e',
+              );
             }
             break;
           case 13:
-            print(
+            developer.log(
               'Applying migration v13: add so_buoi_duoc_bu_tru and so_buoi_du_con_lai to $tenBangThanhToan',
             );
             try {
@@ -158,7 +175,7 @@ class DBHelper {
                 'ALTER TABLE $tenBangThanhToan ADD COLUMN so_buoi_duoc_bu_tru INTEGER NOT NULL DEFAULT 0',
               );
             } catch (e) {
-              print(
+              developer.log(
                 'Warning: Column so_buoi_duoc_bu_tru might already exist: $e',
               );
             }
@@ -167,27 +184,31 @@ class DBHelper {
                 'ALTER TABLE $tenBangThanhToan ADD COLUMN so_buoi_du_con_lai INTEGER NOT NULL DEFAULT 0',
               );
             } catch (e) {
-              print(
+              developer.log(
                 'Warning: Column so_buoi_du_con_lai might already exist: $e',
               );
             }
             break;
           case 14:
-            print('Applying migration v14: create $tenBangQuyTacDiem table');
+            developer.log(
+              'Applying migration v14: create $tenBangQuyTacDiem table',
+            );
             await _createQuyTacDiemTable(db);
             break;
           case 15:
-            print('Applying migration v15: add hang_muc to $tenBangQuyTacDiem');
+            developer.log(
+              'Applying migration v15: add hang_muc to $tenBangQuyTacDiem',
+            );
             try {
               await db.execute(
                 'ALTER TABLE $tenBangQuyTacDiem ADD COLUMN hang_muc TEXT NOT NULL DEFAULT \'THAI_DO\'',
               );
             } catch (e) {
-              print('Warning: Column hang_muc might already exist: $e');
+              developer.log('Warning: Column hang_muc might already exist: $e');
             }
             break;
           case 16:
-            print('Applying migration v16: init bank info in cai_dat');
+            developer.log('Applying migration v16: init bank info in cai_dat');
             await db.insert(tenBangCaiDat, {
               'khoa': 'bank_id',
               'gia_tri': 'sacombank',
@@ -202,34 +223,55 @@ class DBHelper {
             }, conflictAlgorithm: ConflictAlgorithm.ignore);
             break;
           case 17:
-            print('Applying migration v17: create payment_transactions table');
+            developer.log(
+              'Applying migration v17: create payment_transactions table',
+            );
             await _createPaymentTransactionsTable(db);
             break;
           case 18:
-            print('Applying migration v18: Add database indexes');
+            developer.log('Applying migration v18: Add database indexes');
             // Index cho bảng diem_danh
-            await db.execute('CREATE INDEX IF NOT EXISTS idx_diem_danh_hs_lop ON $tenBangDiemDanh (id_hoc_sinh, id_lop)');
-            await db.execute('CREATE INDEX IF NOT EXISTS idx_diem_danh_gio ON $tenBangDiemDanh (gio_diem_danh)');
-            
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_diem_danh_hs_lop ON $tenBangDiemDanh (id_hoc_sinh, id_lop)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_diem_danh_gio ON $tenBangDiemDanh (gio_diem_danh)',
+            );
+
             // Index cho bảng thanh_toan
-            await db.execute('CREATE INDEX IF NOT EXISTS idx_thanh_toan_hs_lop ON $tenBangThanhToan (id_hoc_sinh, id_lop)');
-            await db.execute('CREATE INDEX IF NOT EXISTS idx_thanh_toan_thang ON $tenBangThanhToan (thang)');
-            
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_thanh_toan_hs_lop ON $tenBangThanhToan (id_hoc_sinh, id_lop)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_thanh_toan_thang ON $tenBangThanhToan (thang)',
+            );
+
             // Index cho bảng lop_hoc_sinh
-            await db.execute('CREATE INDEX IF NOT EXISTS idx_lhs_hs ON $tenBangLopHS (id_hoc_sinh)');
-            await db.execute('CREATE INDEX IF NOT EXISTS idx_lhs_lop ON $tenBangLopHS (id_lop)');
-            
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_lhs_hs ON $tenBangLopHS (id_hoc_sinh)',
+            );
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_lhs_lop ON $tenBangLopHS (id_lop)',
+            );
+
             // Index cho bảng danh_gia_buoi_hoc
-            await db.execute('CREATE INDEX IF NOT EXISTS idx_dgbh_diemdanh ON $tenBangDanhGiaBuoiHoc (id_diem_danh)');
+            await db.execute(
+              'CREATE INDEX IF NOT EXISTS idx_dgbh_diemdanh ON $tenBangDanhGiaBuoiHoc (id_diem_danh)',
+            );
             break;
           case 19:
-            print('Applying migration v19: update google_sheets_web_app_url');
+            developer.log(
+              'Applying migration v19: update google_sheets_web_app_url',
+            );
             await db.update(tenBangCaiDat, {
-              'gia_tri': 'https://script.google.com/macros/s/AKfycbweybBmk23NHVogV007Fbu20LNqVUKQ01qSfUUnjXjMABfyAiuY8P-Pj5-HGBY_iJEn/exec'
+              'gia_tri':
+                  'https://script.google.com/macros/s/AKfycbweybBmk23NHVogV007Fbu20LNqVUKQ01qSfUUnjXjMABfyAiuY8P-Pj5-HGBY_iJEn/exec',
             }, where: "khoa = 'google_sheets_web_app_url'");
             break;
           case 20:
-            print('Applying migration v20: insert new suggested scoring rules');
+            developer.log(
+              'Applying migration v20: insert new suggested scoring rules',
+            );
             await db.insert(tenBangQuyTacDiem, {
               'loai_quy_tac': 'CONG_DIEM',
               'hang_muc': 'THAI_DO',
@@ -330,13 +372,89 @@ class DBHelper {
               'thu_tu_hien_thi': 11,
             }, conflictAlgorithm: ConflictAlgorithm.ignore);
             break;
+          case 21:
+            developer.log(
+              'Applying migration v21: prevent duplicate bank transactions',
+            );
+            await _createPaymentTransactionsTable(db);
+            await db.execute(
+              'CREATE UNIQUE INDEX IF NOT EXISTS '
+              'idx_payment_transactions_transaction_id '
+              'ON payment_transactions (transaction_id) '
+              'WHERE transaction_id IS NOT NULL',
+            );
+            break;
+          case 22:
+            developer.log('Applying migration v22: student leave management');
+            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_tam_ngung', 'TEXT');
+            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_du_kien_hoc_lai', 'TEXT');
+            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_hoc_lai_thuc_te', 'TEXT');
+            await _addColumnIfMissing(db, tenBangLopHS, 'ly_do_tam_ngung', 'TEXT');
+            await db.update(
+              tenBangLopHS,
+              {'trang_thai': 'DANG_HOC'},
+              where: "trang_thai = 'Dang hoc' OR trang_thai IS NULL OR trang_thai = ''",
+            );
+            await _createDonNghiHocTable(db);
+            break;
+          case 23:
+            developer.log('Applying migration v23: student class end date');
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ngay_nghi_hoc',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ly_do_nghi_hoc',
+              'TEXT',
+            );
+            break;
+          case 24:
+            developer.log('Applying migration v24: student return date');
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ngay_hoc_lai_sau_nghi',
+              'TEXT',
+            );
+            break;
+          case 25:
+            developer.log('Applying migration v25: additional charges');
+            await _createKhoanThuTables(db);
+            break;
+          case 26:
+            developer.log('Applying migration v26: add school session & subject conflicts to $tenBangHS');
+            await _addColumnIfMissing(db, tenBangHS, 'ca_hoc_truong', "TEXT NOT NULL DEFAULT 'Sáng'");
+            await _addColumnIfMissing(db, tenBangHS, 'lich_can_mon_khac', 'TEXT');
+            break;
+          case 27:
+            developer.log('Applying migration v27: Ensure payment_transactions table & schema safety integrity');
+            await _createPaymentTransactionsTable(db);
+            await _addColumnIfMissing(db, tenBangHS, 'ca_hoc_truong', "TEXT NOT NULL DEFAULT 'Sáng'");
+            await _addColumnIfMissing(db, tenBangHS, 'lich_can_mon_khac', 'TEXT');
+            await _addColumnIfMissing(db, tenBangHS, 'mien_giam', 'INTEGER NOT NULL DEFAULT 0');
+            await _addColumnIfMissing(db, tenBangHS, 'so_buoi_du', 'INTEGER NOT NULL DEFAULT 0');
+            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_tam_ngung', 'TEXT');
+            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_du_kien_hoc_lai', 'TEXT');
+            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_hoc_lai_thuc_te', 'TEXT');
+            await _addColumnIfMissing(db, tenBangLopHS, 'ly_do_tam_ngung', 'TEXT');
+            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_nghi_hoc', 'TEXT');
+            await _addColumnIfMissing(db, tenBangLopHS, 'ly_do_nghi_hoc', 'TEXT');
+            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_hoc_lai_sau_nghi', 'TEXT');
+            await _createDonNghiHocTable(db);
+            await _createKhoanThuTables(db);
+            break;
           // Thêm case tiếp theo cho các version sau
           default:
-            print('No migration defined for version $v');
+            developer.log('No migration defined for version $v');
         }
       } catch (e) {
-        // Nếu migration đã được áp dụng trước đó hoặc lỗi không nghiêm trọng, log và tiếp tục
-        print('Warning: migration v$v failed or already applied: $e');
+        // Không được đánh dấu nâng cấp thành công khi cấu trúc dữ liệu chưa đầy đủ.
+        developer.log('Migration v$v failed: $e', name: 'DBHelper', error: e);
+        rethrow;
       }
     }
   }
@@ -354,7 +472,6 @@ class DBHelper {
     const textType = 'TEXT NOT NULL';
     const intType = 'INTEGER NOT NULL';
     const nullableText = 'TEXT';
-
     // 1. Tao Bang Truong
     await db.execute('''
         CREATE TABLE $tenBangTruong ( id $idType, ten $textType UNIQUE )
@@ -378,7 +495,9 @@ class DBHelper {
         ghi_chu $nullableText,
         email $nullableText,
         mien_giam INTEGER NOT NULL DEFAULT 0,
-        so_buoi_du INTEGER NOT NULL DEFAULT 0
+        so_buoi_du INTEGER NOT NULL DEFAULT 0,
+        ca_hoc_truong TEXT NOT NULL DEFAULT 'Sáng',
+        lich_can_mon_khac TEXT
       )
     ''');
 
@@ -463,10 +582,10 @@ class DBHelper {
     await _createSuKienHocTapTable(db);
     // TẠO BẢNG QUY TẮC ĐIỂM
     await _createQuyTacDiemTable(db);
-    await db.insert(tenBangCaiDat, {
-      'khoa': 'bank_id',
-      'gia_tri': 'sacombank',
-    });
+    await _createDonNghiHocTable(db);
+    await _createKhoanThuTables(db);
+    await _createPaymentTransactionsTable(db);
+    await db.insert(tenBangCaiDat, {'khoa': 'bank_id', 'gia_tri': 'sacombank'});
     await db.insert(tenBangCaiDat, {
       'khoa': 'account_no',
       'gia_tri': '0905073175',
@@ -477,18 +596,33 @@ class DBHelper {
     });
     await db.insert(tenBangCaiDat, {
       'khoa': 'google_sheets_web_app_url',
-      'gia_tri': 'https://script.google.com/macros/s/AKfycbweybBmk23NHVogV007Fbu20LNqVUKQ01qSfUUnjXjMABfyAiuY8P-Pj5-HGBY_iJEn/exec',
+      'gia_tri':
+          'https://script.google.com/macros/s/AKfycbweybBmk23NHVogV007Fbu20LNqVUKQ01qSfUUnjXjMABfyAiuY8P-Pj5-HGBY_iJEn/exec',
     });
     await db.insert(tenBangTruong, {'ten': 'THPT Hoàng Hoa Thám'});
 
     // Thêm Index để tối ưu hóa hiệu năng truy vấn cho các cài đặt mới
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_diem_danh_hs_lop ON $tenBangDiemDanh (id_hoc_sinh, id_lop)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_diem_danh_gio ON $tenBangDiemDanh (gio_diem_danh)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_thanh_toan_hs_lop ON $tenBangThanhToan (id_hoc_sinh, id_lop)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_thanh_toan_thang ON $tenBangThanhToan (thang)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_lhs_hs ON $tenBangLopHS (id_hoc_sinh)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_lhs_lop ON $tenBangLopHS (id_lop)');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_dgbh_diemdanh ON $tenBangDanhGiaBuoiHoc (id_diem_danh)');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_diem_danh_hs_lop ON $tenBangDiemDanh (id_hoc_sinh, id_lop)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_diem_danh_gio ON $tenBangDiemDanh (gio_diem_danh)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_thanh_toan_hs_lop ON $tenBangThanhToan (id_hoc_sinh, id_lop)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_thanh_toan_thang ON $tenBangThanhToan (thang)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_lhs_hs ON $tenBangLopHS (id_hoc_sinh)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_lhs_lop ON $tenBangLopHS (id_lop)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_dgbh_diemdanh ON $tenBangDanhGiaBuoiHoc (id_diem_danh)',
+    );
   }
 
   // New method to create payment_transactions table
@@ -510,6 +644,12 @@ class DBHelper {
         updated_at $nullableText
       )
     ''');
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS '
+      'idx_payment_transactions_transaction_id '
+      'ON payment_transactions (transaction_id) '
+      'WHERE transaction_id IS NOT NULL',
+    );
   }
 
   // Tách hàm tạo bảng thanh_toan để tái sử dụng trong migration
@@ -518,7 +658,6 @@ class DBHelper {
     const textType = 'TEXT NOT NULL';
     const intType = 'INTEGER NOT NULL';
     const nullableText = 'TEXT';
-
     await db.execute('''
       CREATE TABLE $tenBangThanhToan ( 
           id $idType, 
@@ -583,11 +722,81 @@ class DBHelper {
     await db.execute('''
         CREATE TABLE $tenBangLopHS ( 
             id $idType, id_hoc_sinh $intType, id_lop $intType, ngay_tham_gia $textType,
-            trang_thai $textType DEFAULT 'Dang hoc', 
+            trang_thai $textType DEFAULT 'DANG_HOC',
+            ngay_tam_ngung TEXT,
+            ngay_du_kien_hoc_lai TEXT,
+            ngay_hoc_lai_thuc_te TEXT,
+            ly_do_tam_ngung TEXT,
+            ngay_nghi_hoc TEXT,
+            ly_do_nghi_hoc TEXT,
+            ngay_hoc_lai_sau_nghi TEXT,
             UNIQUE(id_hoc_sinh, id_lop),
             FOREIGN KEY(id_hoc_sinh) REFERENCES $tenBangHS(id) ON DELETE CASCADE
         )
     ''');
+  }
+
+  Future<void> _createDonNghiHocTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tenBangDonNghiHoc (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_hoc_sinh INTEGER NOT NULL,
+        id_lop INTEGER NOT NULL,
+        tu_ngay TEXT NOT NULL,
+        den_ngay TEXT NOT NULL,
+        ly_do TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(id_hoc_sinh) REFERENCES $tenBangHS(id) ON DELETE CASCADE,
+        FOREIGN KEY(id_lop) REFERENCES $tenBangLop(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_don_nghi_hoc_hs_lop_ngay '
+      'ON $tenBangDonNghiHoc (id_hoc_sinh, id_lop, tu_ngay, den_ngay)',
+    );
+  }
+
+  Future<void> _addColumnIfMissing(
+    Database db,
+    String table,
+    String column,
+    String definition,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    if (columns.any((row) => row['name'] == column)) return;
+    await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
+  }
+
+  Future<void> _createKhoanThuTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tenBangKhoanThu (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_lop INTEGER NOT NULL,
+        thang TEXT NOT NULL,
+        ten_khoan_thu TEXT NOT NULL,
+        so_tien INTEGER NOT NULL,
+        han_thu TEXT,
+        ghi_chu TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(id_lop) REFERENCES $tenBangLop(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tenBangKhoanThuHocSinh (
+        id_khoan_thu INTEGER NOT NULL,
+        id_hoc_sinh INTEGER NOT NULL,
+        so_tien_da_dong INTEGER NOT NULL DEFAULT 0,
+        ngay_thanh_toan TEXT,
+        ghi_chu TEXT,
+        PRIMARY KEY(id_khoan_thu, id_hoc_sinh),
+        FOREIGN KEY(id_khoan_thu) REFERENCES $tenBangKhoanThu(id) ON DELETE CASCADE,
+        FOREIGN KEY(id_hoc_sinh) REFERENCES $tenBangHS(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_khoan_thu_lop_thang '
+      'ON $tenBangKhoanThu (id_lop, thang)',
+    );
   }
 
   // Hàm tạo bảng lich_hoc_ca_nhan
@@ -610,7 +819,6 @@ class DBHelper {
     const realType = 'REAL NOT NULL';
     const textType = 'TEXT NOT NULL';
     const nullableText = 'TEXT';
-
     await db.execute('''
       CREATE TABLE $tenBangNhanXetThang (
         id $idType,
@@ -654,7 +862,6 @@ class DBHelper {
     const intType = 'INTEGER NOT NULL';
     const realType = 'REAL NOT NULL';
     const textType = 'TEXT NOT NULL';
-    const nullableText = 'TEXT';
 
     await db.execute('''
       CREATE TABLE $tenBangSuKienHocTap (

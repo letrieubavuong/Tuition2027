@@ -354,7 +354,8 @@ class AppLocalizations {
   String get noStudentDataChart => get('noStudentDataChart')!;
   String get todayScheduleTitle => get('todayScheduleTitle')!;
   String get noScheduleToday => get('noScheduleToday')!;
-  String grade(String gradeNum) => get('grade')!.replaceAll('{grade}', gradeNum);
+  String grade(String gradeNum) =>
+      get('grade')!.replaceAll('{grade}', gradeNum);
   String get homeMetricStudent => get('homeMetricStudent')!;
   String get homeMetricClass => get('homeMetricClass')!;
   String get homeMetricRevenue => get('homeMetricRevenue')!;
@@ -362,7 +363,8 @@ class AppLocalizations {
   String get homeSubtitleToday => get('homeSubtitleToday')!;
   String get homeSubtitleCollectionRate => get('homeSubtitleCollectionRate')!;
   String get homeSubtitleRemainingDebt => get('homeSubtitleRemainingDebt')!;
-  String homeSubtitleClassCount(String count) => get('homeSubtitleClassCount')!.replaceAll('{count}', count);
+  String homeSubtitleClassCount(String count) =>
+      get('homeSubtitleClassCount')!.replaceAll('{count}', count);
 
   // Additional Drawer / Popups
   String get scoreRules => get('scoreRules')!;

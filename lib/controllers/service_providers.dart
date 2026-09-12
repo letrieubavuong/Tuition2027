@@ -13,13 +13,15 @@ part 'service_providers.g.dart';
 LopService lopService(LopServiceRef ref) => LopService();
 
 @riverpod
-LopHocSinhService lopHocSinhService(LopHocSinhServiceRef ref) => LopHocSinhService();
+LopHocSinhService lopHocSinhService(LopHocSinhServiceRef ref) =>
+    LopHocSinhService();
 
 @riverpod
 LichHocService lichHocService(LichHocServiceRef ref) => LichHocService();
 
 @riverpod
-LichHocChungService lichHocChungService(LichHocChungServiceRef ref) => LichHocChungService();
+LichHocChungService lichHocChungService(LichHocChungServiceRef ref) =>
+    LichHocChungService();
 
 @riverpod
 ReportService reportService(ReportServiceRef ref) => ReportService();

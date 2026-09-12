@@ -30,13 +30,14 @@ class _FormLopState extends State<FormLop> {
   static const Color accentColor = Colors.blueAccent;
   static const Color darkBackground = Color(0xFF121212);
 
-
   @override
   void initState() {
     super.initState();
     if (widget.lop != null) {
       _tenLopController.text = widget.lop!.ten;
-      _selectedKhoi = _danhSachKhoi.contains(widget.lop!.khoi) ? widget.lop!.khoi : 6;
+      _selectedKhoi = _danhSachKhoi.contains(widget.lop!.khoi)
+          ? widget.lop!.khoi
+          : 6;
     } else {
       _selectedKhoi = 6; // Mặc định là khối 6 khi tạo mới
     }
@@ -70,11 +71,15 @@ class _FormLopState extends State<FormLop> {
           // Trả về true để màn hình trước (DSLop) biết và tải lại danh sách
           Navigator.pop(context, true);
         }
-
       } catch (e) {
         if (mounted) {
           // Xử lý lỗi (ví dụ: tên lớp bị trùng)
-          ToastHelper.showError(context, isVi ? 'Lỗi lưu lớp: Tên lớp có thể bị trùng hoặc lỗi hệ thống.' : 'Error saving class: Class name might be duplicated or system error.');
+          ToastHelper.showError(
+            context,
+            isVi
+                ? 'Lỗi lưu lớp: Tên lớp có thể bị trùng hoặc lỗi hệ thống.'
+                : 'Error saving class: Class name might be duplicated or system error.',
+          );
         }
       }
     }
@@ -87,9 +92,13 @@ class _FormLopState extends State<FormLop> {
     return Scaffold(
       backgroundColor: darkBackground,
       appBar: AppBar(
-        title: Text(widget.lop == null 
-            ? (isVi ? 'Thêm Lớp Học Mới' : 'Add New Class') 
-            : (isVi ? 'Sửa Lớp Học: ${widget.lop!.ten}' : 'Edit Class: ${widget.lop!.ten}')),
+        title: Text(
+          widget.lop == null
+              ? (isVi ? 'Thêm Lớp Học Mới' : 'Add New Class')
+              : (isVi
+                    ? 'Sửa Lớp Học: ${widget.lop!.ten}'
+                    : 'Edit Class: ${widget.lop!.ten}'),
+        ),
         centerTitle: true,
         backgroundColor: cardColor,
         foregroundColor: lightText,
@@ -103,7 +112,10 @@ class _FormLopState extends State<FormLop> {
             children: <Widget>[
               // --- Chọn Khối ---
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: cardColor,
                   border: Border.all(color: secondaryText),
@@ -114,8 +126,14 @@ class _FormLopState extends State<FormLop> {
                     value: _selectedKhoi,
                     dropdownColor: cardColor,
                     style: const TextStyle(color: lightText, fontSize: 16),
-                    icon: const Icon(Icons.arrow_drop_down, color: secondaryText),
-                    hint: Text(isVi ? 'Chọn Khối' : 'Select Grade', style: const TextStyle(color: secondaryText)),
+                    icon: const Icon(
+                      Icons.arrow_drop_down,
+                      color: secondaryText,
+                    ),
+                    hint: Text(
+                      isVi ? 'Chọn Khối' : 'Select Grade',
+                      style: const TextStyle(color: secondaryText),
+                    ),
                     onChanged: (int? newValue) {
                       if (newValue != null) {
                         setState(() {
@@ -126,7 +144,10 @@ class _FormLopState extends State<FormLop> {
                     items: _danhSachKhoi.map<DropdownMenuItem<int>>((int khoi) {
                       return DropdownMenuItem<int>(
                         value: khoi,
-                        child: Text(isVi ? 'Khối $khoi' : 'Grade $khoi', style: const TextStyle(color: lightText)),
+                        child: Text(
+                          isVi ? 'Khối $khoi' : 'Grade $khoi',
+                          style: const TextStyle(color: lightText),
+                        ),
                       );
                     }).toList(),
                   ),
@@ -142,14 +163,20 @@ class _FormLopState extends State<FormLop> {
                   labelText: isVi ? 'Tên Lớp' : 'Class Name',
                   labelStyle: const TextStyle(color: secondaryText),
                   border: const OutlineInputBorder(),
-                  enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: secondaryText)),
-                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: accentColor, width: 2)),
+                  enabledBorder: const OutlineInputBorder(
+                    borderSide: BorderSide(color: secondaryText),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: accentColor, width: 2),
+                  ),
                   fillColor: cardColor,
                   filled: true,
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return isVi ? 'Vui lòng nhập tên lớp' : 'Please enter class name';
+                    return isVi
+                        ? 'Vui lòng nhập tên lớp'
+                        : 'Please enter class name';
                   }
                   return null;
                 },
@@ -165,10 +192,10 @@ class _FormLopState extends State<FormLop> {
                   padding: const EdgeInsets.symmetric(vertical: 15),
                 ),
                 child: Text(
-                  widget.lop == null 
-                      ? (isVi ? 'TẠO LỚP' : 'CREATE CLASS') 
-                      : (isVi ? 'CẬP NHẬT LỚP' : 'UPDATE CLASS'), 
-                  style: const TextStyle(fontWeight: FontWeight.bold)
+                  widget.lop == null
+                      ? (isVi ? 'TẠO LỚP' : 'CREATE CLASS')
+                      : (isVi ? 'CẬP NHẬT LỚP' : 'UPDATE CLASS'),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
             ],

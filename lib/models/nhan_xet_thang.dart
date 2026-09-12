@@ -51,7 +51,10 @@ class NhanXetThang {
       idHocSinh: map['id_hoc_sinh'] as int,
       idLop: map['id_lop'] as int,
       thang: map['thang'] as String,
-      diemChuyenCan: parseDoubleSafely(map['diem_chuyen_can'], defaultValue: 10.0),
+      diemChuyenCan: parseDoubleSafely(
+        map['diem_chuyen_can'],
+        defaultValue: 10.0,
+      ),
       diemThaiDo: parseDoubleSafely(map['diem_thai_do'], defaultValue: 0.0),
       diemBaiTap: parseDoubleSafely(map['diem_bai_tap'], defaultValue: 0.0),
       diemKiemTra: parseDoubleSafely(map['diem_kiem_tra'], defaultValue: 0.0),

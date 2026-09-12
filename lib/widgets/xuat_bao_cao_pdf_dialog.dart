@@ -1,7 +1,6 @@
 // File: lib/widgets/xuat_bao_cao_pdf_dialog.dart
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../models/lop.dart';
 import '../screens/hocphi.dart'; // For LopHocPhiViewModel
 import '../services/lop_service.dart';
@@ -26,8 +25,10 @@ class XuatBaoCaoPdfDialog extends StatefulWidget {
 class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
-  Color get lightText => Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
-  Color get secondaryText => Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+  Color get lightText =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+  Color get secondaryText =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
   Color get accentColor => Theme.of(context).primaryColor;
   Color get deleteColor => Theme.of(context).colorScheme.error;
 
@@ -68,13 +69,18 @@ class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
             style: TextStyle(color: accentColor, fontWeight: FontWeight.bold),
           ),
           content: Text(
-            isVi ? 'Vui lòng chọn một lớp để xuất báo cáo.' : 'Please select a class to export the report.',
+            isVi
+                ? 'Vui lòng chọn một lớp để xuất báo cáo.'
+                : 'Please select a class to export the report.',
             style: TextStyle(color: lightText),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: Text(isVi ? 'Đóng' : 'Close', style: TextStyle(color: secondaryText)),
+              child: Text(
+                isVi ? 'Đóng' : 'Close',
+                style: TextStyle(color: secondaryText),
+              ),
             ),
           ],
         ),
@@ -211,7 +217,9 @@ class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
               !snapshot.hasData ||
               snapshot.data!.isEmpty) {
             return Text(
-              isVi ? 'Không có lớp nào để chọn.' : 'No classes available to select.',
+              isVi
+                  ? 'Không có lớp nào để chọn.'
+                  : 'No classes available to select.',
               style: TextStyle(color: secondaryText),
             );
           }
@@ -227,14 +235,16 @@ class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
             children: [
               // Dropdown Chọn Lớp
               DropdownButtonFormField<Lop>(
-                value: _selectedLop,
+                initialValue: _selectedLop,
                 items: lopList.map((lop) {
                   return DropdownMenuItem<Lop>(
                     value: lop,
                     child: Text(
                       lop.id == -1
                           ? (isVi ? 'Tất cả các lớp' : 'All classes')
-                          : (isVi ? 'Lớp ${lop.ten} (Khối ${lop.khoi})' : 'Class ${lop.ten} (Grade ${lop.khoi})'),
+                          : (isVi
+                                ? 'Lớp ${lop.ten} (Khối ${lop.khoi})'
+                                : 'Class ${lop.ten} (Grade ${lop.khoi})'),
                     ),
                   );
                 }).toList(),
@@ -263,7 +273,7 @@ class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
                   // Dropdown Chọn Tháng
                   Expanded(
                     child: DropdownButtonFormField<int>(
-                      value: _selectedMonth,
+                      initialValue: _selectedMonth,
                       items: List.generate(12, (index) => index + 1).map((m) {
                         return DropdownMenuItem<int>(
                           value: m,
@@ -292,7 +302,7 @@ class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
                   // Dropdown Chọn Năm
                   Expanded(
                     child: DropdownButtonFormField<int>(
-                      value: _selectedYear,
+                      initialValue: _selectedYear,
                       items:
                           List.generate(
                             11,
@@ -331,7 +341,10 @@ class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
       actions: [
         TextButton(
           onPressed: _isExporting ? null : () => Navigator.of(context).pop(),
-          child: Text(isVi ? 'HỦY' : 'CANCEL', style: TextStyle(color: secondaryText)),
+          child: Text(
+            isVi ? 'HỦY' : 'CANCEL',
+            style: TextStyle(color: secondaryText),
+          ),
         ),
         ElevatedButton.icon(
           onPressed: _isExporting ? null : _handleExport,

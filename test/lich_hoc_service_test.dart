@@ -24,7 +24,7 @@ void main() {
         final result = await service.themLichHoc(lichHoc);
 
         // Có thể null nếu đã tồn tại hoặc có lỗi
-        expect(result == null || result is LichHoc, isTrue);
+        expect(result, anyOf(isNull, isA<LichHoc>()));
         if (result != null) {
           expect(result.id, isNotNull);
           print('✅ PASS: Thêm lịch học thành công với ID: ${result.id}');
@@ -99,7 +99,7 @@ void main() {
         );
         final result = await service.themLichHoc(lichHoc2);
 
-        expect(result == null || result is LichHoc, isTrue);
+        expect(result, anyOf(isNull, isA<LichHoc>()));
         print('✅ PASS: Có thể thêm lịch học không chồng lấn');
       });
     });

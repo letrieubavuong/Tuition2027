@@ -12,7 +12,7 @@ class LopHocSinh {
     required this.idLop,
     required this.idHocSinh,
     required this.ngayThamGia,
-    this.trangThai = 'Dang hoc', // Mặc định khớp với SQL
+    this.trangThai = 'DANG_HOC',
   });
 
   Map<String, dynamic> toMap() {

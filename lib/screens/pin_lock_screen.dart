@@ -5,7 +5,8 @@ import '../main.dart';
 import '../utils/toast_helper.dart';
 
 class PinLockScreen extends StatefulWidget {
-  final bool isConfiguring; // true if configuring PIN in Settings, false if unlocking app at startup
+  final bool
+  isConfiguring; // true if configuring PIN in Settings, false if unlocking app at startup
   const PinLockScreen({super.key, required this.isConfiguring});
 
   @override
@@ -36,13 +37,16 @@ class _PinLockScreenState extends State<PinLockScreen> {
       });
     } else {
       final pin = await _caiDatService.layCaiDat('app_pin_code');
-      final biometricEnabled = await _caiDatService.layCaiDat('app_biometric_enabled') == 'true';
-      
+      final biometricEnabled =
+          await _caiDatService.layCaiDat('app_biometric_enabled') == 'true';
+
       bool bioAvailable = false;
       if (biometricEnabled) {
         final LocalAuthentication auth = LocalAuthentication();
-        final bool canAuthenticateWithBiometrics = await auth.canCheckBiometrics;
-        bioAvailable = canAuthenticateWithBiometrics || await auth.isDeviceSupported();
+        final bool canAuthenticateWithBiometrics =
+            await auth.canCheckBiometrics;
+        bioAvailable =
+            canAuthenticateWithBiometrics || await auth.isDeviceSupported();
       }
 
       setState(() {
@@ -121,7 +125,10 @@ class _PinLockScreenState extends State<PinLockScreen> {
           await _caiDatService.capNhatCaiDat('app_pin_enabled', 'true');
           await _caiDatService.capNhatCaiDat('app_pin_code', enteredString);
           if (mounted) {
-            ToastHelper.showSuccess(context, 'Đã thiết lập mã PIN bảo mật thành công!');
+            ToastHelper.showSuccess(
+              context,
+              'Đã thiết lập mã PIN bảo mật thành công!',
+            );
             Navigator.of(context).pop(true);
           }
         } else {
@@ -147,9 +154,7 @@ class _PinLockScreenState extends State<PinLockScreen> {
 
   void _unlockAndGoToMain() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => MainScreen(key: mainScreenKey),
-      ),
+      MaterialPageRoute(builder: (context) => MainScreen(key: mainScreenKey)),
     );
   }
 
@@ -159,15 +164,13 @@ class _PinLockScreenState extends State<PinLockScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF1A1A2E) : const Color(0xFFF0F2F5),
+      backgroundColor: isDark
+          ? const Color(0xFF1A1A2E)
+          : const Color(0xFFF0F2F5),
       appBar: widget.isConfiguring
           ? AppBar(
               title: const Text('Thiết lập mã PIN'),
@@ -247,16 +250,16 @@ class _PinLockScreenState extends State<PinLockScreen> {
                               ),
                             )
                           : widget.isConfiguring
-                              ? SizedBox(
-                                  width: 68,
-                                  height: 68,
-                                  child: IconButton(
-                                    icon: const Icon(Icons.close),
-                                    color: isDark ? Colors.white54 : Colors.black54,
-                                    onPressed: () => Navigator.of(context).pop(),
-                                  ),
-                                )
-                              : const SizedBox(width: 68),
+                          ? SizedBox(
+                              width: 68,
+                              height: 68,
+                              child: IconButton(
+                                icon: const Icon(Icons.close),
+                                color: isDark ? Colors.white54 : Colors.black54,
+                                onPressed: () => Navigator.of(context).pop(),
+                              ),
+                            )
+                          : const SizedBox(width: 68),
                       _buildKeypadButton(0),
                       SizedBox(
                         width: 68,
@@ -300,7 +303,7 @@ class _PinLockScreenState extends State<PinLockScreen> {
           color: isDark ? const Color(0xFF16213E) : Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),

@@ -2,9 +2,6 @@
 
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:collection/collection.dart';
-import '../models/hoc_phi_tong_hop.dart';
-import '../services/report_service.dart';
 import '../utils/db.dart';
 import 'dart:developer' as developer;
 
@@ -31,8 +28,6 @@ class HocPhiThang {
 
 class ThongKeService {
   final dbHelper = DBHelper.instance;
-  final _reportService = ReportService();
-
   Future<Database> get _database async {
     return await dbHelper.database;
   }

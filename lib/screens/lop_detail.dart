@@ -27,7 +27,11 @@ import 'gan_lich_hoc_page.dart';
 import 'su_kien_buoi_hoc_page.dart';
 import 'package:share_plus/share_plus.dart';
 import '../widgets/danh_gia_dialog.dart';
+import '../widgets/gui_thong_bao_hang_loat_dialog.dart';
 import '../services/pdf_export_service.dart';
+import '../services/calendar_sync_service.dart';
+import '../utils/toast_helper.dart';
+import '../utils/db.dart';
 
 // SỬA: Chuyển sang ConsumerStatefulWidget để dùng Riverpod
 class LopDetail extends ConsumerStatefulWidget {
@@ -43,8 +47,10 @@ class _LopDetailState extends ConsumerState<LopDetail>
   // --- Theme Colors ---
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
-  Color get lightText => Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
-  Color get secondaryText => Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+  Color get lightText =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+  Color get secondaryText =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
   Color get accentColor => Theme.of(context).primaryColor;
   Color get deleteColor => Theme.of(context).colorScheme.error;
 
@@ -140,10 +146,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
                     decoration: InputDecoration(
                       labelText: isVi ? 'Khối' : 'Grade',
                       labelStyle: TextStyle(color: secondaryText),
-                      prefixIcon: Icon(
-                        Icons.school,
-                        color: secondaryText,
-                      ),
+                      prefixIcon: Icon(Icons.school, color: secondaryText),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -163,8 +166,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
                           );
                         }).toList(),
                         onChanged: (value) {
-                          if (value != null)
+                          if (value != null) {
                             setStateDialog(() => selectedKhoi = value);
+                          }
                         },
                       ),
                     ),
@@ -178,10 +182,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
                     decoration: InputDecoration(
                       labelText: isVi ? 'Tên lớp' : 'Class Name',
                       labelStyle: TextStyle(color: secondaryText),
-                      prefixIcon: Icon(
-                        Icons.class_,
-                        color: secondaryText,
-                      ),
+                      prefixIcon: Icon(Icons.class_, color: secondaryText),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -190,7 +191,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
                     ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return isVi ? 'Vui lòng nhập tên lớp' : 'Please enter class name';
+                        return isVi
+                            ? 'Vui lòng nhập tên lớp'
+                            : 'Please enter class name';
                       }
                       return null;
                     },
@@ -215,6 +218,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
                         khoi: selectedKhoi,
                       );
                       await _lopService.capNhatLop(lopToUpdate);
+                      if (!ctx.mounted) return;
                       Navigator.of(ctx).pop(true);
                     }
                   },
@@ -253,7 +257,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
       backgroundColor: darkBackground,
       appBar: AppBar(
         title: Text(
-          isVi ? '${_currentLop.ten} (Khối ${_currentLop.khoi})' : '${_currentLop.ten} (Grade ${_currentLop.khoi})',
+          isVi
+              ? '${_currentLop.ten} (Khối ${_currentLop.khoi})'
+              : '${_currentLop.ten} (Grade ${_currentLop.khoi})',
           style: TextStyle(
             color: lightText,
             fontSize: 18,
@@ -265,6 +271,26 @@ class _LopDetailState extends ConsumerState<LopDetail>
         foregroundColor: lightText,
         actions: [
           IconButton(
+            icon: Icon(Icons.send_rounded, color: accentColor),
+            tooltip: isVi ? 'Gửi thông báo lớp' : 'Send Class Notification',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (ctx) => GuiThongBaoHangLoatDialog(
+                  initialLopId: _currentLop.id,
+                  initialOnlyUnpaid: false,
+                  initialType: NotificationType.baoNghiHoc,
+                  allowedTypes: const [
+                    NotificationType.baoNghiHoc,
+                    NotificationType.baoDoiLich,
+                    NotificationType.custom,
+                  ],
+                  dialogTitle: 'Gửi Thông Báo Lớp Học',
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: Icon(Icons.edit_note, color: accentColor),
             onPressed: _moDialogSuaLop,
           ),
@@ -275,10 +301,22 @@ class _LopDetailState extends ConsumerState<LopDetail>
           labelColor: accentColor,
           unselectedLabelColor: secondaryText,
           tabs: [
-            Tab(icon: const Icon(Icons.info), text: isVi ? 'Chi Tiết' : 'Details'),
-            Tab(icon: const Icon(Icons.group), text: isVi ? 'Học Sinh' : 'Students'),
-            Tab(icon: const Icon(Icons.calendar_month), text: isVi ? 'Lịch Học' : 'Schedule'),
-            Tab(icon: const Icon(Icons.star), text: isVi ? 'Đánh Giá' : 'Evaluations'), // SỬA: Thêm tab mới
+            Tab(
+              icon: const Icon(Icons.info),
+              text: isVi ? 'Chi Tiết' : 'Details',
+            ),
+            Tab(
+              icon: const Icon(Icons.group),
+              text: isVi ? 'Học Sinh' : 'Students',
+            ),
+            Tab(
+              icon: const Icon(Icons.calendar_month),
+              text: isVi ? 'Lịch Học' : 'Schedule',
+            ),
+            Tab(
+              icon: const Icon(Icons.star),
+              text: isVi ? 'Đánh Giá' : 'Evaluations',
+            ), // SỬA: Thêm tab mới
           ],
         ),
       ),
@@ -344,7 +382,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
               ),
               _buildModernMetricCard(
                 isVi ? 'Lịch Học' : 'Schedule',
-                isVi ? '${state.lichHocs.length} buổi' : '${state.lichHocs.length} sessions',
+                isVi
+                    ? '${state.lichHocs.length} buổi'
+                    : '${state.lichHocs.length} sessions',
                 Icons.calendar_today_rounded,
                 Colors.orangeAccent,
                 isVi ? 'Số buổi dạy/tuần' : 'Sessions/week',
@@ -392,7 +432,11 @@ class _LopDetailState extends ConsumerState<LopDetail>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.checklist_rtl_rounded, color: darkBackground, size: 24),
+                      Icon(
+                        Icons.checklist_rtl_rounded,
+                        color: darkBackground,
+                        size: 24,
+                      ),
                       const SizedBox(width: 12),
                       Text(
                         isVi ? 'ĐIỂM DANH LỚP' : 'CLASS ATTENDANCE',
@@ -411,14 +455,23 @@ class _LopDetailState extends ConsumerState<LopDetail>
           ),
           const SizedBox(height: 32),
 
-          _buildSectionHeader(isVi ? 'DANH SÁCH NHIỆM VỤ' : 'TASK LIST', Icons.assignment_rounded),
+          _buildSectionHeader(
+            isVi ? 'DANH SÁCH NHIỆM VỤ' : 'TASK LIST',
+            Icons.assignment_rounded,
+          ),
           _buildNhiemVuSection(state),
         ],
       ),
     );
   }
 
-  Widget _buildModernMetricCard(String label, String value, IconData icon, Color color, String subtitle) {
+  Widget _buildModernMetricCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+    String subtitle,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -441,7 +494,11 @@ class _LopDetailState extends ConsumerState<LopDetail>
                 ),
                 child: Icon(icon, color: color, size: 16),
               ),
-              Icon(Icons.more_horiz, color: secondaryText.withValues(alpha: 0.3), size: 16),
+              Icon(
+                Icons.more_horiz,
+                color: secondaryText.withValues(alpha: 0.3),
+                size: 16,
+              ),
             ],
           ),
           const Spacer(),
@@ -493,6 +550,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
   // ===================================================
   Widget _buildDSHSSection(LopDetailState state) {
     final dsHS = state.hocSinhs;
+    final dsDaNghi = state.hocSinhsDaNghi;
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
 
     // SỬA: Bỏ Scaffold và FloatingActionButton, thay bằng Column với header
@@ -515,25 +573,44 @@ class _LopDetailState extends ConsumerState<LopDetail>
               IconButton(
                 icon: Icon(Icons.person_add_alt_1, color: accentColor),
                 onPressed: _moDialogThemHS,
-                tooltip: isVi ? 'Thêm học sinh vào lớp' : 'Add student to class',
+                tooltip: isVi
+                    ? 'Thêm học sinh vào lớp'
+                    : 'Add student to class',
               ),
             ],
           ),
           Divider(color: secondaryText),
           // Danh sách
           Expanded(
-            child: dsHS.isEmpty
+            child: dsHS.isEmpty && dsDaNghi.isEmpty
                 ? Center(
                     child: Text(
-                      isVi ? 'Chưa có học sinh nào trong lớp.' : 'No students in this class.',
+                      isVi
+                          ? 'Chưa có học sinh nào trong lớp.'
+                          : 'No students in this class.',
                       style: TextStyle(color: secondaryText),
                     ),
                   )
-                : ListView.builder(
+                : ListView(
                     padding: const EdgeInsets.only(top: 0),
-                    itemCount: dsHS.length,
-                    itemBuilder: (context, index) =>
-                        _buildHocSinhCard(dsHS[index]),
+                    children: [
+                      ...dsHS.map(_buildHocSinhCard),
+                      if (dsDaNghi.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 18, 8, 6),
+                          child: Text(
+                            isVi
+                                ? 'HỌC SINH ĐÃ NGHỈ (${dsDaNghi.length})'
+                                : 'FORMER STUDENTS (${dsDaNghi.length})',
+                            style: const TextStyle(
+                              color: Colors.orangeAccent,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        ...dsDaNghi.map(_buildHocSinhCard),
+                      ],
+                    ],
                   ),
           ),
         ],
@@ -543,100 +620,464 @@ class _LopDetailState extends ConsumerState<LopDetail>
 
   Widget _buildHocSinhCard(HSLopViewModel hsViewModel) {
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
+    final isPaused = hsViewModel.trangThai == 'TAM_NGUNG';
+    final isFormer = !_lhsService.hoatDongTrongNgay(
+      hsViewModel,
+      DateTime.now(),
+    );
     return Card(
       color: cardColor,
       margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-        child: Row(
+      child: InkWell(
+        onTap: () => _hienThiDialogThongTinHocSinh(hsViewModel),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: accentColor.withValues(alpha: 0.2),
+                child: Text(
+                  hsViewModel.ten.isNotEmpty
+                      ? hsViewModel.ten[0].toUpperCase()
+                      : '?',
+                  style: TextStyle(
+                    color: accentColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hsViewModel.ten,
+                      style: TextStyle(
+                        color: lightText,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (isPaused) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        isVi
+                            ? 'Tạm ngừng từ ${_formatOptionalDate(hsViewModel.ngayTamNgung)}'
+                            : 'Paused from ${_formatOptionalDate(hsViewModel.ngayTamNgung)}',
+                        style: const TextStyle(
+                          color: Colors.orangeAccent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    if (isFormer) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        isVi
+                            ? 'Đã nghỉ từ ${_formatOptionalDate(hsViewModel.ngayNghiHoc)}'
+                            : 'Left from ${_formatOptionalDate(hsViewModel.ngayNghiHoc)}',
+                        style: const TextStyle(
+                          color: Colors.orangeAccent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Text(
+                      isVi
+                          ? 'Ngày tham gia: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(hsViewModel.ngayThamGia))}'
+                          : 'Joined: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(hsViewModel.ngayThamGia))}',
+                      style: TextStyle(color: secondaryText, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, color: secondaryText),
+                color: darkBackground,
+                onSelected: (value) {
+                  if (value == 'reactivate') {
+                    _kichHoatHocLai(hsViewModel);
+                  } else if (value == 'leave') {
+                    _moDialogDangKyNghi(hsViewModel);
+                  } else if (value == 'pause') {
+                    _moDialogTamNgung(hsViewModel);
+                  } else if (value == 'resume') {
+                    _choHocLai(hsViewModel);
+                  } else if (value == 'edit_date') {
+                    _moDialogSuaNgayThamGia(hsViewModel);
+                  } else if (value == 'evaluate') {
+                    _moDialogDanhGiaNhanh(hsViewModel);
+                  } else if (value == 'delete') {
+                    _xacNhanXoaHS(hsViewModel);
+                  }
+                },
+                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                  if (isFormer)
+                    PopupMenuItem<String>(
+                      value: 'reactivate',
+                      child: Row(
+                        children: [
+                          const Icon(Icons.person_add_alt, color: Colors.greenAccent),
+                          const SizedBox(width: 12),
+                          Text(
+                            isVi ? 'Cho học lại' : 'Reactivate',
+                            style: TextStyle(color: lightText),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (!isFormer)
+                    PopupMenuItem<String>(
+                      value: 'leave',
+                      child: Row(
+                        children: [
+                          const Icon(Icons.event_busy, color: Colors.amber),
+                          const SizedBox(width: 12),
+                          Text(isVi ? 'Đăng ký nghỉ có phép' : 'Excused leave', style: TextStyle(color: lightText)),
+                        ],
+                      ),
+                    ),
+                  if (!isFormer)
+                    PopupMenuItem<String>(
+                      value: isPaused ? 'resume' : 'pause',
+                      child: Row(
+                        children: [
+                          Icon(isPaused ? Icons.play_arrow : Icons.pause, color: Colors.orangeAccent),
+                          const SizedBox(width: 12),
+                          Text(
+                            isPaused ? (isVi ? 'Cho học lại' : 'Resume') : (isVi ? 'Tạm ngừng học' : 'Pause study'),
+                            style: TextStyle(color: lightText),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (!isFormer)
+                    PopupMenuItem<String>(
+                      value: 'edit_date',
+                      child: Row(
+                        children: [
+                          const Icon(Icons.edit_calendar, color: Colors.blueAccent),
+                          const SizedBox(width: 12),
+                          Text(
+                            isVi ? 'Sửa ngày' : 'Edit date',
+                            style: TextStyle(color: lightText),
+                          ),
+                        ],
+                      ),
+                    ),
+                  PopupMenuItem<String>(
+                    value: 'evaluate',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_note, color: accentColor),
+                        const SizedBox(width: 12),
+                        Text(
+                          isVi ? 'Đánh giá' : 'Evaluate',
+                          style: TextStyle(color: lightText),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, color: deleteColor),
+                        const SizedBox(width: 12),
+                        Text(
+                          isVi ? 'Cho nghỉ học' : 'Leave class',
+                          style: TextStyle(color: deleteColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _hienThiDialogThongTinHocSinh(HSLopViewModel hsViewModel) async {
+    final isVi = Localizations.localeOf(context).languageCode == 'vi';
+    final formatCurrency = NumberFormat('#,##0', 'vi_VN');
+    final thangCurrent = DateFormat('yyyy-MM').format(DateTime.now());
+    final formattedThang = DateFormat('MM/yyyy').format(DateTime.now());
+
+    // 1. Đếm số buổi nghỉ học của tháng
+    final counts = await _diemDanhService.demSoBuoiTheoTrangThai(
+      hsViewModel.id!,
+      _currentLop.id!,
+      thangCurrent,
+    );
+    final int nghiCoPhep = counts['nghiCoPhep'] ?? 0;
+    final int nghiKhongPhep = counts['nghiKhongPhep'] ?? 0;
+    final int tongNghi = nghiCoPhep + nghiKhongPhep;
+
+    // 2. Đọc thông tin thanh toán từ cơ sở dữ liệu
+    final db = await DBHelper.instance.database;
+    final List<Map<String, dynamic>> records = await db.query(
+      DBHelper.tenBangThanhToan,
+      where: 'id_hoc_sinh = ? AND id_lop = ? AND thang = ?',
+      whereArgs: [hsViewModel.id!, _currentLop.id!, thangCurrent],
+    );
+
+    int tongThanhToan = 0;
+    int soTienDaDong = 0;
+    if (records.isNotEmpty) {
+      tongThanhToan = records.first['tong_thanh_toan'] as int? ?? 0;
+      soTienDaDong = records.first['so_tien_da_dong'] as int? ?? 0;
+    }
+
+    final int conNo = tongThanhToan - soTienDaDong;
+    final bool isDaDong = records.isNotEmpty && conNo <= 0;
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
           children: [
             CircleAvatar(
-              backgroundColor: accentColor.withOpacity(0.2),
+              backgroundColor: accentColor.withValues(alpha: 0.2),
               child: Text(
-                hsViewModel.ten.isNotEmpty
-                    ? hsViewModel.ten[0].toUpperCase()
-                    : '?',
-                style: TextStyle(
-                  color: accentColor,
-                  fontWeight: FontWeight.bold,
-                ),
+                hsViewModel.ten.isNotEmpty ? hsViewModel.ten[0].toUpperCase() : '?',
+                style: TextStyle(color: accentColor, fontWeight: FontWeight.bold),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    hsViewModel.ten,
-                    style: TextStyle(
-                      color: lightText,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isVi 
-                        ? 'Ngày tham gia: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(hsViewModel.ngayThamGia))}'
-                        : 'Joined: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(hsViewModel.ngayThamGia))}',
-                    style: TextStyle(color: secondaryText, fontSize: 12),
-                  ),
-                ],
+              child: Text(
+                hsViewModel.ten,
+                style: TextStyle(color: lightText, fontWeight: FontWeight.bold, fontSize: 18),
               ),
             ),
-            PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, color: secondaryText),
-              color: darkBackground,
-              onSelected: (value) {
-                if (value == 'edit_date') {
-                  _moDialogSuaNgayThamGia(hsViewModel);
-                } else if (value == 'evaluate') {
-                  _moDialogDanhGiaNhanh(hsViewModel);
-                } else if (value == 'delete') {
-                  _xacNhanXoaHS(hsViewModel);
-                }
-              },
-              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                PopupMenuItem<String>(
-                  value: 'edit_date',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.edit_calendar, color: Colors.blueAccent),
-                      const SizedBox(width: 12),
-                      Text(isVi ? 'Sửa ngày' : 'Edit date', style: TextStyle(color: lightText)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'evaluate',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit_note, color: accentColor),
-                      const SizedBox(width: 12),
-                      Text(isVi ? 'Đánh giá' : 'Evaluate', style: TextStyle(color: lightText)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem<String>(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, color: deleteColor),
-                      const SizedBox(width: 12),
-                      Text(
-                        isVi ? 'Xóa khỏi lớp' : 'Remove from class',
-                        style: TextStyle(color: deleteColor),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Divider(),
+            const SizedBox(height: 8),
+            _buildDialogInfoRow(
+              Icons.account_balance_wallet_outlined,
+              isVi ? 'Số buổi dư tích lũy:' : 'Rollover sessions:',
+              '${hsViewModel.soBuoiDu} buổi',
+              valueColor: accentColor,
             ),
+            const SizedBox(height: 14),
+            _buildDialogInfoRow(
+              Icons.event_busy_outlined,
+              isVi ? 'Số buổi nghỉ học (Tháng $formattedThang):' : 'Absences ($formattedThang):',
+              '$tongNghi buổi ($nghiCoPhep có phép, $nghiKhongPhep không phép)',
+              valueColor: tongNghi > 0 ? Colors.orangeAccent : lightText,
+            ),
+            const SizedBox(height: 14),
+            _buildDialogInfoRow(
+              Icons.payment_outlined,
+              isVi ? 'Trạng thái học phí:' : 'Tuition status:',
+              records.isEmpty
+                  ? (isVi ? 'Chưa khởi tạo' : 'Not initialized')
+                  : (isDaDong
+                      ? (isVi ? 'Đã đóng đủ' : 'Fully paid')
+                      : (isVi
+                          ? 'Chưa đóng (Còn nợ: ${formatCurrency.format(conNo)}đ)'
+                          : 'Unpaid (Debt: ${formatCurrency.format(conNo)}đ)')),
+              valueColor: isDaDong ? Colors.greenAccent : deleteColor,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(isVi ? 'Đóng' : 'Close', style: TextStyle(color: secondaryText)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDialogInfoRow(IconData icon, String label, String value, {Color? valueColor}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: secondaryText),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(color: secondaryText, fontSize: 12)),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: TextStyle(
+                  color: valueColor ?? lightText,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatOptionalDate(String? value) {
+    final date = value == null ? null : DateTime.tryParse(value);
+    return date == null ? '--' : DateFormat('dd/MM/yyyy').format(date);
+  }
+
+  Future<DateTime?> _pickLeaveDate(DateTime initial) {
+    return showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+    );
+  }
+
+  Future<void> _moDialogDangKyNghi(HSLopViewModel hs) async {
+    final isVi = Localizations.localeOf(context).languageCode == 'vi';
+    DateTime from = DateTime.now();
+    DateTime to = DateTime.now();
+    final reason = TextEditingController();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: cardColor,
+          title: Text(isVi ? 'Đăng ký nghỉ có phép' : 'Excused leave', style: TextStyle(color: lightText)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: Text(isVi ? 'Từ ngày' : 'From', style: TextStyle(color: secondaryText)),
+                trailing: Text(DateFormat('dd/MM/yyyy').format(from), style: TextStyle(color: lightText)),
+                onTap: () async {
+                  final value = await _pickLeaveDate(from);
+                  if (value != null) setDialogState(() { from = value; if (to.isBefore(from)) to = from; });
+                },
+              ),
+              ListTile(
+                title: Text(isVi ? 'Đến ngày' : 'To', style: TextStyle(color: secondaryText)),
+                trailing: Text(DateFormat('dd/MM/yyyy').format(to), style: TextStyle(color: lightText)),
+                onTap: () async {
+                  final value = await _pickLeaveDate(to);
+                  if (value != null && !value.isBefore(from)) setDialogState(() => to = value);
+                },
+              ),
+              TextField(
+                controller: reason,
+                style: TextStyle(color: lightText),
+                decoration: InputDecoration(labelText: isVi ? 'Lý do' : 'Reason'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(isVi ? 'Hủy' : 'Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(isVi ? 'Lưu' : 'Save')),
           ],
         ),
       ),
     );
+    if (saved != true) { reason.dispose(); return; }
+    await _lhsService.dangKyNghiCoPhep(
+      idLop: _currentLop.id!, idHocSinh: hs.id!,
+      tuNgay: DateFormat('yyyy-MM-dd').format(from),
+      denNgay: DateFormat('yyyy-MM-dd').format(to), lyDo: reason.text.trim(),
+    );
+    reason.dispose();
+    if (mounted) _showInfoDialog(isVi ? 'Đã lưu' : 'Saved', isVi ? 'Các ca học trong khoảng nghỉ sẽ mặc định là nghỉ có phép.' : 'Sessions in this range will default to excused absence.');
+  }
+
+  Future<void> _moDialogTamNgung(HSLopViewModel hs) async {
+    final isVi = Localizations.localeOf(context).languageCode == 'vi';
+    DateTime start = DateTime.now();
+    DateTime? expected;
+    final reason = TextEditingController();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: cardColor,
+          title: Text(isVi ? 'Tạm ngừng học' : 'Pause study', style: TextStyle(color: lightText)),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            ListTile(
+              title: Text(isVi ? 'Bắt đầu' : 'Start', style: TextStyle(color: secondaryText)),
+              trailing: Text(DateFormat('dd/MM/yyyy').format(start), style: TextStyle(color: lightText)),
+              onTap: () async { final v = await _pickLeaveDate(start); if (v != null) setDialogState(() => start = v); },
+            ),
+            ListTile(
+              title: Text(isVi ? 'Dự kiến học lại' : 'Expected return', style: TextStyle(color: secondaryText)),
+              trailing: Text(expected == null ? '--' : DateFormat('dd/MM/yyyy').format(expected!), style: TextStyle(color: lightText)),
+              onTap: () async { final v = await _pickLeaveDate(expected ?? start); if (v != null && !v.isBefore(start)) setDialogState(() => expected = v); },
+            ),
+            TextField(controller: reason, style: TextStyle(color: lightText), decoration: InputDecoration(labelText: isVi ? 'Lý do' : 'Reason')),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(isVi ? 'Hủy' : 'Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(isVi ? 'Xác nhận' : 'Confirm')),
+          ],
+        ),
+      ),
+    );
+    if (saved != true) { reason.dispose(); return; }
+    await _lhsService.tamNgungHoc(
+      idLop: _currentLop.id!, idHocSinh: hs.id!,
+      ngayBatDau: DateFormat('yyyy-MM-dd').format(start),
+      ngayDuKienHocLai: expected == null ? null : DateFormat('yyyy-MM-dd').format(expected!),
+      lyDo: reason.text.trim(),
+    );
+    reason.dispose();
+    ref.invalidate(lopDetailControllerProvider(_currentLop));
+  }
+
+  Future<void> _choHocLai(HSLopViewModel hs) async {
+    final date = await _pickLeaveDate(DateTime.now());
+    if (date == null) return;
+    await _lhsService.choHocLai(
+      idLop: _currentLop.id!, idHocSinh: hs.id!,
+      ngayHocLai: DateFormat('yyyy-MM-dd').format(date),
+    );
+    ref.invalidate(lopDetailControllerProvider(_currentLop));
+  }
+
+  Future<void> _kichHoatHocLai(HSLopViewModel hs) async {
+    final isVi = Localizations.localeOf(context).languageCode == 'vi';
+    final earliest = hs.ngayNghiHoc == null
+        ? DateTime.now()
+        : DateTime.tryParse(hs.ngayNghiHoc!) ?? DateTime.now();
+    final date = await _pickLeaveDate(DateTime.now().isBefore(earliest) ? earliest : DateTime.now());
+    if (date == null || date.isBefore(earliest)) return;
+    final updated = await _lhsService.kichHoatHocLai(
+      idLop: _currentLop.id!,
+      idHocSinh: hs.id!,
+      ngayHocLai: DateFormat('yyyy-MM-dd').format(date),
+    );
+    if (updated > 0) {
+      ref.invalidate(lopDetailControllerProvider(_currentLop));
+      if (mounted) {
+        _showInfoDialog(
+          isVi ? 'Đã kích hoạt' : 'Reactivated',
+          isVi
+              ? '${hs.ten} sẽ đi học lại từ ${DateFormat('dd/MM/yyyy').format(date)}.'
+              : '${hs.ten} returns from ${DateFormat('dd/MM/yyyy').format(date)}.',
+        );
+      }
+    }
   }
 
   // HÀM MỚI: Sửa ngày nhập học của học sinh trong lớp
@@ -683,7 +1124,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
         if (mounted) {
           _showInfoDialog(
             isVi ? 'Thành công' : 'Success',
-            isVi ? 'Đã cập nhật ngày nhập học thành công!' : 'Enrollment date updated successfully!',
+            isVi
+                ? 'Đã cập nhật ngày nhập học thành công!'
+                : 'Enrollment date updated successfully!',
           );
         }
       }
@@ -707,7 +1150,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
       if (mounted) {
         _showInfoDialog(
           isVi ? 'Thông báo' : 'Notification',
-          isVi ? 'Hôm nay lớp không có ca học nào.' : 'No sessions scheduled for today.',
+          isVi
+              ? 'Hôm nay lớp không có ca học nào.'
+              : 'No sessions scheduled for today.',
           titleColor: Colors.orangeAccent,
         );
       }
@@ -757,6 +1202,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
         )
         .toList();
 
+    if (!mounted) return;
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => ThemHSVaoLopDialog(
@@ -773,50 +1219,96 @@ class _LopDetailState extends ConsumerState<LopDetail>
     }
   }
 
-  void _xacNhanXoaHS(HSLopViewModel hs) {
+  void _xacNhanXoaHS(HSLopViewModel hs) async {
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
-    showDialog(
+    DateTime leaveDate = DateTime.now();
+    final reason = TextEditingController();
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: cardColor,
-        title: Text(isVi ? 'Xác nhận' : 'Confirm', style: TextStyle(color: lightText)),
-        content: Text(
-          isVi
-              ? 'Bạn có chắc muốn xóa học sinh "${hs.ten}" khỏi lớp này không?'
-              : 'Are you sure you want to remove student "${hs.ten}" from this class?',
-          style: TextStyle(color: secondaryText),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: cardColor,
+          title: Text(
+            isVi ? 'Cho học sinh nghỉ học' : 'Student leaves class',
+            style: TextStyle(color: lightText),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                isVi
+                    ? 'Học phí và điểm danh sẽ dừng từ ngày này. Lịch sử trước đó vẫn được giữ.'
+                    : 'Tuition and attendance stop from this date. Earlier history is preserved.',
+                style: TextStyle(color: secondaryText),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  isVi ? 'Ngày nghỉ học' : 'Leaving date',
+                  style: TextStyle(color: secondaryText),
+                ),
+                trailing: Text(
+                  DateFormat('dd/MM/yyyy').format(leaveDate),
+                  style: TextStyle(color: lightText),
+                ),
+                onTap: () async {
+                  final picked = await _pickLeaveDate(leaveDate);
+                  if (picked != null) {
+                    setDialogState(() => leaveDate = picked);
+                  }
+                },
+              ),
+              TextField(
+                controller: reason,
+                style: TextStyle(color: lightText),
+                decoration: InputDecoration(
+                  labelText: isVi ? 'Lý do (không bắt buộc)' : 'Reason (optional)',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(
+                isVi ? 'Hủy' : 'Cancel',
+                style: TextStyle(color: secondaryText),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(
+                isVi ? 'Xác nhận nghỉ' : 'Confirm',
+                style: TextStyle(color: deleteColor),
+              ),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(isVi ? 'Hủy' : 'Cancel', style: TextStyle(color: secondaryText)),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              // Xóa trực tiếp thông qua service để đảm bảo thành công
-              final deleted = await _lhsService.xoaHocSinhKhoiLop(
-                _currentLop.id!,
-                hs.id!,
-              );
-              if (deleted > 0) {
-                // Cập nhật lại UI sau khi xóa thành công
-                ref.invalidate(lopDetailControllerProvider(_currentLop));
-                if (mounted) {
-                  _showInfoDialog(
-                    isVi ? 'Thành công' : 'Success',
-                    isVi ? 'Đã xóa học sinh "${hs.ten}" khỏi lớp.' : 'Successfully removed student "${hs.ten}" from class.',
-                  );
-                }
-              }
-            },
-            child: Text(isVi ? 'Xóa' : 'Remove', style: TextStyle(color: deleteColor)),
-          ),
-        ],
       ),
     );
+    if (confirmed != true) {
+      reason.dispose();
+      return;
+    }
+    final updated = await _lhsService.choHocSinhNghiHoc(
+      idLop: _currentLop.id!,
+      idHocSinh: hs.id!,
+      ngayNghiHoc: DateFormat('yyyy-MM-dd').format(leaveDate),
+      lyDo: reason.text.trim(),
+    );
+    reason.dispose();
+    if (updated > 0) {
+      ref.invalidate(lopDetailControllerProvider(_currentLop));
+      if (mounted) {
+        _showInfoDialog(
+          isVi ? 'Thành công' : 'Success',
+          isVi
+              ? 'Đã ghi nhận ${hs.ten} nghỉ từ ${DateFormat('dd/MM/yyyy').format(leaveDate)}.'
+              : '${hs.ten} leaves from ${DateFormat('dd/MM/yyyy').format(leaveDate)}.',
+        );
+      }
+    }
   }
-
   // ===================================================
   // TAB 3: LỊCH HỌC
   // ===================================================
@@ -824,17 +1316,15 @@ class _LopDetailState extends ConsumerState<LopDetail>
     final dsLichHoc = state.lichHocs;
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
 
-    // SỬA: Bỏ Scaffold và FloatingActionButton, thay bằng Column với header
     return Padding(
-      padding: const EdgeInsets.all(6.0),
+      padding: const EdgeInsets.all(4.0),
       child: Column(
         children: [
-          // Header với nút thêm
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                isVi ? 'LỊCH HỌC CỐ ĐỊNH' : 'SCHEDULES',
+                isVi ? 'DANH SÁCH LỊCH HỌC' : 'SCHEDULE LIST',
                 style: TextStyle(
                   color: secondaryText,
                   fontSize: 16,
@@ -842,27 +1332,27 @@ class _LopDetailState extends ConsumerState<LopDetail>
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.add_alarm, color: accentColor),
-                onPressed: _moDialogThemLichHoc,
-                tooltip: isVi ? 'Thêm lịch học mới' : 'Add new schedule',
+                icon: Icon(Icons.add_circle_outline, color: accentColor),
+                onPressed: () => _moDialogThemLichHoc(),
+                tooltip: isVi ? 'Thêm lịch học' : 'Add schedule',
               ),
             ],
           ),
           Divider(color: secondaryText),
-          // Danh sách
           Expanded(
             child: dsLichHoc.isEmpty
                 ? Center(
                     child: Text(
-                      isVi ? 'Chưa có lịch học nào được tạo.' : 'No schedules created yet.',
+                      isVi ? 'Chưa thiết lập lịch học.' : 'No schedule set.',
                       style: TextStyle(color: secondaryText),
                     ),
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.only(top: 0),
                     itemCount: dsLichHoc.length,
-                    itemBuilder: (context, index) =>
-                        _buildLichHocCard(dsLichHoc[index], state.hocSinhs),
+                    itemBuilder: (context, index) {
+                      return _buildLichHocCard(dsLichHoc[index], state.hocSinhs);
+                    },
                   ),
           ),
         ],
@@ -872,119 +1362,138 @@ class _LopDetailState extends ConsumerState<LopDetail>
 
   Widget _buildLichHocCard(LichHoc lichHoc, List<HSLopViewModel> dsHocSinh) {
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
+    final gioBatDauFormatted = lichHoc.gioBatDau.substring(0, 5);
+    final gioKetThucFormatted = lichHoc.gioKetThuc.substring(0, 5);
+    final tenThu = _translateDayOfWeek(_dayOfWeekName(lichHoc.thuTrongTuan), isVi);
+
     return Card(
       color: cardColor,
-      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: accentColor.withOpacity(0.2),
+          backgroundColor: accentColor.withValues(alpha: 0.2),
           child: Text(
-            _translateDayOfWeekInitial(_dayOfWeekInitial(lichHoc.thuTrongTuan), isVi),
-            style: TextStyle(
-              color: accentColor,
-              fontWeight: FontWeight.bold,
-            ),
+            _dayOfWeekInitial(lichHoc.thuTrongTuan),
+            style: TextStyle(color: accentColor, fontWeight: FontWeight.bold),
           ),
         ),
-        // SỬA: Tách thông tin thành 2 dòng cho dễ đọc
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.calendar_today,
-                  color: secondaryText,
-                  size: 16,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _translateDayOfWeek(_dayOfWeekName(lichHoc.thuTrongTuan), isVi),
-                    style: TextStyle(
-                      color: lightText,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.access_time, color: secondaryText, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  '${lichHoc.gioBatDau.substring(0, 5)} - ${lichHoc.gioKetThuc.substring(0, 5)}',
-                  style: TextStyle(color: secondaryText, fontSize: 13),
-                ),
-              ],
-            ),
-          ],
+        title: Text(
+          tenThu,
+          style: TextStyle(color: lightText, fontWeight: FontWeight.bold, fontSize: 16),
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: Icon(
-                Icons.assignment_ind_outlined,
-                color: secondaryText,
-              ),
-              tooltip: isVi ? 'Gán lịch cho học sinh' : 'Assign schedule to students',
-              onPressed: () => _moTrangGanLichHoc(lichHoc, dsHocSinh),
-            ),
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'edit') {
-                  _moDialogThemLichHoc(lichHoc: lichHoc);
-                } else if (value == 'copy') {
-                  _moDialogThemLichHoc(lichHoc: lichHoc, isCopy: true);
-                } else if (value == 'delete') {
-                  _xacNhanXoaLichHoc(lichHoc);
+        subtitle: Text(
+          '$gioBatDauFormatted - $gioKetThucFormatted',
+          style: TextStyle(color: secondaryText, fontSize: 14),
+        ),
+        trailing: PopupMenuButton<String>(
+          icon: Icon(Icons.more_vert, color: secondaryText),
+          color: darkBackground,
+          onSelected: (value) async {
+            if (value == 'calendar') {
+              final schedule = LichHocCoTenLop(
+                lichHoc: lichHoc,
+                tenLop: _currentLop.ten,
+                khoi: _currentLop.khoi,
+                siSo: dsHocSinh.length,
+              );
+              final success = await CalendarSyncService.themCaHocVaoCalendar(schedule);
+              if (mounted) {
+                if (success) {
+                  ToastHelper.showSuccess(
+                    context,
+                    isVi
+                        ? 'Đã mở ứng dụng Lịch để đồng bộ ca dạy!'
+                        : 'Calendar opened for schedule sync!',
+                  );
+                } else {
+                  ToastHelper.showError(
+                    context,
+                    isVi ? 'Không thể đồng bộ vào Lịch' : 'Failed to sync with Calendar',
+                  );
                 }
-              },
-              icon: Icon(Icons.more_vert, color: secondaryText),
-              color: darkBackground,
-              itemBuilder: (ctx) => [
-                PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit, color: secondaryText, size: 20),
-                      SizedBox(width: 10),
-                      Text(isVi ? 'Sửa' : 'Edit', style: TextStyle(color: lightText)),
-                    ],
+              }
+            } else if (value == 'copy') {
+              _moDialogThemLichHoc(lichHoc: lichHoc, isCopy: true);
+            } else if (value == 'edit') {
+              _moDialogThemLichHoc(lichHoc: lichHoc);
+            } else if (value == 'assign') {
+              _moTrangGanLichHoc(lichHoc, dsHocSinh);
+            } else if (value == 'delete') {
+              _xacNhanXoaLichHoc(lichHoc);
+            }
+          },
+          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+            PopupMenuItem<String>(
+              value: 'calendar',
+              child: Row(
+                children: [
+                  const Icon(Icons.event_available_rounded, color: Colors.blueAccent),
+                  const SizedBox(width: 12),
+                  Text(
+                    isVi ? 'Thêm vào Lịch điện thoại' : 'Add to Phone Calendar',
+                    style: TextStyle(color: lightText),
                   ),
-                ),
-                PopupMenuItem(
-                  value: 'copy',
-                  child: Row(
-                    children: [
-                      Icon(Icons.copy, color: accentColor, size: 20),
-                      SizedBox(width: 10),
-                      Text(isVi ? 'Copy lịch' : 'Copy schedule', style: TextStyle(color: lightText)),
-                    ],
+                ],
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'copy',
+              child: Row(
+                children: [
+                  const Icon(Icons.copy, color: Colors.amberAccent),
+                  const SizedBox(width: 12),
+                  Text(
+                    isVi ? 'Copy Lịch Học' : 'Copy Schedule',
+                    style: TextStyle(color: lightText),
                   ),
-                ),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, color: deleteColor, size: 20),
-                      SizedBox(width: 10),
-                      Text(isVi ? 'Xóa' : 'Delete', style: TextStyle(color: deleteColor)),
-                    ],
+                ],
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'edit',
+              child: Row(
+                children: [
+                  const Icon(Icons.edit, color: Colors.greenAccent),
+                  const SizedBox(width: 12),
+                  Text(
+                    isVi ? 'Sửa Lịch Học' : 'Edit Schedule',
+                    style: TextStyle(color: lightText),
                   ),
-                ),
-              ],
+                ],
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'assign',
+              child: Row(
+                children: [
+                  Icon(Icons.person_add, color: accentColor),
+                  const SizedBox(width: 12),
+                  Text(
+                    isVi ? 'Gán Học Sinh' : 'Assign Students',
+                    style: TextStyle(color: lightText),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete, color: deleteColor),
+                  const SizedBox(width: 12),
+                  Text(
+                    isVi ? 'Xóa Lịch Học' : 'Delete Schedule',
+                    style: TextStyle(color: deleteColor),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
 
   // SỬA: Khôi phục lại chức năng thêm/sửa lịch học
   void _moDialogThemLichHoc({LichHoc? lichHoc, bool isCopy = false}) async {
@@ -1005,7 +1514,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
           )
         : const TimeOfDay(hour: 20, minute: 0);
 
-    final result = await showDialog<bool>(
+    await showDialog<bool>(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
@@ -1016,8 +1525,8 @@ class _LopDetailState extends ConsumerState<LopDetail>
                 isCopy
                     ? (isVi ? 'Copy Lịch Học' : 'Copy Schedule')
                     : (isEditing
-                        ? (isVi ? 'Sửa Lịch Học' : 'Edit Schedule')
-                        : (isVi ? 'Thêm Lịch Học' : 'Add Schedule')),
+                          ? (isVi ? 'Sửa Lịch Học' : 'Edit Schedule')
+                          : (isVi ? 'Thêm Lịch Học' : 'Add Schedule')),
                 style: TextStyle(color: lightText),
               ),
               content: SingleChildScrollView(
@@ -1081,8 +1590,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
                       return;
                     }
 
-                     // KIỂM TRA RÀNG BUỘC: Giờ kết thúc phải lớn hơn giờ bắt đầu
-                    final startMinutes = startTime!.hour * 60 + startTime!.minute;
+                    // KIỂM TRA RÀNG BUỘC: Giờ kết thúc phải lớn hơn giờ bắt đầu
+                    final startMinutes =
+                        startTime!.hour * 60 + startTime!.minute;
                     final endMinutes = endTime!.hour * 60 + endTime!.minute;
 
                     if (endMinutes <= startMinutes) {
@@ -1092,8 +1602,13 @@ class _LopDetailState extends ConsumerState<LopDetail>
                           builder: (errCtx) => AlertDialog(
                             backgroundColor: cardColor,
                             title: Text(
-                              isVi ? 'Giờ học không hợp lệ' : 'Invalid Time Range',
-                              style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                              isVi
+                                  ? 'Giờ học không hợp lệ'
+                                  : 'Invalid Time Range',
+                              style: TextStyle(
+                                color: Colors.orangeAccent,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             content: Text(
                               isVi
@@ -1104,7 +1619,10 @@ class _LopDetailState extends ConsumerState<LopDetail>
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.of(errCtx).pop(),
-                                child: Text(isVi ? 'Đóng' : 'Close', style: TextStyle(color: accentColor)),
+                                child: Text(
+                                  isVi ? 'Đóng' : 'Close',
+                                  style: TextStyle(color: accentColor),
+                                ),
                               ),
                             ],
                           ),
@@ -1114,7 +1632,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
                     }
 
                     final newLichHoc = LichHoc(
-                      id: isEditing ? lichHoc?.id : null,
+                      id: isEditing ? lichHoc.id : null,
                       idLop: _currentLop.id!,
                       thuTrongTuan: selectedDay!,
                       gioBatDau:
@@ -1146,8 +1664,13 @@ class _LopDetailState extends ConsumerState<LopDetail>
                           builder: (errCtx) => AlertDialog(
                             backgroundColor: cardColor,
                             title: Text(
-                              isVi ? 'Trùng hoặc Chồng lấn lịch' : 'Schedule Conflict',
-                              style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                              isVi
+                                  ? 'Trùng hoặc Chồng lấn lịch'
+                                  : 'Schedule Conflict',
+                              style: TextStyle(
+                                color: Colors.orangeAccent,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             content: Text(
                               isVi
@@ -1158,7 +1681,10 @@ class _LopDetailState extends ConsumerState<LopDetail>
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.of(errCtx).pop(),
-                                child: Text(isVi ? 'Đồng ý' : 'OK', style: TextStyle(color: accentColor)),
+                                child: Text(
+                                  isVi ? 'Đồng ý' : 'OK',
+                                  style: TextStyle(color: accentColor),
+                                ),
                               ),
                             ],
                           ),
@@ -1195,7 +1721,6 @@ class _LopDetailState extends ConsumerState<LopDetail>
               surface: cardColor,
               onSurface: lightText,
             ),
-            dialogBackgroundColor: cardColor,
             // Đảm bảo chế độ 24 giờ
             timePickerTheme: TimePickerThemeData(
               backgroundColor: cardColor,
@@ -1205,6 +1730,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
               entryModeIconColor: secondaryText,
               helpTextStyle: TextStyle(color: secondaryText),
             ),
+            dialogTheme: DialogThemeData(backgroundColor: cardColor),
           ),
           // Bọc trong MediaQuery để ép kiểu 24h
           child: MediaQuery(
@@ -1238,13 +1764,34 @@ class _LopDetailState extends ConsumerState<LopDetail>
           dropdownColor: cardColor,
           style: TextStyle(color: lightText, fontSize: 16),
           items: [
-            DropdownMenuItem(value: 2, child: Text(isVi ? 'Thứ Hai' : 'Monday')),
-            DropdownMenuItem(value: 3, child: Text(isVi ? 'Thứ Ba' : 'Tuesday')),
-            DropdownMenuItem(value: 4, child: Text(isVi ? 'Thứ Tư' : 'Wednesday')),
-            DropdownMenuItem(value: 5, child: Text(isVi ? 'Thứ Năm' : 'Thursday')),
-            DropdownMenuItem(value: 6, child: Text(isVi ? 'Thứ Sáu' : 'Friday')),
-            DropdownMenuItem(value: 7, child: Text(isVi ? 'Thứ Bảy' : 'Saturday')),
-            DropdownMenuItem(value: 1, child: Text(isVi ? 'Chủ Nhật' : 'Sunday')),
+            DropdownMenuItem(
+              value: 2,
+              child: Text(isVi ? 'Thứ Hai' : 'Monday'),
+            ),
+            DropdownMenuItem(
+              value: 3,
+              child: Text(isVi ? 'Thứ Ba' : 'Tuesday'),
+            ),
+            DropdownMenuItem(
+              value: 4,
+              child: Text(isVi ? 'Thứ Tư' : 'Wednesday'),
+            ),
+            DropdownMenuItem(
+              value: 5,
+              child: Text(isVi ? 'Thứ Năm' : 'Thursday'),
+            ),
+            DropdownMenuItem(
+              value: 6,
+              child: Text(isVi ? 'Thứ Sáu' : 'Friday'),
+            ),
+            DropdownMenuItem(
+              value: 7,
+              child: Text(isVi ? 'Thứ Bảy' : 'Saturday'),
+            ),
+            DropdownMenuItem(
+              value: 1,
+              child: Text(isVi ? 'Chủ Nhật' : 'Sunday'),
+            ),
           ],
           onChanged: onChanged,
         ),
@@ -1291,15 +1838,23 @@ class _LopDetailState extends ConsumerState<LopDetail>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: cardColor,
-        title: Text(isVi ? 'Xác nhận' : 'Confirm', style: TextStyle(color: lightText)),
+        title: Text(
+          isVi ? 'Xác nhận' : 'Confirm',
+          style: TextStyle(color: lightText),
+        ),
         content: Text(
-          isVi ? 'Bạn có chắc muốn xóa lịch học này không?' : 'Are you sure you want to delete this schedule?',
+          isVi
+              ? 'Bạn có chắc muốn xóa lịch học này không?'
+              : 'Are you sure you want to delete this schedule?',
           style: TextStyle(color: secondaryText),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(isVi ? 'Hủy' : 'Cancel', style: TextStyle(color: secondaryText)),
+            child: Text(
+              isVi ? 'Hủy' : 'Cancel',
+              style: TextStyle(color: secondaryText),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -1310,12 +1865,17 @@ class _LopDetailState extends ConsumerState<LopDetail>
                 if (mounted) {
                   _showInfoDialog(
                     isVi ? 'Thành công' : 'Success',
-                    isVi ? 'Đã xóa lịch học thành công!' : 'Schedule deleted successfully!',
+                    isVi
+                        ? 'Đã xóa lịch học thành công!'
+                        : 'Schedule deleted successfully!',
                   );
                 }
               }
             },
-            child: Text(isVi ? 'Xóa' : 'Delete', style: TextStyle(color: deleteColor)),
+            child: Text(
+              isVi ? 'Xóa' : 'Delete',
+              style: TextStyle(color: deleteColor),
+            ),
           ),
         ],
       ),
@@ -1335,16 +1895,14 @@ class _LopDetailState extends ConsumerState<LopDetail>
       ),
     );
 
-    if (finalLhc == null) {
-      finalLhc = await _lhcService.findLichHocChung(
-        LichHocChung(
-          idLop: _currentLop.id!,
-          ngayTrongTuan: _dayOfWeekName(lichHoc.thuTrongTuan),
-          gioBatDau: lichHoc.gioBatDau.substring(0, 5),
-          gioKetThuc: lichHoc.gioKetThuc.substring(0, 5),
-        ),
-      );
-    }
+    finalLhc ??= await _lhcService.findLichHocChung(
+      LichHocChung(
+        idLop: _currentLop.id!,
+        ngayTrongTuan: _dayOfWeekName(lichHoc.thuTrongTuan),
+        gioBatDau: lichHoc.gioBatDau.substring(0, 5),
+        gioKetThuc: lichHoc.gioKetThuc.substring(0, 5),
+      ),
+    );
 
     if (finalLhc?.id == null) {
       if (mounted) {
@@ -1357,6 +1915,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
       return;
     }
 
+    if (!mounted) return;
     final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -1401,7 +1960,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 8.0),
                   child: Text(
-                    isVi ? 'Chưa có nhiệm vụ nào.' : 'No assignments created yet.',
+                    isVi
+                        ? 'Chưa có nhiệm vụ nào.'
+                        : 'No assignments created yet.',
                     style: TextStyle(color: secondaryText),
                   ),
                 ),
@@ -1448,7 +2009,8 @@ class _LopDetailState extends ConsumerState<LopDetail>
           ),
         ),
         subtitle: Text(
-          (isVi ? 'Hạn nộp: ' : 'Due date: ') + DateFormat('dd/MM/yyyy').format(DateTime.parse(nhiemVu.ngayNop)),
+          (isVi ? 'Hạn nộp: ' : 'Due date: ') +
+              DateFormat('dd/MM/yyyy').format(DateTime.parse(nhiemVu.ngayNop)),
           style: TextStyle(color: secondaryText, fontSize: 12),
         ),
         children: [
@@ -1465,7 +2027,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
                       style: TextStyle(color: secondaryText),
                     ),
                     Text(
-                      isVi ? '$completedStudents/$totalStudents đã nộp' : '$completedStudents/$totalStudents submitted',
+                      isVi
+                          ? '$completedStudents/$totalStudents đã nộp'
+                          : '$completedStudents/$totalStudents submitted',
                       style: TextStyle(
                         color: accentColor,
                         fontWeight: FontWeight.bold,
@@ -1476,7 +2040,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
                 const SizedBox(height: 4),
                 LinearProgressIndicator(
                   value: progress,
-                  backgroundColor: secondaryText.withOpacity(0.3),
+                  backgroundColor: secondaryText.withValues(alpha: 0.3),
                   color: accentColor,
                   minHeight: 6,
                   borderRadius: BorderRadius.circular(3),
@@ -1516,9 +2080,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
                 _taiNhiemVu(); // Tải lại để cập nhật UI
               },
             );
-          }).toList(),
+          }),
           // Các nút hành động
-          ButtonBar(
+          OverflowBar(
             alignment: MainAxisAlignment.end,
             children: [
               IconButton(
@@ -1570,7 +2134,10 @@ class _LopDetailState extends ConsumerState<LopDetail>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: cardColor,
-        title: Text(isVi ? 'Xác nhận' : 'Confirm', style: TextStyle(color: lightText)),
+        title: Text(
+          isVi ? 'Xác nhận' : 'Confirm',
+          style: TextStyle(color: lightText),
+        ),
         content: Text(
           isVi
               ? 'Bạn có chắc muốn xóa nhiệm vụ "${nhiemVu.tenNhiemVu}" không?'
@@ -1586,9 +2153,13 @@ class _LopDetailState extends ConsumerState<LopDetail>
             onPressed: () async {
               await _nhiemVuService.xoaNhiemVu(nhiemVu.id!);
               _taiNhiemVu(); // Tải lại danh sách nhiệm vụ
+              if (!ctx.mounted) return;
               Navigator.of(ctx).pop();
             },
-            child: Text(isVi ? 'Xóa' : 'Delete', style: TextStyle(color: deleteColor)),
+            child: Text(
+              isVi ? 'Xóa' : 'Delete',
+              style: TextStyle(color: deleteColor),
+            ),
           ),
         ],
       ),
@@ -1603,51 +2174,72 @@ class _LopDetailState extends ConsumerState<LopDetail>
     if (rank == null) return isVi ? 'Chưa xếp' : 'Not ranked';
     if (isVi) return rank;
     switch (rank) {
-      case 'Thách Đấu': return 'Challenger';
-      case 'Cao Thủ': return 'Master';
-      case 'Tinh Anh': return 'Hero';
-      case 'Kim Cương': return 'Diamond';
-      case 'Bạch Kim': return 'Platinum';
-      case 'Vàng': return 'Gold';
-      case 'Bạc': return 'Silver';
-      case 'Đồng': return 'Bronze';
-      default: return rank;
+      case 'Thách Đấu':
+        return 'Challenger';
+      case 'Cao Thủ':
+        return 'Master';
+      case 'Tinh Anh':
+        return 'Hero';
+      case 'Kim Cương':
+        return 'Diamond';
+      case 'Bạch Kim':
+        return 'Platinum';
+      case 'Vàng':
+        return 'Gold';
+      case 'Bạc':
+        return 'Silver';
+      case 'Đồng':
+        return 'Bronze';
+      default:
+        return rank;
     }
   }
 
   String _translateDayOfWeek(String dayName, bool isVi) {
     if (isVi) return dayName;
     switch (dayName) {
-      case 'Chủ Nhật': return 'Sunday';
-      case 'Thứ Hai': return 'Monday';
-      case 'Thứ Ba': return 'Tuesday';
-      case 'Thứ Tư': return 'Wednesday';
-      case 'Thứ Năm': return 'Thursday';
-      case 'Thứ Sáu': return 'Friday';
-      case 'Thứ Bảy': return 'Saturday';
-      default: return dayName;
+      case 'Chủ Nhật':
+        return 'Sunday';
+      case 'Thứ Hai':
+        return 'Monday';
+      case 'Thứ Ba':
+        return 'Tuesday';
+      case 'Thứ Tư':
+        return 'Wednesday';
+      case 'Thứ Năm':
+        return 'Thursday';
+      case 'Thứ Sáu':
+        return 'Friday';
+      case 'Thứ Bảy':
+        return 'Saturday';
+      default:
+        return dayName;
     }
   }
 
   String _translateDayOfWeekInitial(String initial, bool isVi) {
     if (isVi) return initial;
     switch (initial) {
-      case 'CN': return 'Sun';
-      case 'T2': return 'Mon';
-      case 'T3': return 'Tue';
-      case 'T4': return 'Wed';
-      case 'T5': return 'Thu';
-      case 'T6': return 'Fri';
-      case 'T7': return 'Sat';
-      default: return initial;
+      case 'CN':
+        return 'Sun';
+      case 'T2':
+        return 'Mon';
+      case 'T3':
+        return 'Tue';
+      case 'T4':
+        return 'Wed';
+      case 'T5':
+        return 'Thu';
+      case 'T6':
+        return 'Fri';
+      case 'T7':
+        return 'Sat';
+      default:
+        return initial;
     }
   }
 
-  void _showInfoDialog(
-    String title,
-    String message, {
-    Color? titleColor,
-  }) {
+  void _showInfoDialog(String title, String message, {Color? titleColor}) {
     final effectiveTitleColor = titleColor ?? accentColor;
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
     showDialog(
@@ -1656,13 +2248,19 @@ class _LopDetailState extends ConsumerState<LopDetail>
         backgroundColor: cardColor,
         title: Text(
           title,
-          style: TextStyle(color: effectiveTitleColor, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: effectiveTitleColor,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: Text(message, style: TextStyle(color: lightText)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(isVi ? 'Đóng' : 'Close', style: TextStyle(color: secondaryText)),
+            child: Text(
+              isVi ? 'Đóng' : 'Close',
+              style: TextStyle(color: secondaryText),
+            ),
           ),
         ],
       ),
@@ -1723,18 +2321,18 @@ class _LopDetailState extends ConsumerState<LopDetail>
       future: _nhanXetService.layDanhSachNhanXet(_currentLop.id!, thang),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: CircularProgressIndicator(color: accentColor),
-          );
+          return Center(child: CircularProgressIndicator(color: accentColor));
         }
-        
+
         final dsNhanXet = snapshot.data ?? [];
         final dsHocSinh = state.hocSinhs;
 
         if (dsHocSinh.isEmpty) {
           return Center(
             child: Text(
-              isVi ? 'Chưa có học sinh nào trong lớp.' : 'No students in this class.',
+              isVi
+                  ? 'Chưa có học sinh nào trong lớp.'
+                  : 'No students in this class.',
               style: TextStyle(color: secondaryText),
             ),
           );
@@ -1754,8 +2352,10 @@ class _LopDetailState extends ConsumerState<LopDetail>
         }).toList();
 
         // Sắp xếp: Điểm cao đứng trước
-        dsXepHang.sort((a, b) => 
-          (b['nx'] as NhanXetThang).diemTrungBinh.compareTo((a['nx'] as NhanXetThang).diemTrungBinh)
+        dsXepHang.sort(
+          (a, b) => (b['nx'] as NhanXetThang).diemTrungBinh.compareTo(
+            (a['nx'] as NhanXetThang).diemTrungBinh,
+          ),
         );
 
         return Column(
@@ -1779,7 +2379,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
                             SizedBox(width: 16),
                             Expanded(
                               child: Text(
-                                isVi ? 'Đang tổng hợp và cập nhật xếp hạng...' : 'Aggregating and updating ranks...',
+                                isVi
+                                    ? 'Đang tổng hợp và cập nhật xếp hạng...'
+                                    : 'Aggregating and updating ranks...',
                                 style: TextStyle(color: lightText),
                               ),
                             ),
@@ -1793,11 +2395,13 @@ class _LopDetailState extends ConsumerState<LopDetail>
                       _currentLop.id!,
                       thang,
                     );
-                    if (mounted) {
+                    if (context.mounted) {
                       Navigator.of(context).pop(); // Đóng loading dialog
                       _showInfoDialog(
                         isVi ? 'Thành công' : 'Success',
-                        isVi ? 'Đã tổng hợp và cập nhật xếp hạng xong!' : 'Aggregation and ranking completed successfully!',
+                        isVi
+                            ? 'Đã tổng hợp và cập nhật xếp hạng xong!'
+                            : 'Aggregation and ranking completed successfully!',
                       );
                       // Tải lại dữ liệu để cập nhật UI
                       setState(() {});
@@ -1805,7 +2409,9 @@ class _LopDetailState extends ConsumerState<LopDetail>
                   },
                   icon: Icon(Icons.calculate, color: darkBackground),
                   label: Text(
-                    isVi ? 'Tổng hợp & Cập nhật Xếp hạng' : 'Aggregate & Update Ranks',
+                    isVi
+                        ? 'Tổng hợp & Cập nhật Xếp hạng'
+                        : 'Aggregate & Update Ranks',
                     style: TextStyle(color: darkBackground),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -1831,7 +2437,11 @@ class _LopDetailState extends ConsumerState<LopDetail>
     );
   }
 
-  Widget _buildDanhGiaCard(HSLopViewModel hs, NhanXetThang nhanXet, int rankPosition) {
+  Widget _buildDanhGiaCard(
+    HSLopViewModel hs,
+    NhanXetThang nhanXet,
+    int rankPosition,
+  ) {
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
     final rankData = _getRankData(nhanXet.xepHang);
 
@@ -1858,7 +2468,11 @@ class _LopDetailState extends ConsumerState<LopDetail>
                 ),
                 child: Text(
                   '$rankPosition',
-                  style: TextStyle(color: darkBackground, fontSize: 9, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: darkBackground,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -1881,7 +2495,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
   void _chiaSeNhanXetPhuHuynh(HSLopViewModel hs, NhanXetThang nhanXet) async {
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
     final String formattedThang = DateFormat('MM/yyyy').format(DateTime.now());
-    
+
     final String message = isVi
         ? '''
 [BÁO CÁO HỌC TẬP THÁNG $formattedThang]
@@ -1920,7 +2534,7 @@ ${nhanXet.nhanXetChung ?? 'Good student, studied hard.'}
 Best regards!
 ''';
 
-    await Share.share(message);
+    await SharePlus.instance.share(ShareParams(text: message));
   }
 
   void _hienThiChiTietDiem(HSLopViewModel hs, NhanXetThang nhanXet) {
@@ -1942,17 +2556,32 @@ Best regards!
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildDiemRow(isVi ? 'Chuyên cần' : 'Attendance', nhanXet.diemChuyenCan),
-              _buildDiemRow(isVi ? 'Thái độ học' : 'Attitude', nhanXet.diemThaiDo),
-              _buildDiemRow(isVi ? 'Bài tập về nhà' : 'Homework', nhanXet.diemBaiTap),
-              _buildDiemRow(isVi ? 'Hiểu bài & KT' : 'Understanding & Tests', nhanXet.diemKiemTra),
+              _buildDiemRow(
+                isVi ? 'Chuyên cần' : 'Attendance',
+                nhanXet.diemChuyenCan,
+              ),
+              _buildDiemRow(
+                isVi ? 'Thái độ học' : 'Attitude',
+                nhanXet.diemThaiDo,
+              ),
+              _buildDiemRow(
+                isVi ? 'Bài tập về nhà' : 'Homework',
+                nhanXet.diemBaiTap,
+              ),
+              _buildDiemRow(
+                isVi ? 'Hiểu bài & KT' : 'Understanding & Tests',
+                nhanXet.diemKiemTra,
+              ),
               Divider(color: secondaryText),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     isVi ? 'ĐIỂM TRUNG BÌNH' : 'AVERAGE SCORE',
-                    style: TextStyle(color: lightText, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: lightText,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   Text(
                     nhanXet.diemTrungBinh.toStringAsFixed(2),
@@ -1981,13 +2610,18 @@ Best regards!
                   ),
                 ],
               ),
-              if (nhanXet.nhanXetChung != null && nhanXet.nhanXetChung!.trim().isNotEmpty) ...[
+              if (nhanXet.nhanXetChung != null &&
+                  nhanXet.nhanXetChung!.trim().isNotEmpty) ...[
                 const Divider(height: 24),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     isVi ? 'NHẬN XÉT CHUNG:' : 'GENERAL REMARKS:',
-                    style: TextStyle(color: secondaryText, fontSize: 11, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: secondaryText,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -1995,7 +2629,11 @@ Best regards!
                   alignment: Alignment.centerLeft,
                   child: Text(
                     nhanXet.nhanXetChung!,
-                    style: TextStyle(color: lightText, fontStyle: FontStyle.italic, fontSize: 13),
+                    style: TextStyle(
+                      color: lightText,
+                      fontStyle: FontStyle.italic,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ],
@@ -2063,7 +2701,10 @@ Best regards!
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(isVi ? 'Đóng' : 'Close', style: TextStyle(color: secondaryText)),
+            child: Text(
+              isVi ? 'Đóng' : 'Close',
+              style: TextStyle(color: secondaryText),
+            ),
           ),
         ],
       ),

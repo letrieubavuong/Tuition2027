@@ -6,11 +6,7 @@ void main() {
     // Build a simple widget to ensure the test environment works.
     await tester.pumpWidget(
       const MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: Text('Tuition 2025'),
-          ),
-        ),
+        home: Scaffold(body: Center(child: Text('Tuition 2025'))),
       ),
     );
 

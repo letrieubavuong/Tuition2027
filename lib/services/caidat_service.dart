@@ -25,11 +25,10 @@ class CaiDatService {
   // Cập nhật giá trị Setting (Tạo mới nếu chưa có)
   Future<int> capNhatCaiDat(String khoa, String giaTri) async {
     final db = await dbHelper.database;
-    return db.insert(
-      tenBang,
-      {'khoa': khoa, 'gia_tri': giaTri},
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    return db.insert(tenBang, {
+      'khoa': khoa,
+      'gia_tri': giaTri,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   // Đọc giá trị có fallback mặc định

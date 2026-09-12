@@ -1,19 +1,72 @@
 // File: lib/services/lop_hoc_sinh_service.dart (CẬP NHẬT)
 
 import 'package:sqflite/sqflite.dart';
+import 'package:intl/intl.dart';
 import '../models/hs_lop_view_model.dart';
 import '../utils/db.dart';
 import '../models/lop_hoc_sinh.dart';
 import '../models/hs.dart';
 import 'hoc_sinh_service.dart';
 import '../models/lop.dart';
+import 'tuition_event_service.dart';
 import 'dart:developer' as developer;
+
+import 'report_service.dart';
 
 class LopHocSinhService {
   final dbHelper = DBHelper.instance;
   final String tenBang = DBHelper.tenBangLopHS;
   final String tenBangHS = DBHelper.tenBangHS;
   final HocSinhService _hsService = HocSinhService();
+
+  bool hoatDongTrongNgay(HSLopViewModel hs, DateTime date) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    if (hs.ngayThamGia.isNotEmpty) {
+      final nth = ReportService.parseFlexibleDate(hs.ngayThamGia);
+      if (nth != null) {
+        final nthStr = DateFormat('yyyy-MM-dd').format(nth);
+        if (nthStr.compareTo(dateStr) > 0) return false;
+      } else if (hs.ngayThamGia.compareTo(dateStr) > 0) {
+        return false;
+      }
+    }
+    if (hs.trangThai == 'NGHI_HOC') {
+      if (hs.ngayHocLaiSauNghi != null && hs.ngayHocLaiSauNghi!.compareTo(dateStr) <= 0) {
+        return true;
+      }
+      if (hs.ngayNghiHoc != null && hs.ngayNghiHoc!.compareTo(dateStr) > 0) {
+        return true;
+      }
+      return false;
+    }
+    if (hs.trangThai == 'TAM_NGUNG') {
+      if (hs.ngayHocLaiThucTe != null && hs.ngayHocLaiThucTe!.compareTo(dateStr) <= 0) {
+        return true;
+      }
+      if (hs.ngayTamNgung != null && hs.ngayTamNgung!.compareTo(dateStr) > 0) {
+        return true;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  Future<bool> coDonNghiTrongNgay(int idLop, int idHocSinh, dynamic dateOrStr) async {
+    try {
+      final String dateStr = dateOrStr is DateTime
+          ? DateFormat('yyyy-MM-dd').format(dateOrStr)
+          : dateOrStr.toString();
+      final db = await dbHelper.database;
+      final res = await db.query(
+        'xin_nghi_hoc',
+        where: 'id_lop = ? AND id_hoc_sinh = ? AND tu_ngay <= ? AND den_ngay >= ?',
+        whereArgs: [idLop, idHocSinh, dateStr, dateStr],
+      );
+      return res.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
 
   // READ: Đọc danh sách Học sinh thuộc một Lớp
   Future<List<HSLopViewModel>> docDSHSThuocLop(int idLop) async {
@@ -33,7 +86,14 @@ class LopHocSinhService {
             SELECT 
               T1.*, 
               T2.ngay_tham_gia, 
-              T2.trang_thai
+              T2.trang_thai,
+              T2.ngay_tam_ngung,
+              T2.ngay_du_kien_hoc_lai,
+              T2.ngay_hoc_lai_thuc_te,
+              T2.ly_do_tam_ngung,
+              T2.ngay_nghi_hoc,
+              T2.ly_do_nghi_hoc,
+              T2.ngay_hoc_lai_sau_nghi
             FROM $tenBangHS T1
             INNER JOIN $tenBang T2 ON T1.id = T2.id_hoc_sinh
             WHERE T2.id_lop = ?
@@ -52,7 +112,14 @@ class LopHocSinhService {
         return HSLopViewModel(
           hocSinh: hs,
           ngayThamGia: (maps[i]['ngay_tham_gia'] as String?) ?? '',
-          trangThai: (maps[i]['trang_thai'] as String?) ?? '',
+          trangThai: (maps[i]['trang_thai'] as String?) ?? 'DANG_HOC',
+          ngayTamNgung: maps[i]['ngay_tam_ngung'] as String?,
+          ngayDuKienHocLai: maps[i]['ngay_du_kien_hoc_lai'] as String?,
+          ngayHocLaiThucTe: maps[i]['ngay_hoc_lai_thuc_te'] as String?,
+          lyDoTamNgung: maps[i]['ly_do_tam_ngung'] as String?,
+          ngayNghiHoc: maps[i]['ngay_nghi_hoc'] as String?,
+          lyDoNghiHoc: maps[i]['ly_do_nghi_hoc'] as String?,
+          ngayHocLaiSauNghi: maps[i]['ngay_hoc_lai_sau_nghi'] as String?,
         );
       });
     } on DatabaseException catch (e, st) {
@@ -71,6 +138,130 @@ class LopHocSinhService {
         stackTrace: st,
       );
       return [];
+    }
+  }
+
+  Future<void> dangKyNghiCoPhep({
+    required int idLop,
+    required int idHocSinh,
+    required String tuNgay,
+    required String denNgay,
+    String? lyDo,
+  }) async {
+    try {
+      final db = await dbHelper.database;
+      await db.insert('xin_nghi_hoc', {
+        'id_lop': idLop,
+        'id_hoc_sinh': idHocSinh,
+        'tu_ngay': tuNgay,
+        'den_ngay': denNgay,
+        'ly_do': lyDo ?? '',
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      TuitionEventService().notifyTuitionChanged();
+    } catch (e, st) {
+      developer.log('Lỗi dangKyNghiCoPhep', error: e, stackTrace: st);
+    }
+  }
+
+  Future<int> tamNgungHoc({
+    required int idLop,
+    required int idHocSinh,
+    required String ngayBatDau,
+    String? ngayDuKienHocLai,
+    String? lyDo,
+  }) async {
+    try {
+      final db = await dbHelper.database;
+      final res = await db.update(
+        tenBang,
+        {
+          'trang_thai': 'TAM_NGUNG',
+          'ngay_tam_ngung': ngayBatDau,
+          'ngay_du_kien_hoc_lai': ngayDuKienHocLai,
+          'ly_do_tam_ngung': lyDo,
+        },
+        where: 'id_lop = ? AND id_hoc_sinh = ?',
+        whereArgs: [idLop, idHocSinh],
+      );
+      if (res > 0) TuitionEventService().notifyTuitionChanged();
+      return res;
+    } catch (e, st) {
+      developer.log('Lỗi tamNgungHoc', error: e, stackTrace: st);
+      return 0;
+    }
+  }
+
+  Future<int> choHocLai({
+    required int idLop,
+    required int idHocSinh,
+    required String ngayHocLai,
+  }) async {
+    try {
+      final db = await dbHelper.database;
+      final res = await db.update(
+        tenBang,
+        {
+          'trang_thai': 'DANG_HOC',
+          'ngay_hoc_lai_thuc_te': ngayHocLai,
+        },
+        where: 'id_lop = ? AND id_hoc_sinh = ?',
+        whereArgs: [idLop, idHocSinh],
+      );
+      if (res > 0) TuitionEventService().notifyTuitionChanged();
+      return res;
+    } catch (e, st) {
+      developer.log('Lỗi choHocLai', error: e, stackTrace: st);
+      return 0;
+    }
+  }
+
+  Future<int> kichHoatHocLai({
+    required int idLop,
+    required int idHocSinh,
+    required String ngayHocLai,
+  }) async {
+    try {
+      final db = await dbHelper.database;
+      final res = await db.update(
+        tenBang,
+        {
+          'trang_thai': 'DANG_HOC',
+          'ngay_hoc_lai_sau_nghi': ngayHocLai,
+        },
+        where: 'id_lop = ? AND id_hoc_sinh = ?',
+        whereArgs: [idLop, idHocSinh],
+      );
+      if (res > 0) TuitionEventService().notifyTuitionChanged();
+      return res;
+    } catch (e, st) {
+      developer.log('Lỗi kichHoatHocLai', error: e, stackTrace: st);
+      return 0;
+    }
+  }
+
+  Future<int> choHocSinhNghiHoc({
+    required int idLop,
+    required int idHocSinh,
+    required String ngayNghiHoc,
+    String? lyDo,
+  }) async {
+    try {
+      final db = await dbHelper.database;
+      final res = await db.update(
+        tenBang,
+        {
+          'trang_thai': 'NGHI_HOC',
+          'ngay_nghi_hoc': ngayNghiHoc,
+          'ly_do_nghi_hoc': lyDo,
+        },
+        where: 'id_lop = ? AND id_hoc_sinh = ?',
+        whereArgs: [idLop, idHocSinh],
+      );
+      if (res > 0) TuitionEventService().notifyTuitionChanged();
+      return res;
+    } catch (e, st) {
+      developer.log('Lỗi choHocSinhNghiHoc', error: e, stackTrace: st);
+      return 0;
     }
   }
 
@@ -319,12 +510,14 @@ class LopHocSinhService {
   ) async {
     try {
       final db = await dbHelper.database;
-      return await db.update(
+      final res = await db.update(
         tenBang,
         {'ngay_tham_gia': ngayThamGia},
         where: 'id_lop = ? AND id_hoc_sinh = ?',
         whereArgs: [idLop, idHocSinh],
       );
+      if (res > 0) TuitionEventService().notifyTuitionChanged();
+      return res;
     } catch (e, st) {
       developer.log('Lỗi khi cập nhật ngày tham gia', error: e, stackTrace: st);
       return 0;
@@ -368,6 +561,7 @@ class LopHocSinhService {
           '✅ Xóa học sinh khỏi lớp thành công! Số bản ghi đã xóa: $result',
           name: 'LopHocSinhService.xoaHocSinhKhoiLop',
         );
+        TuitionEventService().notifyTuitionChanged();
       }
 
       return result;

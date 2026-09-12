@@ -14,7 +14,7 @@ import '../screens/thong_ke_page.dart';
 import '../screens/huong_dan_su_dung_page.dart';
 import '../screens/quy_tac_diem_settings_page.dart';
 import '../screens/bang_xep_hang_khoi_page.dart';
-import '../utils/theme.dart';
+import '../screens/lich_day_page.dart';
 import '../l10n/app_localizations.dart';
 
 class PlaceholderScreen extends StatelessWidget {
@@ -97,6 +97,7 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
     await caiDatService.capNhatCaiDat('avatar_path', image.path);
     ref.invalidate(settingsProvider);
 
+    if (!context.mounted) return;
     final loc = AppLocalizations.of(currentContext)!;
     showDialog(
       context: currentContext,
@@ -153,16 +154,18 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
                     colors: isDark
                         ? [
                             theme.cardColor,
-                            theme.cardColor.withOpacity(0.8),
+                            theme.cardColor.withValues(alpha: 0.8),
                           ]
                         : [
-                            theme.primaryColor.withOpacity(0.08),
-                            theme.primaryColor.withOpacity(0.02),
+                            theme.primaryColor.withValues(alpha: 0.08),
+                            theme.primaryColor.withValues(alpha: 0.02),
                           ],
                   ),
                   border: Border(
                     bottom: BorderSide(
-                      color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+                      color: isDark
+                          ? Colors.white10
+                          : Colors.black.withValues(alpha: 0.05),
                       width: 1,
                     ),
                   ),
@@ -181,7 +184,9 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: theme.primaryColor.withOpacity(0.15),
+                                color: theme.primaryColor.withValues(
+                                  alpha: 0.15,
+                                ),
                                 blurRadius: 10,
                                 spreadRadius: 2,
                               ),
@@ -191,8 +196,12 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
                             onTap: () => _chonAnhDaiDien(context, ref),
                             child: CircleAvatar(
                               radius: 40,
-                              backgroundColor: theme.primaryColor.withOpacity(0.1),
-                              backgroundImage: hasAvatar ? FileImage(File(avatarPath)) : null,
+                              backgroundColor: theme.primaryColor.withValues(
+                                alpha: 0.1,
+                              ),
+                              backgroundImage: hasAvatar
+                                  ? FileImage(File(avatarPath))
+                                  : null,
                               child: !hasAvatar
                                   ? Icon(
                                       Icons.person_rounded,
@@ -217,7 +226,7 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
+                                  color: Colors.black.withValues(alpha: 0.1),
                                   blurRadius: 4,
                                   offset: const Offset(0, 2),
                                 ),
@@ -226,7 +235,9 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
                             child: Icon(
                               Icons.camera_alt_rounded,
                               size: 14,
-                              color: isDark ? const Color(0xFF1E1E38) : Colors.white,
+                              color: isDark
+                                  ? const Color(0xFF1E1E38)
+                                  : Colors.white,
                             ),
                           ),
                         ),
@@ -262,10 +273,14 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
             error: (err, stack) => Container(
               height: 200,
               alignment: Alignment.center,
-              child: Text(loc.locale.languageCode == 'vi' ? 'Lỗi tải thông tin' : 'Error loading profile'),
+              child: Text(
+                loc.locale.languageCode == 'vi'
+                    ? 'Lỗi tải thông tin'
+                    : 'Error loading profile',
+              ),
             ),
           ),
-          
+
           // Danh sách menu điều hướng
           Expanded(
             child: SingleChildScrollView(
@@ -303,7 +318,10 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
                     context: context,
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 8.0,
+                    ),
                     child: Divider(color: theme.dividerColor),
                   ),
                   _buildSectionHeader(context, loc.utilities),
@@ -322,72 +340,106 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
                   _buildDrawerItem(
                     icon: Icons.analytics_rounded,
                     text: loc.statistics,
-                    onTap: () => _navigateToOtherScreen(context, const ThongKePage()),
+                    onTap: () =>
+                        _navigateToOtherScreen(context, const ThongKePage()),
+                    context: context,
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.calendar_view_week_rounded,
+                    text: loc.locale.languageCode == 'vi'
+                        ? 'Lịch Dạy Theo Tuần'
+                        : 'Weekly Teaching Schedule',
+                    onTap: () => _navigateToOtherScreen(
+                      context,
+                      LichDayPage(
+                        mainScreenKey: widget.mainScreenKey,
+                        selectedIndex: widget.selectedIndex,
+                      ),
+                    ),
                     context: context,
                   ),
                   _buildDrawerItem(
                     icon: Icons.emoji_events_rounded,
-                    text: loc.locale.languageCode == 'vi' ? 'Đấu Trường Hạng Khối' : 'Grade Leaderboards',
-                    onTap: () => _navigateToOtherScreen(context, const BangXepHangKhoiPage()),
+                    text: loc.locale.languageCode == 'vi'
+                        ? 'Đấu Trường Hạng Khối'
+                        : 'Grade Leaderboards',
+                    onTap: () => _navigateToOtherScreen(
+                      context,
+                      const BangXepHangKhoiPage(),
+                    ),
                     context: context,
                   ),
                 ],
               ),
             ),
           ),
-          
+
           // Footer thiết kế dưới đáy
           Material(
-            color: isDark ? theme.cardColor.withOpacity(0.4) : theme.cardColor,
+            color: isDark
+                ? theme.cardColor.withValues(alpha: 0.4)
+                : theme.cardColor,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12.0,
+                vertical: 12.0,
+              ),
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(
-                    color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+                    color: isDark
+                        ? Colors.white10
+                        : Colors.black.withValues(alpha: 0.05),
                     width: 1,
                   ),
                 ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildDrawerItem(
-                  icon: Icons.settings_rounded,
-                  text: loc.settings,
-                  onTap: () => _navigateToOtherScreen(context, const CaiDat()),
-                  context: context,
-                ),
-                _buildDrawerItem(
-                  icon: Icons.rule_rounded,
-                  text: loc.scoreRules,
-                  onTap: () => _navigateToOtherScreen(context, const QuyTacDiemSettingsPage()),
-                  context: context,
-                ),
-                _buildDrawerItem(
-                  icon: Icons.help_outline_rounded,
-                  text: loc.userGuide,
-                  onTap: () => _navigateToOtherScreen(context, const HuongDanSuDungPage()),
-                  context: context,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${loc.version} $_version',
-                  style: TextStyle(
-                    color: theme.hintColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                children: [
+                  _buildDrawerItem(
+                    icon: Icons.settings_rounded,
+                    text: loc.settings,
+                    onTap: () =>
+                        _navigateToOtherScreen(context, const CaiDat()),
+                    context: context,
                   ),
-                ),
-                const SizedBox(height: 4),
-              ],
+                  _buildDrawerItem(
+                    icon: Icons.rule_rounded,
+                    text: loc.scoreRules,
+                    onTap: () => _navigateToOtherScreen(
+                      context,
+                      const QuyTacDiemSettingsPage(),
+                    ),
+                    context: context,
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.help_outline_rounded,
+                    text: loc.userGuide,
+                    onTap: () => _navigateToOtherScreen(
+                      context,
+                      const HuongDanSuDungPage(),
+                    ),
+                    context: context,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${loc.version} $_version',
+                    style: TextStyle(
+                      color: theme.hintColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   Widget _buildSectionHeader(BuildContext context, String title) {
     return Padding(
@@ -419,8 +471,8 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
       child: ListTile(
         selected: isSelected,
         selectedTileColor: isDark
-            ? theme.primaryColor.withOpacity(0.12)
-            : theme.primaryColor.withOpacity(0.08),
+            ? theme.primaryColor.withValues(alpha: 0.12)
+            : theme.primaryColor.withValues(alpha: 0.08),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         leading: Icon(
@@ -431,7 +483,9 @@ class _MainDrawerState extends ConsumerState<MainDrawer> {
         title: Text(
           text,
           style: TextStyle(
-            color: isSelected ? theme.primaryColor : theme.textTheme.bodyLarge?.color?.withOpacity(0.85),
+            color: isSelected
+                ? theme.primaryColor
+                : theme.textTheme.bodyLarge?.color?.withValues(alpha: 0.85),
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
             fontSize: 15,
           ),

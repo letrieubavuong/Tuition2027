@@ -1,3 +1,4 @@
+
 // File: lib/screens/ds_lop.dart
 
 import 'package:flutter/material.dart';
@@ -5,18 +6,18 @@ import '../main.dart';
 import '../models/lop.dart';
 import '../widgets/main_drawer.dart';
 import '../services/lop_service.dart';
-import '../l10n/app_localizations.dart'; // Import localization
+import '../l10n/app_localizations.dart';
 import 'lop_detail.dart';
+import '../widgets/gui_thong_bao_hang_loat_dialog.dart';
 import '../utils/toast_helper.dart';
-
 
 class DSLop extends StatefulWidget {
   final GlobalKey<MainScreenState> mainScreenKey;
-  final int selectedIndex; // SỬA: Thêm tham số
+  final int selectedIndex;
   const DSLop({
     super.key,
     required this.mainScreenKey,
-    required this.selectedIndex, // SỬA: Thêm tham số
+    required this.selectedIndex,
   });
 
   @override
@@ -32,8 +33,10 @@ class _DSLopState extends State<DSLop> {
   // Theme màu mới, hiện đại hơn
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
-  Color get lightText => Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
-  Color get secondaryText => Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+  Color get lightText =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+  Color get secondaryText =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
   Color get accentColor => Theme.of(context).primaryColor;
   Color get deleteColor => Theme.of(context).colorScheme.error;
 
@@ -59,10 +62,25 @@ class _DSLopState extends State<DSLop> {
   // Xóa Lớp (DELETE)
   Future<void> _xoaLop(int id) async {
     final result = await _lopService.xoaLop(id);
-
-    if (result > 0) {
-      _taiDSLop();
+    if (!mounted) return;
+    if (result <= 0) {
+      ToastHelper.showError(
+        context,
+        Localizations.localeOf(context).languageCode == 'vi'
+            ? 'Không thể xóa lớp. Vui lòng thử lại.'
+            : 'Could not delete the class. Please try again.',
+      );
+      return;
     }
+
+    setState(() => _danhSachLop.removeWhere((lop) => lop.id == id));
+    ToastHelper.showSuccess(
+      context,
+      Localizations.localeOf(context).languageCode == 'vi'
+          ? 'Đã xóa lớp.'
+          : 'Class deleted.',
+    );
+    await _taiDSLop();
   }
 
   // 2. HÀM XÁC NHẬN XÓA LỚP (MỚI)
@@ -83,7 +101,7 @@ class _DSLopState extends State<DSLop> {
           ),
 
           content: Text(
-            isVi 
+            isVi
                 ? 'Bạn có chắc chắn muốn xóa lớp "${lop.ten}" (Khối ${lop.khoi}) không? Thao tác này không thể hoàn tác.'
                 : 'Are you sure you want to delete class "${lop.ten}" (Grade ${lop.khoi})? This action cannot be undone.',
             style: TextStyle(color: secondaryText, fontSize: 15),
@@ -96,12 +114,15 @@ class _DSLopState extends State<DSLop> {
               onPressed: () {
                 Navigator.of(context).pop(); // Đóng Dialog
               },
-              child: Text(isVi ? 'HỦY' : 'CANCEL', style: TextStyle(color: secondaryText)),
+              child: Text(
+                isVi ? 'HỦY' : 'CANCEL',
+                style: TextStyle(color: secondaryText),
+              ),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop(); // Đóng Dialog
-                _xoaLop(lop.id!); // Gọi hàm xóa thực tế
+                await _xoaLop(lop.id!); // Gọi hàm xóa thực tế
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: deleteColor, // Màu đỏ cho hành động nguy hiểm
@@ -133,7 +154,7 @@ class _DSLopState extends State<DSLop> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
-            final String dialogTitle = isVi 
+            final String dialogTitle = isVi
                 ? (isEditing ? 'SỬA LỚP' : 'THÊM LỚP')
                 : (isEditing ? 'EDIT CLASS' : 'ADD CLASS');
             final String buttonText = isVi
@@ -218,7 +239,9 @@ class _DSLopState extends State<DSLop> {
                     autofocus: true,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: isVi ? 'Tên Lớp' : 'Class Name', // Dùng hintText thay labelText để icon không bị đẩy lên
+                      hintText: isVi
+                          ? 'Tên Lớp'
+                          : 'Class Name', // Dùng hintText thay labelText để icon không bị đẩy lên
                       hintStyle: const TextStyle(color: Colors.white),
                       prefixIcon: const Icon(
                         Icons.class_,
@@ -260,7 +283,7 @@ class _DSLopState extends State<DSLop> {
                         if (!context.mounted) return;
                         ToastHelper.showError(
                           context,
-                          isVi 
+                          isVi
                               ? 'Lỗi: Tên lớp đã tồn tại hoặc lỗi hệ thống.'
                               : 'Error: Class name already exists or system error.',
                         );
@@ -287,7 +310,10 @@ class _DSLopState extends State<DSLop> {
                 // hoặc bạn có thể để nó nhỏ hơn và là TextButton
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
-                  child: Text(isVi ? 'Hủy' : 'Cancel', style: const TextStyle(color: Colors.red)),
+                  child: Text(
+                    isVi ? 'Hủy' : 'Cancel',
+                    style: const TextStyle(color: Colors.red),
+                  ),
                 ),
               ],
             );
@@ -436,11 +462,7 @@ class _DSLopState extends State<DSLop> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.group,
-                            color: secondaryText,
-                            size: 14,
-                          ),
+                          Icon(Icons.group, color: secondaryText, size: 14),
                           const SizedBox(width: 2),
                           Text(
                             lop.siSo.toString(),
@@ -453,19 +475,48 @@ class _DSLopState extends State<DSLop> {
                           PopupMenuButton<String>(
                             padding: EdgeInsets.zero,
                             iconSize: 20,
-                            icon: Icon(
-                              Icons.more_vert,
-                              color: secondaryText,
-                            ),
+                            icon: Icon(Icons.more_vert, color: secondaryText),
                             color: darkBackground,
                             onSelected: (value) {
-                              if (value == 'edit') {
+                              if (value == 'notify') {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => GuiThongBaoHangLoatDialog(
+                                    initialLopId: lop.id,
+                                    initialOnlyUnpaid: false,
+                                    initialType: NotificationType.baoNghiHoc,
+                                    allowedTypes: const [
+                                      NotificationType.baoNghiHoc,
+                                      NotificationType.baoDoiLich,
+                                      NotificationType.custom,
+                                    ],
+                                    dialogTitle: 'Gửi Thông Báo Lớp Học',
+                                  ),
+                                );
+                              } else if (value == 'edit') {
                                 _hienThiFormLop(lop: lop);
                               } else if (value == 'delete') {
                                 _xacNhanXoaLop(lop);
                               }
                             },
                             itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 'notify',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.send_rounded,
+                                      color: accentColor,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      isVi ? 'Gửi thông báo lớp' : 'Class Notice',
+                                      style: TextStyle(color: lightText),
+                                    ),
+                                  ],
+                                ),
+                              ),
                               PopupMenuItem(
                                 value: 'edit',
                                 child: Row(

@@ -35,8 +35,10 @@ class HocSinhFormDialog extends StatefulWidget {
 class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
-  Color get lightText => Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
-  Color get secondaryText => Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+  Color get lightText =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+  Color get secondaryText =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
   Color get accentColor => Theme.of(context).primaryColor;
   Color get deleteColor => Theme.of(context).colorScheme.error;
 
@@ -46,7 +48,9 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
   late final TextEditingController _diaChiController;
   late final TextEditingController _ghiChuController;
   late final TextEditingController _mienGiamController;
+  late final TextEditingController _lichCanController;
   String? _selectedTruong;
+  String _selectedCaHocTruong = 'Sáng';
   bool get isEditing => widget.hocSinh != null;
   final TruongService _truongService = TruongService();
   late Future<List<Truong>> _truongFuture;
@@ -61,7 +65,11 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
     _mienGiamController = TextEditingController(
       text: (widget.hocSinh?.mienGiam ?? 0).toString(),
     );
+    _lichCanController = TextEditingController(
+      text: widget.hocSinh?.lichCanMonKhac,
+    );
     _selectedTruong = widget.hocSinh?.truongDangHoc;
+    _selectedCaHocTruong = widget.hocSinh?.caHocTruong ?? 'Sáng';
     _truongFuture = _truongService.docTatCaTruong();
   }
 
@@ -72,6 +80,7 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
     _diaChiController.dispose();
     _ghiChuController.dispose();
     _mienGiamController.dispose();
+    _lichCanController.dispose();
     super.dispose();
   }
 
@@ -83,6 +92,7 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
       final diaChi = _diaChiController.text.trim();
       final ghiChu = _ghiChuController.text.trim();
       final mienGiam = int.tryParse(_mienGiamController.text.trim()) ?? 0;
+      final lichCan = _lichCanController.text.trim();
 
       try {
         HS newOrUpdatedHs;
@@ -101,6 +111,8 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
           newOrUpdatedHs.diaChi = diaChi.isEmpty ? null : diaChi;
           newOrUpdatedHs.ghiChu = ghiChu.isEmpty ? null : ghiChu;
           newOrUpdatedHs.mienGiam = mienGiam;
+          newOrUpdatedHs.caHocTruong = _selectedCaHocTruong;
+          newOrUpdatedHs.lichCanMonKhac = lichCan.isEmpty ? null : lichCan;
 
           await widget.hsService.capNhatHocSinh(newOrUpdatedHs);
         } else {
@@ -112,6 +124,8 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
             diaChi: diaChi.isEmpty ? null : diaChi,
             ghiChu: ghiChu.isEmpty ? null : ghiChu,
             mienGiam: mienGiam,
+            caHocTruong: _selectedCaHocTruong,
+            lichCanMonKhac: lichCan.isEmpty ? null : lichCan,
           );
 
           final result = await widget.hsService.taoHocSinh(hsMoi);
@@ -145,10 +159,7 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: Text(
-                    'Đóng',
-                    style: TextStyle(color: secondaryText),
-                  ),
+                  child: Text('Đóng', style: TextStyle(color: secondaryText)),
                 ),
               ],
             ),
@@ -212,6 +223,19 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
               _buildTextField(_diaChiController, 'Địa Chỉ', Icons.home),
               const SizedBox(height: 15),
 
+              // --- Ca Học Ở Trường ---
+              _buildCaHocTruongDropdown(),
+              const SizedBox(height: 15),
+
+              // --- Lịch Cấn Môn Khác ---
+              _buildTextField(
+                _lichCanController,
+                'Lịch cấn môn khác (VD: Văn T2, Anh T4)',
+                Icons.event_busy_rounded,
+                maxLines: 1,
+              ),
+              const SizedBox(height: 15),
+
               // --- Ghi Chú ---
               _buildTextField(
                 _ghiChuController,
@@ -219,7 +243,7 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
                 Icons.note,
                 maxLines: 1,
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 25),
             ],
           ),
         ),
@@ -277,10 +301,7 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
                     value: safeValue,
                     dropdownColor: darkBackground,
                     style: TextStyle(color: lightText, fontSize: 16),
-                    icon: Icon(
-                      Icons.arrow_drop_down,
-                      color: secondaryText,
-                    ),
+                    icon: Icon(Icons.arrow_drop_down, color: secondaryText),
                     hint: Text(
                       'Trường Đang Học (Tùy chọn)',
                       style: TextStyle(color: secondaryText),
@@ -309,7 +330,7 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
                             style: TextStyle(color: lightText),
                           ),
                         );
-                      }).toList(),
+                      }),
                     ],
                   ),
                 ),
@@ -318,6 +339,55 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildCaHocTruongDropdown() {
+    final caOptions = [
+      {'val': 'Sáng', 'label': '☀️ Học Sáng ở trường', 'sub': 'Rảnh chiều/tối'},
+      {'val': 'Chiều', 'label': '🌤️ Học Chiều ở trường', 'sub': 'Rảnh sáng/tối muộn'},
+      {'val': 'Cả ngày', 'label': '🏫 Học Cả ngày ở trường', 'sub': 'Rảnh tối/cuối tuần'},
+    ];
+
+    return Container(
+      padding: const EdgeInsets.only(top: 8),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: secondaryText)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(Icons.wb_sunny_rounded, color: secondaryText, size: 24),
+          const SizedBox(width: 16),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedCaHocTruong,
+                dropdownColor: darkBackground,
+                style: TextStyle(color: lightText, fontSize: 16),
+                icon: Icon(Icons.arrow_drop_down, color: secondaryText),
+                isExpanded: true,
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      _selectedCaHocTruong = newValue;
+                    });
+                  }
+                },
+                items: caOptions.map((opt) {
+                  return DropdownMenuItem<String>(
+                    value: opt['val'],
+                    child: Text(
+                      opt['label']!,
+                      style: TextStyle(color: lightText, fontSize: 14),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -1,6 +1,5 @@
 // File: lib/services/nhan_xet_service.dart
 
-import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/hs_lop_view_model.dart';
 import '../models/nhan_xet_thang.dart';
@@ -94,18 +93,23 @@ class NhanXetService {
     final year = int.parse(parts[0]);
     final month = int.parse(parts[1]);
     final startDateStr = '$thang-01 00:00:00';
-    
+
     // Tính ngày đầu tháng sau
     final nextMonth = month == 12 ? 1 : month + 1;
     final nextYear = month == 12 ? year + 1 : year;
-    final endDateStr = '$nextYear-${nextMonth.toString().padLeft(2, '0')}-01 00:00:00';
+    final endDateStr =
+        '$nextYear-${nextMonth.toString().padLeft(2, '0')}-01 00:00:00';
 
     for (var hs in dsHocSinh) {
       // 1. Lấy hoặc tạo bản ghi nhận xét tháng
       final nhanXetThang = await layHoacTaoNhanXet(hs.id!, idLop, thang);
 
       // 2. Kiểm tra xem có buổi học nào không
-      final counts = await _diemDanhService.demSoBuoiTheoTrangThai(hs.id!, idLop, thang);
+      final counts = await _diemDanhService.demSoBuoiTheoTrangThai(
+        hs.id!,
+        idLop,
+        thang,
+      );
       final coMat = counts['coMat'] ?? 0;
       final nghiCP = counts['nghiCoPhep'] ?? 0;
       final nghiKP = counts['nghiKhongPhep'] ?? 0;
@@ -126,7 +130,8 @@ class NhanXetService {
         if (coMat > 0) {
           final List<Map<String, dynamic>> sessions = await db.query(
             DBHelper.tenBangDiemDanh,
-            where: "id_hoc_sinh = ? AND id_lop = ? AND trang_thai = 'Có mặt' AND gio_diem_danh >= ? AND gio_diem_danh < ?",
+            where:
+                "id_hoc_sinh = ? AND id_lop = ? AND trang_thai = 'Có mặt' AND gio_diem_danh >= ? AND gio_diem_danh < ?",
             whereArgs: [hs.id!, idLop, startDateStr, endDateStr],
           );
 
@@ -138,17 +143,18 @@ class NhanXetService {
               whereArgs: [idDiemDanh],
             );
             if (existEval.isEmpty) {
-              final autoComment = DanhGiaBuoiHocService().sinhNhanXetTuDong(0.0, 0.0, 0.0);
-              await db.insert(
-                _tenBangDGBH,
-                {
-                  'id_diem_danh': idDiemDanh,
-                  'diem_thai_do': 0.0,
-                  'diem_hieu_bai': 0.0,
-                  'diem_bai_tap': 0.0,
-                  'nhan_xet': autoComment,
-                },
+              final autoComment = DanhGiaBuoiHocService().sinhNhanXetTuDong(
+                0.0,
+                0.0,
+                0.0,
               );
+              await db.insert(_tenBangDGBH, {
+                'id_diem_danh': idDiemDanh,
+                'diem_thai_do': 0.0,
+                'diem_hieu_bai': 0.0,
+                'diem_bai_tap': 0.0,
+                'nhan_xet': autoComment,
+              });
             }
           }
         }
@@ -176,7 +182,8 @@ class NhanXetService {
           endDateStr,
         ]);
 
-        if (avgResult.isNotEmpty && avgResult.first.values.any((v) => v != null)) {
+        if (avgResult.isNotEmpty &&
+            avgResult.first.values.any((v) => v != null)) {
           final avgMap = avgResult.first;
           nhanXetThang.diemThaiDo = avgMap['avg_thai_do'] != null
               ? (avgMap['avg_thai_do'] as num).toDouble()
@@ -223,7 +230,12 @@ class NhanXetService {
   }
 
   /// Tự động sinh nhận xét đánh giá tháng dựa trên điểm số chuyên cần, thái độ, hiểu bài, bài tập.
-  String sinhNhanXetThangTuDong(double chuyenCan, double thaiDo, double hieuBai, double baiTap) {
+  String sinhNhanXetThangTuDong(
+    double chuyenCan,
+    double thaiDo,
+    double hieuBai,
+    double baiTap,
+  ) {
     String nxChuyenCan = '';
     if (chuyenCan >= 9.0) {
       nxChuyenCan = 'đi học rất chuyên cần và đầy đủ';
@@ -235,7 +247,8 @@ class NhanXetService {
 
     String nxThaiDo = '';
     if (thaiDo >= 5.0) {
-      nxThaiDo = 'thái độ học tập trên lớp rất xuất sắc, luôn hăng hái phát biểu';
+      nxThaiDo =
+          'thái độ học tập trên lớp rất xuất sắc, luôn hăng hái phát biểu';
     } else if (thaiDo >= 1.5) {
       nxThaiDo = 'thái độ học tập tốt, tập trung nghe giảng';
     } else if (thaiDo >= 0.0) {
@@ -243,7 +256,8 @@ class NhanXetService {
     } else if (thaiDo >= -2.5) {
       nxThaiDo = 'đôi khi còn chưa tập trung hoặc nói chuyện riêng trong lớp';
     } else {
-      nxThaiDo = 'thường xuyên làm việc riêng, cần nghiêm túc chấn chỉnh thái độ học';
+      nxThaiDo =
+          'thường xuyên làm việc riêng, cần nghiêm túc chấn chỉnh thái độ học';
     }
 
     String nxHieuBai = '';
@@ -261,7 +275,8 @@ class NhanXetService {
 
     String nxBaiTap = '';
     if (baiTap >= 5.0) {
-      nxBaiTap = 'hoàn thành bài tập về nhà rất tốt, trình bày khoa học và cẩn thận';
+      nxBaiTap =
+          'hoàn thành bài tập về nhà rất tốt, trình bày khoa học và cẩn thận';
     } else if (baiTap >= 1.5) {
       nxBaiTap = 'làm bài tập đầy đủ trước khi lên lớp';
     } else if (baiTap >= 0.0) {
@@ -292,6 +307,11 @@ class NhanXetService {
     return diem < 0 ? 0 : diem;
   }
 
+  String tinhXepHang(double cc, double td, double kt, double bt) {
+    final double dtb = (cc + td + kt + bt) / 4.0;
+    return _tinhToanXepHang(dtb);
+  }
+
   // Hàm tính toán xếp hạng theo game Liên Quân Mobile (Cập nhật: TB = 0.0 thì xếp hạng Vàng)
   String _tinhToanXepHang(double diemTrungBinh) {
     if (diemTrungBinh == 0.0) {
@@ -318,9 +338,13 @@ class NhanXetService {
   }
 
   // Lấy bảng xếp hạng học sinh theo Khối (Grade) trong tháng YYYY-MM
-  Future<List<Map<String, dynamic>>> layBangXepHangTheoKhoi(int khoi, String thang) async {
+  Future<List<Map<String, dynamic>>> layBangXepHangTheoKhoi(
+    int khoi,
+    String thang,
+  ) async {
     final db = await _database;
-    final List<Map<String, dynamic>> results = await db.rawQuery('''
+    final List<Map<String, dynamic>> results = await db.rawQuery(
+      '''
       SELECT 
         HS.id as id_hoc_sinh,
         HS.ten as ten_hoc_sinh,
@@ -336,7 +360,9 @@ class NhanXetService {
       JOIN ${DBHelper.tenBangLop} L ON LHS.id_lop = L.id
       LEFT JOIN $_tenBang NX ON HS.id = NX.id_hoc_sinh AND L.id = NX.id_lop AND NX.thang = ?
       WHERE L.khoi = ? AND LHS.trang_thai = 'Dang hoc'
-    ''', [thang, khoi]);
+    ''',
+      [thang, khoi],
+    );
 
     // Tiến hành ánh xạ dữ liệu và tính toán điểm trung bình
     final List<Map<String, dynamic>> processed = results.map((row) {
@@ -358,7 +384,11 @@ class NhanXetService {
     }).toList();
 
     // Sắp xếp theo điểm trung bình giảm dần
-    processed.sort((a, b) => (b['diem_trung_binh'] as double).compareTo(a['diem_trung_binh'] as double));
+    processed.sort(
+      (a, b) => (b['diem_trung_binh'] as double).compareTo(
+        a['diem_trung_binh'] as double,
+      ),
+    );
     return processed;
   }
 }

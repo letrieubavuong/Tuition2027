@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "outputDirectory": "build/web",
+  "buildCommand": "flutter/bin/flutter build web --release",
+  "installCommand": "if [ ! -d \"flutter\" ]; then git clone https://github.com/flutter/flutter.git -b stable --depth 1; fi",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ]
+}

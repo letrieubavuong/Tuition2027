@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/hs.dart';
 import '../models/lop.dart';
-import '../services/diem_danh_service.dart';
 import '../services/lop_hoc_sinh_service.dart';
 import '../utils/db.dart';
 
@@ -28,15 +27,15 @@ class BaoCaoDiemDanhWidget extends ConsumerStatefulWidget {
 class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
-  Color get lightText => Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
-  Color get secondaryText => Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+  Color get lightText =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+  Color get secondaryText =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
   Color get accentColor => Theme.of(context).primaryColor;
   Color get deleteColor => Theme.of(context).colorScheme.error;
 
   // --- Services ---
   final LopHocSinhService _lhsService = LopHocSinhService();
-  final DiemDanhService _diemDanhService = DiemDanhService();
-
   // --- State ---
   List<Lop> _lopCuaHocSinh = [];
   Lop? _selectedLop;
@@ -103,7 +102,7 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
               onSurface: lightText,
               surface: cardColor,
             ),
-            dialogBackgroundColor: darkBackground,
+            dialogTheme: DialogThemeData(backgroundColor: darkBackground),
           ),
           child: child!,
         );
@@ -138,7 +137,9 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
     if (_lopCuaHocSinh.isEmpty) {
       return Center(
         child: Text(
-          isVi ? 'Học sinh chưa được thêm vào lớp nào.' : 'Student has not been added to any class yet.',
+          isVi
+              ? 'Học sinh chưa được thêm vào lớp nào.'
+              : 'Student has not been added to any class yet.',
           style: TextStyle(color: secondaryText, fontStyle: FontStyle.italic),
         ),
       );
@@ -188,7 +189,7 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
       children: [
         // Lớp
         DropdownButtonFormField<Lop>(
-          value: _selectedLop,
+          initialValue: _selectedLop,
           items: _lopCuaHocSinh.map((lop) {
             return DropdownMenuItem<Lop>(value: lop, child: Text(lop.ten));
           }).toList(),
@@ -216,12 +217,11 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
           onTap: _showMonthPicker,
           child: InputDecorator(
             decoration: InputDecoration(
-              labelText: isVi ? 'Chọn Tháng (Bấm 1 ngày bất kỳ)' : 'Select Month (Tap any date)',
+              labelText: isVi
+                  ? 'Chọn Tháng (Bấm 1 ngày bất kỳ)'
+                  : 'Select Month (Tap any date)',
               labelStyle: TextStyle(color: secondaryText),
-              prefixIcon: Icon(
-                Icons.calendar_month,
-                color: secondaryText,
-              ),
+              prefixIcon: Icon(Icons.calendar_month, color: secondaryText),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -269,7 +269,8 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
     final coMat = reportData['coMat'] as int? ?? 0;
     final nghiCoPhep = reportData['nghiCoPhep'] as int? ?? 0;
     final nghiKhongPhep = reportData['nghiKhongPhep'] as int? ?? 0;
-    final tongSoBuoi = coMat + nghiCoPhep + nghiKhongPhep;
+    final hocBu = reportData['hocBu'] as int? ?? 0;
+    final tongSoBuoi = coMat + nghiCoPhep + nghiKhongPhep + hocBu;
 
     final listCoMat =
         reportData['listCoMat'] as List<Map<String, dynamic>>? ?? [];
@@ -277,6 +278,8 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
         reportData['listNghiCoPhep'] as List<Map<String, dynamic>>? ?? [];
     final listNghiKhongPhep =
         reportData['listNghiKhongPhep'] as List<Map<String, dynamic>>? ?? [];
+    final listHocBu =
+        reportData['listHocBu'] as List<Map<String, dynamic>>? ?? [];
 
     return Expanded(
       child: ListView(
@@ -287,7 +290,11 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
             value: coMat.toString(),
             color: Colors.green,
             onTap: coMat > 0
-                ? () => _showChiTietDiemDanh(isVi ? 'Có mặt' : 'Present', listCoMat, isVi)
+                ? () => _showChiTietDiemDanh(
+                    isVi ? 'Có mặt' : 'Present',
+                    listCoMat,
+                    isVi,
+                  )
                 : null,
           ),
           _buildReportCard(
@@ -296,7 +303,11 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
             value: nghiCoPhep.toString(),
             color: Colors.orange,
             onTap: nghiCoPhep > 0
-                ? () => _showChiTietDiemDanh(isVi ? 'Nghỉ có phép' : 'Excused absences', listNghiCoPhep, isVi)
+                ? () => _showChiTietDiemDanh(
+                    isVi ? 'Nghỉ có phép' : 'Excused absences',
+                    listNghiCoPhep,
+                    isVi,
+                  )
                 : null,
           ),
           _buildReportCard(
@@ -305,14 +316,32 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
             value: nghiKhongPhep.toString(),
             color: Colors.redAccent,
             onTap: nghiKhongPhep > 0
-                ? () =>
-                      _showChiTietDiemDanh(isVi ? 'Nghỉ không phép' : 'Unexcused absences', listNghiKhongPhep, isVi)
+                ? () => _showChiTietDiemDanh(
+                    isVi ? 'Nghỉ không phép' : 'Unexcused absences',
+                    listNghiKhongPhep,
+                    isVi,
+                  )
+                : null,
+          ),
+          _buildReportCard(
+            icon: Icons.school,
+            label: isVi ? 'Số buổi học bù' : 'Make-up sessions',
+            value: hocBu.toString(),
+            color: Colors.lightBlueAccent,
+            onTap: hocBu > 0
+                ? () => _showChiTietDiemDanh(
+                    isVi ? 'Học bù' : 'Make-up sessions',
+                    listHocBu,
+                    isVi,
+                  )
                 : null,
           ),
           Divider(color: secondaryText, height: 32),
           _buildReportCard(
             icon: Icons.functions,
-            label: isVi ? 'Tổng số buổi đã điểm danh' : 'Total sessions checked',
+            label: isVi
+                ? 'Tổng số buổi đã điểm danh'
+                : 'Total sessions checked',
             value: tongSoBuoi.toString(),
             color: accentColor,
             isTotal: true,
@@ -363,7 +392,11 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
     );
   }
 
-  void _showChiTietDiemDanh(String title, List<Map<String, dynamic>> records, bool isVi) {
+  void _showChiTietDiemDanh(
+    String title,
+    List<Map<String, dynamic>> records,
+    bool isVi,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -382,10 +415,7 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
               final datetimeStr = r['gio_diem_danh'] as String;
               final ghiChu = r['ghi_chu'] as String?;
 
-              DateTime? dt;
-              try {
-                dt = DateTime.parse(datetimeStr);
-              } catch (e) {}
+              final dt = DateTime.tryParse(datetimeStr);
 
               final displayTime = dt != null
                   ? DateFormat('dd/MM/yyyy HH:mm').format(dt)
@@ -394,10 +424,7 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.circle, size: 12, color: accentColor),
-                title: Text(
-                  displayTime,
-                  style: TextStyle(color: lightText),
-                ),
+                title: Text(displayTime, style: TextStyle(color: lightText)),
                 subtitle: ghiChu != null && ghiChu.isNotEmpty
                     ? Text(
                         '${isVi ? 'Ghi chú' : 'Note'}: $ghiChu',
@@ -414,7 +441,10 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(isVi ? 'Đóng' : 'Close', style: TextStyle(color: accentColor)),
+            child: Text(
+              isVi ? 'Đóng' : 'Close',
+              style: TextStyle(color: accentColor),
+            ),
           ),
         ],
       ),
@@ -443,6 +473,7 @@ final reportProvider = FutureProvider.autoDispose
       List<Map<String, dynamic>> listCoMat = [];
       List<Map<String, dynamic>> listNghiCoPhep = [];
       List<Map<String, dynamic>> listNghiKhongPhep = [];
+      List<Map<String, dynamic>> listHocBu = [];
 
       for (var row in results) {
         final trangThai = row['trang_thai'] as String;
@@ -452,6 +483,8 @@ final reportProvider = FutureProvider.autoDispose
           listNghiCoPhep.add(row);
         } else if (trangThai == 'Nghỉ không phép') {
           listNghiKhongPhep.add(row);
+        } else if (trangThai == 'Học bù') {
+          listHocBu.add(row);
         }
       }
 
@@ -459,8 +492,10 @@ final reportProvider = FutureProvider.autoDispose
         'coMat': listCoMat.length,
         'nghiCoPhep': listNghiCoPhep.length,
         'nghiKhongPhep': listNghiKhongPhep.length,
+        'hocBu': listHocBu.length,
         'listCoMat': listCoMat,
         'listNghiCoPhep': listNghiCoPhep,
         'listNghiKhongPhep': listNghiKhongPhep,
+        'listHocBu': listHocBu,
       };
     });

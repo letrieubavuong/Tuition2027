@@ -6,6 +6,7 @@ import '../models/hs_lop_view_model.dart';
 import '../models/lich_hoc.dart';
 import '../utils/db.dart'; // Đảm bảo import DBHelper
 import '../models/diem_danh.dart'; // Import model DiemDanh (Đã được cập nhật có idLop)
+import 'tuition_event_service.dart';
 
 class DiemDanhService {
   // Sửa: Dùng hằng số từ DBHelper
@@ -20,11 +21,15 @@ class DiemDanhService {
     final db = await _database;
     // Model DiemDanh hiện tại đã có idLop, hàm toMap() sẽ bao gồm nó.
     // ConflictAlgorithm.replace sẽ dùng ràng buộc UNIQUE(id_hoc_sinh, id_lop, gio_diem_danh)
-    return await db.insert(
+    final res = await db.insert(
       tenBangDD,
       diemDanh.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    if (res > 0) {
+      TuitionEventService().notifyTuitionChanged();
+    }
+    return res;
   }
 
   // ===================================================
@@ -86,6 +91,7 @@ class DiemDanhService {
     }
 
     await batch.commit(noResult: true);
+    TuitionEventService().notifyTuitionChanged();
   }
 
   // 2. Lấy DiemDanh theo ID học sinh và tháng (READ - tổng quan)
@@ -172,12 +178,14 @@ class DiemDanhService {
       'Có mặt': 'coMat',
       'Nghỉ có phép': 'nghiCoPhep',
       'Nghỉ không phép': 'nghiKhongPhep',
+      'Học bù': 'hocBu',
     };
 
     final Map<String, int> counts = {
       'coMat': 0,
       'nghiCoPhep': 0,
       'nghiKhongPhep': 0,
+      'hocBu': 0,
     };
 
     for (var map in maps) {
@@ -386,10 +394,11 @@ class DiemDanhService {
     final year = int.parse(parts[0]);
     final month = int.parse(parts[1]);
     final startDateStr = '$thang-01 00:00:00';
-    
+
     // Tính ngày cuối cùng của tháng (DateTime(year, month + 1, 0) trả về ngày cuối tháng trước đó nếu dùng month + 1)
     final lastDay = DateTime(year, month + 1, 0);
-    final endDateStr = '${DateFormat('yyyy-MM').format(lastDay)}-${lastDay.day.toString().padLeft(2, '0')} 23:59:59';
+    final endDateStr =
+        '${DateFormat('yyyy-MM').format(lastDay)}-${lastDay.day.toString().padLeft(2, '0')} 23:59:59';
 
     String query =
         '''
@@ -401,12 +410,19 @@ class DiemDanhService {
         AND gio_diem_danh BETWEEN ? AND ?
     ''';
 
-    List<dynamic> args = [idHocSinh, idLop, trangThai, startDateStr, endDateStr];
+    List<dynamic> args = [
+      idHocSinh,
+      idLop,
+      trangThai,
+      startDateStr,
+      endDateStr,
+    ];
 
     // Thêm điều kiện lọc theo ngày bắt đầu tính nếu có
     if (ngayBatDauTinh != null) {
+      final startDateFilter = DateFormat('yyyy-MM-dd 00:00:00').format(ngayBatDauTinh);
       query += ' AND gio_diem_danh >= ?';
-      args.add(ngayBatDauTinh.toIso8601String());
+      args.add(startDateFilter);
     }
 
     // SỬA: Dùng COUNT(*) để đếm đúng số buổi, không phải số ngày.

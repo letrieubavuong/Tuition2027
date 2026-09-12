@@ -79,7 +79,9 @@ class _FormHocSinhState extends State<FormHocSinh> {
           widget.hocSinh!.ghiChu = ghiChu.isEmpty ? null : ghiChu;
           final result = await _hsService.capNhatHocSinh(widget.hocSinh!);
           if (result == 0) {
-            throw Exception(isVi ? 'Cập nhật học sinh thất bại.' : 'Update student failed.');
+            throw Exception(
+              isVi ? 'Cập nhật học sinh thất bại.' : 'Update student failed.',
+            );
           }
         }
 
@@ -97,8 +99,12 @@ class _FormHocSinhState extends State<FormHocSinh> {
               ),
               content: Text(
                 widget.hocSinh == null
-                    ? (isVi ? 'Đã thêm học sinh!' : 'Student added successfully!')
-                    : (isVi ? 'Đã cập nhật học sinh!' : 'Student updated successfully!'),
+                    ? (isVi
+                          ? 'Đã thêm học sinh!'
+                          : 'Student added successfully!')
+                    : (isVi
+                          ? 'Đã cập nhật học sinh!'
+                          : 'Student updated successfully!'),
                 style: const TextStyle(color: lightText),
               ),
               actions: [
@@ -130,7 +136,9 @@ class _FormHocSinhState extends State<FormHocSinh> {
                 ),
               ),
               content: Text(
-                isVi ? 'Lỗi: Không thể lưu học sinh. Chi tiết: $e' : 'Error: Unable to save student. Details: $e',
+                isVi
+                    ? 'Lỗi: Không thể lưu học sinh. Chi tiết: $e'
+                    : 'Error: Unable to save student. Details: $e',
                 style: const TextStyle(color: lightText),
               ),
               actions: [
@@ -159,7 +167,9 @@ class _FormHocSinhState extends State<FormHocSinh> {
         title: Text(
           widget.hocSinh == null
               ? (isVi ? 'Thêm Học Sinh' : 'Add Student')
-              : (isVi ? 'Sửa Học Sinh: ${widget.hocSinh!.ten}' : 'Edit Student: ${widget.hocSinh!.ten}'),
+              : (isVi
+                    ? 'Sửa Học Sinh: ${widget.hocSinh!.ten}'
+                    : 'Edit Student: ${widget.hocSinh!.ten}'),
           style: const TextStyle(color: lightText),
         ),
         centerTitle: true,
@@ -174,7 +184,11 @@ class _FormHocSinhState extends State<FormHocSinh> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               // --- Tên Học Sinh (BẮT BUỘC) ---
-              _buildTextField(_tenController, isVi ? 'Tên Học Sinh' : 'Student Name', Icons.person),
+              _buildTextField(
+                _tenController,
+                isVi ? 'Tên Học Sinh' : 'Student Name',
+                Icons.person,
+              ),
               const SizedBox(height: 20),
 
               // --- SĐT Phụ Huynh ---
@@ -224,8 +238,8 @@ class _FormHocSinhState extends State<FormHocSinh> {
                   padding: const EdgeInsets.symmetric(vertical: 15),
                 ),
                 child: Text(
-                  widget.hocSinh == null 
-                      ? (isVi ? 'LƯU HỌC SINH' : 'SAVE STUDENT') 
+                  widget.hocSinh == null
+                      ? (isVi ? 'LƯU HỌC SINH' : 'SAVE STUDENT')
                       : (isVi ? 'CẬP NHẬT' : 'UPDATE'),
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
@@ -267,7 +281,8 @@ class _FormHocSinhState extends State<FormHocSinh> {
       ),
       validator: (value) {
         if (isRequired && (value == null || value.trim().isEmpty)) {
-          final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
+          final isVi =
+              AppLocalizations.of(context)?.locale.languageCode == 'vi';
           return isVi ? 'Vui lòng nhập $label' : 'Please enter $label';
         }
         return null;

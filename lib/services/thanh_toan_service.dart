@@ -81,4 +81,44 @@ class ThanhToanService {
       );
     }).toList();
   }
+
+  Future<int> suaLichSuThanhToan({
+    required int idHocSinh,
+    required int idLop,
+    required String thang,
+    required int soTienDaDong,
+    required DateTime ngayThanhToan,
+    String? ghiChu,
+  }) async {
+    final db = await _database;
+    return db.update(
+      tenBangThanhToan,
+      {
+        'so_tien_da_dong': soTienDaDong,
+        'ngay_thanh_toan': ngayThanhToan.toIso8601String(),
+        'ghi_chu_thanh_toan': ghiChu,
+      },
+      where: 'id_hoc_sinh = ? AND id_lop = ? AND thang = ?',
+      whereArgs: [idHocSinh, idLop, thang],
+    );
+  }
+
+  Future<int> xoaLichSuThanhToan({
+    required int idHocSinh,
+    required int idLop,
+    required String thang,
+  }) async {
+    final db = await _database;
+    // Giữ hồ sơ học phí để ReportService có thể tính lại, chỉ xóa dữ liệu đã thu.
+    return db.update(
+      tenBangThanhToan,
+      {
+        'so_tien_da_dong': 0,
+        'ngay_thanh_toan': null,
+        'ghi_chu_thanh_toan': null,
+      },
+      where: 'id_hoc_sinh = ? AND id_lop = ? AND thang = ?',
+      whereArgs: [idHocSinh, idLop, thang],
+    );
+  }
 }

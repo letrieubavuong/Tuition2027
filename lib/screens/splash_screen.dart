@@ -12,7 +12,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -86,7 +87,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 16.0,
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -111,11 +115,11 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: isDark
-                              ? theme.primaryColor.withOpacity(0.15)
-                              : theme.primaryColor.withOpacity(0.1),
+                              ? theme.primaryColor.withValues(alpha: 0.15)
+                              : theme.primaryColor.withValues(alpha: 0.1),
                           boxShadow: [
                             BoxShadow(
-                              color: theme.primaryColor.withOpacity(0.2),
+                              color: theme.primaryColor.withValues(alpha: 0.2),
                               blurRadius: 30,
                               spreadRadius: 5,
                             ),
@@ -172,12 +176,18 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       curve: const Interval(0.5, 1.0, curve: Curves.easeIn),
                     ).value;
 
-                    final buttonSlide = Tween<double>(begin: 30.0, end: 0.0).animate(
-                      CurvedAnimation(
-                        parent: _controller,
-                        curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
-                      ),
-                    ).value;
+                    final buttonSlide = Tween<double>(begin: 30.0, end: 0.0)
+                        .animate(
+                          CurvedAnimation(
+                            parent: _controller,
+                            curve: const Interval(
+                              0.5,
+                              1.0,
+                              curve: Curves.easeOut,
+                            ),
+                          ),
+                        )
+                        .value;
 
                     return Opacity(
                       opacity: buttonOpacity,
@@ -191,19 +201,27 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     children: [
                       ElevatedButton(
                         onPressed: () async {
-                          final isPinEnabled = await CaiDatService().layCaiDat('app_pin_enabled');
-                          final savedPin = await CaiDatService().layCaiDat('app_pin_code');
+                          final isPinEnabled = await CaiDatService().layCaiDat(
+                            'app_pin_enabled',
+                          );
+                          final savedPin = await CaiDatService().layCaiDat(
+                            'app_pin_code',
+                          );
                           if (context.mounted) {
-                            if (isPinEnabled == 'true' && savedPin != null && savedPin.isNotEmpty) {
+                            if (isPinEnabled == 'true' &&
+                                savedPin != null &&
+                                savedPin.isNotEmpty) {
                               Navigator.of(context).pushReplacement(
                                 MaterialPageRoute(
-                                  builder: (context) => const PinLockScreen(isConfiguring: false),
+                                  builder: (context) =>
+                                      const PinLockScreen(isConfiguring: false),
                                 ),
                               );
                             } else {
                               Navigator.of(context).pushReplacement(
                                 MaterialPageRoute(
-                                  builder: (context) => MainScreen(key: mainScreenKey),
+                                  builder: (context) =>
+                                      MainScreen(key: mainScreenKey),
                                 ),
                               );
                             }
@@ -211,13 +229,20 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: theme.primaryColor,
-                          foregroundColor: isDark ? const Color(0xFF1A1A2E) : Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+                          foregroundColor: isDark
+                              ? const Color(0xFF1A1A2E)
+                              : Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 48,
+                            vertical: 16,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
                           elevation: 8,
-                          shadowColor: theme.primaryColor.withOpacity(0.4),
+                          shadowColor: theme.primaryColor.withValues(
+                            alpha: 0.4,
+                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,

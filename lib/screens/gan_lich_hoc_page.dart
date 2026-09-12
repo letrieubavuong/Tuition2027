@@ -126,7 +126,12 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
         }
       }
       if (mounted) {
-        ToastHelper.showSuccess(context, isVi ? 'Cập nhật lịch học thành công!' : 'Schedule updated successfully!');
+        ToastHelper.showSuccess(
+          context,
+          isVi
+              ? 'Cập nhật lịch học thành công!'
+              : 'Schedule updated successfully!',
+        );
         Navigator.of(context).pop(true);
       }
     } catch (e) {
@@ -187,7 +192,9 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
                 : _filteredHocSinh.isEmpty
                 ? Center(
                     child: Text(
-                      isVi ? 'Không tìm thấy học sinh nào.' : 'No students found.',
+                      isVi
+                          ? 'Không tìm thấy học sinh nào.'
+                          : 'No students found.',
                       style: const TextStyle(color: secondaryText),
                     ),
                   )
@@ -250,7 +257,8 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
               const Icon(Icons.calendar_today, color: accentColor, size: 18),
               const SizedBox(width: 8),
               Text(
-                (isVi ? 'Lịch học: ' : 'Schedule: ') + widget.lichHocChung.ngayTrongTuan,
+                (isVi ? 'Lịch học: ' : 'Schedule: ') +
+                    widget.lichHocChung.ngayTrongTuan,
                 style: const TextStyle(
                   color: lightText,
                   fontSize: 16,
@@ -265,7 +273,7 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
               const Icon(Icons.access_time, color: accentColor, size: 18),
               const SizedBox(width: 8),
               Text(
-                (isVi ? 'Thời gian: ' : 'Time: ') + '${widget.lichHocChung.gioBatDau} - ${widget.lichHocChung.gioKetThuc}',
+                '${isVi ? 'Thời gian: ' : 'Time: '}${widget.lichHocChung.gioBatDau} - ${widget.lichHocChung.gioKetThuc}',
                 style: const TextStyle(color: secondaryText, fontSize: 14),
               ),
             ],
@@ -333,7 +341,7 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                (isVi ? 'Đã chọn: ' : 'Selected: ') + '${_selectedHocSinhIds.length}/${widget.danhSachHocSinh.length}',
+                '${isVi ? 'Đã chọn: ' : 'Selected: '}${_selectedHocSinhIds.length}/${widget.danhSachHocSinh.length}',
                 style: const TextStyle(color: secondaryText),
               ),
               Row(

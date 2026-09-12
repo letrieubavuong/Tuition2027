@@ -54,10 +54,12 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
   void _loadData() {
     setState(() {
       _loadEventsFuture = _service.laySuKienTheoBuoiHoc(widget.idDiemDanh);
-      _loadEvaluationFuture = _danhGiaService.layHoacTaoDanhGia(widget.idDiemDanh).then((dg) {
-        _nhanXetController.text = dg.nhanXet ?? '';
-        return dg;
-      });
+      _loadEvaluationFuture = _danhGiaService
+          .layHoacTaoDanhGia(widget.idDiemDanh)
+          .then((dg) {
+            _nhanXetController.text = dg.nhanXet ?? '';
+            return dg;
+          });
     });
   }
 
@@ -155,8 +157,18 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(isVi ? 'NHẬT KÝ BUỔI HỌC' : 'SESSION LOG', style: const TextStyle(fontSize: 14, color: secondaryText)),
-            Text(widget.tenHocSinh, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: lightText)),
+            Text(
+              isVi ? 'NHẬT KÝ BUỔI HỌC' : 'SESSION LOG',
+              style: const TextStyle(fontSize: 14, color: secondaryText),
+            ),
+            Text(
+              widget.tenHocSinh,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: lightText,
+              ),
+            ),
           ],
         ),
         actions: [
@@ -171,33 +183,39 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
           : CustomScrollView(
               slivers: [
                 // Section: Evaluation Summary
-                SliverToBoxAdapter(
-                  child: _buildEvaluationSummary(),
-                ),
+                SliverToBoxAdapter(child: _buildEvaluationSummary()),
 
                 // Section: Events Recorded
                 SliverToBoxAdapter(
-                  child: _buildSectionHeader(isVi ? 'CÁC SỰ KIỆN ĐÃ GHI' : 'RECORDED EVENTS'),
+                  child: _buildSectionHeader(
+                    isVi ? 'CÁC SỰ KIỆN ĐÃ GHI' : 'RECORDED EVENTS',
+                  ),
                 ),
                 _buildRecordedEventsList(),
 
                 // Section: Positive Events to add
                 SliverToBoxAdapter(
-                  child: _buildSectionHeader(isVi ? 'THÊM SỰ KIỆN TÍCH CỰC (+)' : 'ADD POSITIVE EVENT (+)'),
+                  child: _buildSectionHeader(
+                    isVi
+                        ? 'THÊM SỰ KIỆN TÍCH CỰC (+)'
+                        : 'ADD POSITIVE EVENT (+)',
+                  ),
                 ),
                 _buildQuyTacList(_suKienTichCuc, positiveColor),
 
                 // Section: Negative Events to add
                 SliverToBoxAdapter(
-                  child: _buildSectionHeader(isVi ? 'THÊM SỰ KIỆN TIÊU CỰC (-)' : 'ADD NEGATIVE EVENT (-)'),
+                  child: _buildSectionHeader(
+                    isVi
+                        ? 'THÊM SỰ KIỆN TIÊU CỰC (-)'
+                        : 'ADD NEGATIVE EVENT (-)',
+                  ),
                 ),
                 _buildQuyTacList(_suKienTieuCuc, negativeColor),
-                
+
                 // Section: Note
-                SliverToBoxAdapter(
-                  child: _buildNhanXetSection(),
-                ),
-                
+                SliverToBoxAdapter(child: _buildNhanXetSection()),
+
                 const SliverPadding(padding: EdgeInsets.only(bottom: 30)),
               ],
             ),
@@ -218,7 +236,9 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
             maxLines: 3,
             style: const TextStyle(color: lightText),
             decoration: InputDecoration(
-              hintText: isVi ? 'Nhập nhận xét về buổi học...' : 'Enter comments about the session...',
+              hintText: isVi
+                  ? 'Nhập nhận xét về buổi học...'
+                  : 'Enter comments about the session...',
               hintStyle: const TextStyle(color: secondaryText),
               fillColor: cardColor,
               filled: true,
@@ -245,13 +265,18 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
                   });
                   await _luuNhanXet(autoText);
                   if (mounted) {
-                    ToastHelper.showSuccess(context, isVi ? 'Đã tự sinh nhận xét!' : 'Remarks auto-generated!');
+                    ToastHelper.showSuccess(
+                      context,
+                      isVi ? 'Đã tự sinh nhận xét!' : 'Remarks auto-generated!',
+                    );
                   }
                 },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: accentColor,
                   side: const BorderSide(color: accentColor),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 icon: const Icon(Icons.auto_awesome, size: 18),
                 label: Text(isVi ? 'Tự sinh nhận xét' : 'Auto Remark'),
@@ -260,13 +285,20 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
                 onPressed: () async {
                   await _luuNhanXet(_nhanXetController.text);
                   if (mounted) {
-                    ToastHelper.showSuccess(context, isVi ? 'Đã lưu nhận xét thành công!' : 'Comments saved successfully!');
+                    ToastHelper.showSuccess(
+                      context,
+                      isVi
+                          ? 'Đã lưu nhận xét thành công!'
+                          : 'Comments saved successfully!',
+                    );
                   }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: accentColor,
                   foregroundColor: darkBackground,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 icon: const Icon(Icons.save, size: 18),
                 label: Text(isVi ? 'Lưu nhận xét' : 'Save Comment'),
@@ -307,7 +339,7 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
           decoration: BoxDecoration(
             color: cardColor,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: accentColor.withOpacity(0.3)),
+            border: Border.all(color: accentColor.withValues(alpha: 0.3)),
           ),
           child: Column(
             children: [
@@ -324,15 +356,30 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildScoreItem(isVi ? 'Thái độ' : 'Attitude', dg.diemThaiDo ?? 0.0),
-                  _buildScoreItem(isVi ? 'Hiểu bài' : 'Understanding', dg.diemHieuBai ?? 0.0),
-                  _buildScoreItem(isVi ? 'Bài tập' : 'Homework', dg.diemBaiTap ?? 0.0),
+                  _buildScoreItem(
+                    isVi ? 'Thái độ' : 'Attitude',
+                    dg.diemThaiDo ?? 0.0,
+                  ),
+                  _buildScoreItem(
+                    isVi ? 'Hiểu bài' : 'Understanding',
+                    dg.diemHieuBai ?? 0.0,
+                  ),
+                  _buildScoreItem(
+                    isVi ? 'Bài tập' : 'Homework',
+                    dg.diemBaiTap ?? 0.0,
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
               Text(
-                isVi ? 'Dữ liệu được tự động lưu sau mỗi thay đổi' : 'Data is automatically saved after each change',
-                style: const TextStyle(color: Colors.greenAccent, fontSize: 11, fontStyle: FontStyle.italic),
+                isVi
+                    ? 'Dữ liệu được tự động lưu sau mỗi thay đổi'
+                    : 'Data is automatically saved after each change',
+                style: const TextStyle(
+                  color: Colors.greenAccent,
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ],
           ),
@@ -352,10 +399,7 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        Text(
-          label,
-          style: const TextStyle(color: secondaryText, fontSize: 12),
-        ),
+        Text(label, style: const TextStyle(color: secondaryText, fontSize: 12)),
       ],
     );
   }
@@ -370,8 +414,13 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Text(
-                isVi ? 'Chưa có sự kiện nào được ghi trong buổi này.' : 'No events recorded in this session.',
-                style: const TextStyle(color: secondaryText, fontStyle: FontStyle.italic),
+                isVi
+                    ? 'Chưa có sự kiện nào được ghi trong buổi này.'
+                    : 'No events recorded in this session.',
+                style: const TextStyle(
+                  color: secondaryText,
+                  fontStyle: FontStyle.italic,
+                ),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -380,41 +429,48 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
 
         final events = snapshot.data!;
         return SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              final event = events[index];
-              final isPositive = event.diemThayDoi >= 0;
-              final color = isPositive ? positiveColor : negativeColor;
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final event = events[index];
+            final isPositive = event.diemThayDoi >= 0;
+            final color = isPositive ? positiveColor : negativeColor;
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                child: Card(
-                  color: cardColor,
-                  child: ListTile(
-                    leading: Icon(
-                      isPositive ? Icons.add_circle : Icons.remove_circle,
-                      color: color,
-                    ),
-                    title: Text(event.moTa, style: const TextStyle(color: lightText)),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${isPositive ? "+" : ""}${event.diemThayDoi}',
-                          style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Card(
+                color: cardColor,
+                child: ListTile(
+                  leading: Icon(
+                    isPositive ? Icons.add_circle : Icons.remove_circle,
+                    color: color,
+                  ),
+                  title: Text(
+                    event.moTa,
+                    style: const TextStyle(color: lightText),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${isPositive ? "+" : ""}${event.diemThayDoi}',
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.bold,
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, color: secondaryText, size: 20),
-                          onPressed: () => _xoaSuKien(event.id!),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: secondaryText,
+                          size: 20,
                         ),
-                      ],
-                    ),
+                        onPressed: () => _xoaSuKien(event.id!),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            },
-            childCount: events.length,
-          ),
+              ),
+            );
+          }, childCount: events.length),
         );
       },
     );
@@ -426,42 +482,55 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
       return SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Text(isVi ? 'Không có dữ liệu quy tắc.' : 'No rule data.', style: const TextStyle(color: secondaryText)),
+          child: Text(
+            isVi ? 'Không có dữ liệu quy tắc.' : 'No rule data.',
+            style: const TextStyle(color: secondaryText),
+          ),
         ),
       );
     }
 
     return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          final qt = quyTacs[index];
-          final isPositive = qt.loaiQuyTac == 'CONG_DIEM';
+      delegate: SliverChildBuilderDelegate((context, index) {
+        final qt = quyTacs[index];
+        final isPositive = qt.loaiQuyTac == 'CONG_DIEM';
 
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-            child: ListTile(
-              onTap: () => _themSuKien(qt),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              tileColor: cardColor.withOpacity(0.5),
-              leading: Icon(_getIconForMoTa(qt.moTa, isPositive), color: color, size: 22),
-              title: Text(qt.moTa, style: const TextStyle(color: lightText, fontSize: 15)),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color.withOpacity(0.3)),
-                ),
-                child: Text(
-                  '${isPositive ? "+" : ""}${qt.diemThayDoi}',
-                  style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          child: ListTile(
+            onTap: () => _themSuKien(qt),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            tileColor: cardColor.withValues(alpha: 0.5),
+            leading: Icon(
+              _getIconForMoTa(qt.moTa, isPositive),
+              color: color,
+              size: 22,
+            ),
+            title: Text(
+              qt.moTa,
+              style: const TextStyle(color: lightText, fontSize: 15),
+            ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withValues(alpha: 0.3)),
+              ),
+              child: Text(
+                '${isPositive ? "+" : ""}${qt.diemThayDoi}',
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
               ),
             ),
-          );
-        },
-        childCount: quyTacs.length,
-      ),
+          ),
+        );
+      }, childCount: quyTacs.length),
     );
   }
 }

@@ -10,11 +10,12 @@ class BangXepHangKhoiPage extends StatefulWidget {
   State<BangXepHangKhoiPage> createState() => _BangXepHangKhoiPageState();
 }
 
-class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTickerProviderStateMixin {
+class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage>
+    with SingleTickerProviderStateMixin {
   final NhanXetService _nhanXetService = NhanXetService();
   late TabController _gradeTabController;
   final List<int> _grades = [6, 7, 8, 9, 10, 11, 12];
-  
+
   // Months list for dropdown (current month and previous 2 months)
   late List<String> _months;
   late String _selectedMonth;
@@ -30,7 +31,7 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
   void initState() {
     super.initState();
     _gradeTabController = TabController(length: _grades.length, vsync: this);
-    
+
     // Generate months list (YYYY-MM)
     final now = DateTime.now();
     _months = List.generate(3, (index) {
@@ -50,51 +51,51 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
     switch (rank) {
       case 'Thách Đấu':
         return {
-          'color': Colors.redAccent, 
-          'icon': Icons.local_fire_department, 
-          'badgeColor': Colors.red.shade900
+          'color': Colors.redAccent,
+          'icon': Icons.local_fire_department,
+          'badgeColor': Colors.red.shade900,
         };
       case 'Cao Thủ':
         return {
-          'color': Colors.orangeAccent, 
-          'icon': Icons.military_tech, 
-          'badgeColor': Colors.amber.shade900
+          'color': Colors.orangeAccent,
+          'icon': Icons.military_tech,
+          'badgeColor': Colors.amber.shade900,
         };
       case 'Tinh Anh':
         return {
-          'color': Colors.purpleAccent, 
-          'icon': Icons.auto_awesome, 
-          'badgeColor': Colors.purple.shade900
+          'color': Colors.purpleAccent,
+          'icon': Icons.auto_awesome,
+          'badgeColor': Colors.purple.shade900,
         };
       case 'Kim Cương':
         return {
-          'color': Colors.cyanAccent, 
-          'icon': Icons.diamond, 
-          'badgeColor': Colors.cyan.shade900
+          'color': Colors.cyanAccent,
+          'icon': Icons.diamond,
+          'badgeColor': Colors.cyan.shade900,
         };
       case 'Bạch Kim':
         return {
-          'color': Colors.grey.shade300, 
-          'icon': Icons.shield, 
-          'badgeColor': Colors.grey.shade700
+          'color': Colors.grey.shade300,
+          'icon': Icons.shield,
+          'badgeColor': Colors.grey.shade700,
         };
       case 'Vàng':
         return {
-          'color': Colors.amberAccent, 
-          'icon': Icons.star, 
-          'badgeColor': Colors.yellow.shade800
+          'color': Colors.amberAccent,
+          'icon': Icons.star,
+          'badgeColor': Colors.yellow.shade800,
         };
       case 'Bạc':
         return {
-          'color': Colors.blueGrey.shade300, 
-          'icon': Icons.verified, 
-          'badgeColor': Colors.blueGrey.shade700
+          'color': Colors.blueGrey.shade300,
+          'icon': Icons.verified,
+          'badgeColor': Colors.blueGrey.shade700,
         };
       default: // 'Đồng'
         return {
-          'color': Colors.brown.shade300, 
-          'icon': Icons.workspace_premium, 
-          'badgeColor': Colors.brown.shade700
+          'color': Colors.brown.shade300,
+          'icon': Icons.workspace_premium,
+          'badgeColor': Colors.brown.shade700,
         };
     }
   }
@@ -118,7 +119,7 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
             decoration: BoxDecoration(
               color: darkBackground,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: accentColor.withOpacity(0.5)),
+              border: Border.all(color: accentColor.withValues(alpha: 0.5)),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
@@ -134,12 +135,18 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
                 },
                 items: _months.map<DropdownMenuItem<String>>((String value) {
                   final parts = value.split('-');
-                  final displayVal = parts.length == 2 ? '${parts[1]}/${parts[0]}' : value;
+                  final displayVal = parts.length == 2
+                      ? '${parts[1]}/${parts[0]}'
+                      : value;
                   return DropdownMenuItem<String>(
                     value: value,
                     child: Text(
                       displayVal,
-                      style: const TextStyle(color: lightText, fontSize: 13, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        color: lightText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   );
                 }).toList(),
@@ -153,12 +160,16 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
           labelColor: accentColor,
           unselectedLabelColor: secondaryText,
           isScrollable: true,
-          tabs: _grades.map((g) => Tab(text: isVi ? 'Khối $g' : 'Grade $g')).toList(),
+          tabs: _grades
+              .map((g) => Tab(text: isVi ? 'Khối $g' : 'Grade $g'))
+              .toList(),
         ),
       ),
       body: TabBarView(
         controller: _gradeTabController,
-        children: _grades.map((grade) => _buildGradeLeaderboard(grade)).toList(),
+        children: _grades
+            .map((grade) => _buildGradeLeaderboard(grade))
+            .toList(),
       ),
     );
   }
@@ -170,7 +181,9 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
       future: _nhanXetService.layBangXepHangTheoKhoi(grade, _selectedMonth),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: accentColor));
+          return const Center(
+            child: CircularProgressIndicator(color: accentColor),
+          );
         }
         if (snapshot.hasError) {
           return Center(
@@ -185,7 +198,9 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
         if (students.isEmpty) {
           return Center(
             child: Text(
-              isVi ? 'Chưa có dữ liệu xếp hạng khối này.' : 'No ranking data for this grade.',
+              isVi
+                  ? 'Chưa có dữ liệu xếp hạng khối này.'
+                  : 'No ranking data for this grade.',
               style: const TextStyle(color: secondaryText),
             ),
           );
@@ -194,8 +209,9 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
         return Column(
           children: [
             // Top 3 Header layout (gamified)
-            if (students.length >= 3) _buildTopThreePodium(students.take(3).toList()),
-            
+            if (students.length >= 3)
+              _buildTopThreePodium(students.take(3).toList()),
+
             // Remaining list
             Expanded(
               child: ListView.builder(
@@ -203,8 +219,10 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
                 itemCount: students.length,
                 itemBuilder: (context, index) {
                   // Skip top 3 if we displayed podium, or display all in normal list
-                  if (students.length >= 3 && index < 3) return const SizedBox.shrink();
-                  
+                  if (students.length >= 3 && index < 3) {
+                    return const SizedBox.shrink();
+                  }
+
                   final student = students[index];
                   final int rankPos = index + 1;
                   final String rankName = student['xep_hang'] ?? 'Đồng';
@@ -225,32 +243,58 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
                         ),
                         child: Text(
                           '$rankPos',
-                          style: const TextStyle(color: lightText, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            color: lightText,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       title: Text(
                         student['ten_hoc_sinh'] ?? '',
-                        style: const TextStyle(color: lightText, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: lightText,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       subtitle: Text(
                         '${student['ten_lop']} • ${isVi ? 'ĐTB' : 'Avg'}: ${avg.toStringAsFixed(2)}',
-                        style: const TextStyle(color: secondaryText, fontSize: 13),
+                        style: const TextStyle(
+                          color: secondaryText,
+                          fontSize: 13,
+                        ),
                       ),
                       trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: (rankUi['color'] as Color).withOpacity(0.15),
+                          color: (rankUi['color'] as Color).withValues(
+                            alpha: 0.15,
+                          ),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: (rankUi['color'] as Color).withOpacity(0.3)),
+                          border: Border.all(
+                            color: (rankUi['color'] as Color).withValues(
+                              alpha: 0.3,
+                            ),
+                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(rankUi['icon'], color: rankUi['color'], size: 16),
+                            Icon(
+                              rankUi['icon'],
+                              color: rankUi['color'],
+                              size: 16,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               rankName,
-                              style: TextStyle(color: rankUi['color'], fontWeight: FontWeight.bold, fontSize: 12),
+                              style: TextStyle(
+                                color: rankUi['color'],
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
@@ -275,7 +319,7 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
       decoration: BoxDecoration(
-        color: cardColor.withOpacity(0.5),
+        color: cardColor.withValues(alpha: 0.5),
         border: const Border(bottom: BorderSide(color: Colors.white10)),
       ),
       child: Row(
@@ -293,7 +337,13 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
     );
   }
 
-  Widget _buildPodiumColumn(Map<String, dynamic> student, int position, double height, Color accent, String numberStr) {
+  Widget _buildPodiumColumn(
+    Map<String, dynamic> student,
+    int position,
+    double height,
+    Color accent,
+    String numberStr,
+  ) {
     final String rankName = student['xep_hang'] ?? 'Đồng';
     final rankUi = _getRankUiData(rankName);
     final double avg = student['diem_trung_binh'] ?? 0.0;
@@ -309,18 +359,26 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
               padding: const EdgeInsets.only(top: 12.0),
               child: CircleAvatar(
                 radius: position == 1 ? 36 : 28,
-                backgroundColor: accent.withOpacity(0.2),
+                backgroundColor: accent.withValues(alpha: 0.2),
                 child: CircleAvatar(
                   radius: position == 1 ? 32 : 25,
                   backgroundColor: cardColor,
-                  child: Icon(rankUi['icon'], color: rankUi['color'], size: position == 1 ? 32 : 24),
+                  child: Icon(
+                    rankUi['icon'],
+                    color: rankUi['color'],
+                    size: position == 1 ? 32 : 24,
+                  ),
                 ),
               ),
             ),
             if (position == 1)
               const Positioned(
                 top: -4,
-                child: Icon(Icons.workspace_premium, color: Colors.amberAccent, size: 24),
+                child: Icon(
+                  Icons.workspace_premium,
+                  color: Colors.amberAccent,
+                  size: 24,
+                ),
               ),
           ],
         ),
@@ -331,9 +389,9 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
           child: Text(
             student['ten_hoc_sinh'] ?? '',
             style: TextStyle(
-              color: lightText, 
-              fontWeight: FontWeight.bold, 
-              fontSize: position == 1 ? 14 : 12
+              color: lightText,
+              fontWeight: FontWeight.bold,
+              fontSize: position == 1 ? 14 : 12,
             ),
             textAlign: TextAlign.center,
             maxLines: 1,
@@ -351,7 +409,10 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
           height: height,
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [accent.withOpacity(0.8), accent.withOpacity(0.3)],
+              colors: [
+                accent.withValues(alpha: 0.8),
+                accent.withValues(alpha: 0.3),
+              ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
@@ -366,11 +427,19 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage> with SingleTi
             children: [
               Text(
                 numberStr,
-                style: const TextStyle(color: darkBackground, fontSize: 24, fontWeight: FontWeight.w900),
+                style: const TextStyle(
+                  color: darkBackground,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               Text(
                 avg.toStringAsFixed(2),
-                style: const TextStyle(color: darkBackground, fontSize: 11, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: darkBackground,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),

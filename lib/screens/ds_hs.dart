@@ -77,7 +77,7 @@ class _DSHocSinhState extends State<DSHocSinh> {
         _dangTai = false;
       });
     } catch (e) {
-      print('Lỗi tải dữ liệu: $e');
+      debugPrint('Lỗi tải dữ liệu: $e');
       if (mounted) {
         final loc = AppLocalizations.of(context)!;
         setState(() {
@@ -263,7 +263,7 @@ class _DSHocSinhState extends State<DSHocSinh> {
   Future<void> _nhapDanhSachCSV() async {
     final loc = AppLocalizations.of(context)!;
     final isVi = loc.locale.languageCode == 'vi';
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
+    FilePickerResult? result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['csv'],
     );
@@ -442,7 +442,6 @@ class _DSHocSinhState extends State<DSHocSinh> {
   // HÀM MỚI: Xây dựng Card Học sinh với thiết kế mới
   Widget _buildHocSinhCard(HS hs) {
     final loc = AppLocalizations.of(context)!;
-    final isVi = loc.locale.languageCode == 'vi';
     return Card(
       color: cardColor,
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

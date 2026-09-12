@@ -22,15 +22,14 @@ class PaymentService {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
     // Simulate network delay and payment processing.
     await Future.delayed(const Duration(seconds: 2));
 
     // Dismiss loading.
+    if (!context.mounted) return false;
     Navigator.of(context).pop();
 
     // For demo purposes we always return success.

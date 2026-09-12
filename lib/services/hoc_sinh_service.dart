@@ -1,5 +1,7 @@
 // File: lib/services/hoc_sinh_service.dart (CẬP NHẬT)
 
+import 'dart:developer' as developer;
+
 import 'package:sqflite/sqflite.dart';
 import '../utils/db.dart';
 import '../models/hs.dart'; // Sử dụng model HS mới
@@ -35,7 +37,12 @@ class HocSinhService {
   // 3. Cap Nhat Hoc Sinh (Update)
   Future<int> capNhatHocSinh(HS hs) async {
     final db = await dbHelper.database;
-    return await db.update(tenBang, hs.toMap(), where: 'id = ?', whereArgs: [hs.id]);
+    return await db.update(
+      tenBang,
+      hs.toMap(),
+      where: 'id = ?',
+      whereArgs: [hs.id],
+    );
   }
 
   Future<HS?> docHocSinhTheoId(int id) async {
@@ -74,7 +81,11 @@ class HocSinhService {
         whereArgs: [idHocSinh],
       );
     } catch (e) {
-      print('Lỗi khi cập nhật số buổi dư: $e');
+      developer.log(
+        'Lỗi khi cập nhật số buổi dư',
+        name: 'HocSinhService',
+        error: e,
+      );
       return 0;
     }
   }

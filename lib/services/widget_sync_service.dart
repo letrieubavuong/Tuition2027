@@ -38,8 +38,11 @@ class WidgetSyncService {
         7: 'Thứ Bảy',
       };
       final dayName = dayNames[thuTrongTuanDB] ?? 'Hôm nay';
-      
-      await HomeWidget.saveWidgetData<String>('widget_date', '$dayName ($dateFormatted)');
+
+      await HomeWidget.saveWidgetData<String>(
+        'widget_date',
+        '$dayName ($dateFormatted)',
+      );
 
       if (caHocHomNay.isEmpty) {
         await HomeWidget.saveWidgetData<bool>('widget_empty', true);
@@ -57,7 +60,7 @@ class WidgetSyncService {
             }
             final timeStr = rawTime;
             final nameStr = classItem['tenLop'] as String;
-            
+
             await HomeWidget.saveWidgetData<String>('time_$slotIndex', timeStr);
             await HomeWidget.saveWidgetData<String>('name_$slotIndex', nameStr);
           } else {
@@ -79,8 +82,10 @@ class WidgetSyncService {
   static Future<void> syncBankQRWidget() async {
     try {
       final db = await DBHelper.instance.database;
-      final List<Map<String, dynamic>> settings = await db.query(DBHelper.tenBangCaiDat);
-      
+      final List<Map<String, dynamic>> settings = await db.query(
+        DBHelper.tenBangCaiDat,
+      );
+
       String bankId = 'sacombank';
       String accountNo = '';
       String accountName = '';
@@ -94,7 +99,10 @@ class WidgetSyncService {
       }
 
       if (accountNo.trim().isEmpty) {
-        await HomeWidget.saveWidgetData<String>('qr_bank_info', 'Chưa cấu hình tài khoản');
+        await HomeWidget.saveWidgetData<String>(
+          'qr_bank_info',
+          'Chưa cấu hình tài khoản',
+        );
         await HomeWidget.saveWidgetData<String>('qr_image_path', '');
         await HomeWidget.updateWidget(
           name: 'BankQRWidgetProvider',
@@ -103,7 +111,8 @@ class WidgetSyncService {
         return;
       }
 
-      final String bankInfoText = 'NH: ${bankId.toUpperCase()} - $accountNo\n$accountName';
+      final String bankInfoText =
+          'NH: ${bankId.toUpperCase()} - $accountNo\n$accountName';
       await HomeWidget.saveWidgetData<String>('qr_bank_info', bankInfoText);
 
       // Generate payload (with amount 0 for generic payment)
@@ -123,7 +132,9 @@ class WidgetSyncService {
       );
 
       final ui.Image image = await qrPainter.toImage(300);
-      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
       if (byteData != null) {
         final Uint8List pngBytes = byteData.buffer.asUint8List();
         final directory = await getTemporaryDirectory();

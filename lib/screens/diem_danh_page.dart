@@ -34,6 +34,7 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
   Color get presentColor =>
       Colors.greenAccent; // Giữ màu xanh lá sáng cho Có mặt
   Color get absentColor => Theme.of(context).colorScheme.error;
+  Color get makeUpColor => Colors.lightBlueAccent;
   // --------------------------------------------------
 
   void _showInfoDialog(String title, String message, {Color? titleColor}) {
@@ -335,10 +336,20 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
                 CircleAvatar(
                   backgroundColor: isPresent
                       ? presentColor.withValues(alpha: 0.3)
-                      : absentColor.withValues(alpha: 0.3),
+                      : (currentRecord.trangThai == 'Học bù'
+                          ? makeUpColor.withValues(alpha: 0.3)
+                          : absentColor.withValues(alpha: 0.3)),
                   child: Icon(
-                    isPresent ? Icons.check : Icons.close,
-                    color: isPresent ? presentColor : absentColor,
+                    isPresent
+                        ? Icons.check
+                        : (currentRecord.trangThai == 'Học bù'
+                            ? Icons.school_outlined
+                            : Icons.close),
+                    color: isPresent
+                        ? presentColor
+                        : (currentRecord.trangThai == 'Học bù'
+                            ? makeUpColor
+                            : absentColor),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -692,7 +703,7 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
               style: TextStyle(color: lightText, fontWeight: FontWeight.bold),
             ),
             subtitle: Text(
-              '${hsCuaCa.length} ' + (isVi ? 'học sinh' : 'students'),
+              '${hsCuaCa.length} ${isVi ? 'học sinh' : 'students'}',
               style: TextStyle(color: secondaryText),
             ),
             leading: IconButton(
@@ -727,24 +738,27 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
     String tenHocSinh,
   ) {
     final isExcused = record.trangThai == 'Nghỉ có phép';
+    final isMakeUp = record.trangThai == 'Học bù';
+    final isUnexcused = record.trangThai == 'Nghỉ không phép' || (!isExcused && !isMakeUp);
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
 
-    // SỬA: Nếu có mặt, hiển thị nút "Đánh giá". Nếu vắng, hiển thị tùy chọn lý do.
     if (record.trangThai == 'Có mặt') {
-      // SỬA: Không hiển thị gì ở đây nữa vì nút đã được chuyển lên trên
       return const SizedBox.shrink();
     } else {
-      // Giao diện khi vắng mặt (giữ nguyên)
+      final selectedColor = isMakeUp
+          ? makeUpColor
+          : (isExcused ? Colors.orangeAccent : absentColor);
+
       return Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: ToggleButtons(
-              isSelected: [!isExcused, isExcused],
+              isSelected: [isUnexcused, isExcused, isMakeUp],
               onPressed: (int index) {
                 final newStatus = index == 0
                     ? 'Nghỉ không phép'
-                    : 'Nghỉ có phép';
+                    : (index == 1 ? 'Nghỉ có phép' : 'Học bù');
                 final key = '${record.idHocSinh}-${caHoc.id}';
                 ref
                     .read(
@@ -756,29 +770,40 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
                     .updateAttendanceStatus(key, newStatus);
               },
               borderRadius: BorderRadius.circular(8.0),
-              selectedBorderColor: isExcused ? presentColor : absentColor,
+              selectedBorderColor: selectedColor,
               selectedColor: lightText,
               color: secondaryText,
-              fillColor: isExcused
-                  ? presentColor.withValues(alpha: 0.3)
-                  : absentColor.withValues(alpha: 0.3),
+              fillColor: selectedColor.withValues(alpha: 0.3),
               constraints: BoxConstraints(
                 minHeight: 35.0,
-                minWidth: (MediaQuery.of(context).size.width - 150) / 2,
+                minWidth: (MediaQuery.of(context).size.width - 160) / 3,
               ),
               children: <Widget>[
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Text(isVi ? 'Không Phép' : 'Unexcused'),
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: Text(
+                    isVi ? 'K.Phép' : 'Unexcused',
+                    style: const TextStyle(fontSize: 11),
+                  ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Text(isVi ? 'Có Phép' : 'Excused'),
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: Text(
+                    isVi ? 'Có Phép' : 'Excused',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: Text(
+                    isVi ? 'Học Bù' : 'Make-up',
+                    style: const TextStyle(fontSize: 11),
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 4),
           IconButton(
             icon: Icon(Icons.edit_note_outlined, color: secondaryText),
             onPressed: () => _showGhiChuDialog(record),

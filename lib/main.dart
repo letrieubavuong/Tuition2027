@@ -16,6 +16,8 @@ import 'screens/splash_screen.dart'; // Import màn hình chờ
 import 'services/notification_service.dart'; // Import dịch vụ thông báo
 import 'services/widget_sync_service.dart';
 import 'services/bank_notification_service.dart';
+import 'services/tuition_event_service.dart';
+import 'services/firebase_sync_service.dart';
 
 // Tạo một GlobalKey để truy cập State của MainScreen từ bên ngoài
 final GlobalKey<MainScreenState> mainScreenKey = GlobalKey<MainScreenState>();
@@ -27,7 +29,7 @@ class MainScreen extends StatefulWidget {
   const MainScreen({super.key}); // Constructor đã nhận key
 
   @override
-  State<MainScreen> createState() => MainScreenState();
+  State<MainScreen> createState() => MainScreenState(); 
 }
 
 class MainScreenState extends State<MainScreen> {
@@ -40,32 +42,27 @@ class MainScreenState extends State<MainScreen> {
   void initState() {
     super.initState();
     _screens = [
-      HomePage(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
-      DSLop(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
-      DSHocSinh(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
-      HocPhiPage(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
+      HomePage(mainScreenKey: mainScreenKey, selectedIndex: 0),
+      DSLop(mainScreenKey: mainScreenKey, selectedIndex: 1),
+      DSHocSinh(mainScreenKey: mainScreenKey, selectedIndex: 2),
+      HocPhiPage(mainScreenKey: mainScreenKey, selectedIndex: 3),
     ];
   }
 
   void onItemTapped(int index) {
+    if (index == _selectedIndex) return;
     setState(() {
       _selectedIndex = index;
     });
-    // SỬA: Cập nhật lại danh sách screens để truyền selectedIndex mới
-    setState(() {
-      _screens = [
-        HomePage(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
-        DSLop(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
-        DSHocSinh(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
-        HocPhiPage(mainScreenKey: mainScreenKey, selectedIndex: _selectedIndex),
-      ];
-    });
+    if (index == 3 || index == 0) {
+      TuitionEventService().notifyTuitionChanged();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_selectedIndex],
+      body: IndexedStack(index: _selectedIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
         // SỬA: Lấy label từ localization
         items: <BottomNavigationBarItem>[
@@ -108,21 +105,20 @@ void main() async {
 
   runApp(const ProviderScope(child: MyApp()));
 
-  // Khởi tạo dịch vụ thông báo nhắc lịch học (không chặn khởi động UI)
+  // Khởi tạo dịch vụ thông báo & Firebase Realtime Database
   Future.microtask(() async {
     try {
+      await FirebaseSyncService.instance.initialize();
       await NotificationService.instance.initialize();
       await NotificationService.instance.requestPermissions();
       await NotificationService.instance.syncAllClassReminders();
       await WidgetSyncService.syncTodaySchedule();
       await WidgetSyncService.syncBankQRWidget();
-      
-      // Khởi tạo listener duyệt học phí tự động qua thông báo ngân hàng
-      // chỉ cần truy cập instance để đăng ký callback MethodChannel
-      final bankService = BankNotificationService.instance;
-      debugPrint('✅ BankNotificationService initialized');
+
+      BankNotificationService.instance;
+      debugPrint('✅ Firebase & BankNotificationService initialized');
     } catch (e) {
-      debugPrint('Error starting NotificationService: $e');
+      debugPrint('Error starting background services: $e');
     }
   });
 }

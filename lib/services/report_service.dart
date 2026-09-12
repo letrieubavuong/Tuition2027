@@ -41,7 +41,6 @@ class ReportService {
     // ĐỌC THÔNG SỐ CÀI ĐẶT MỘT LẦN DUY NHẤT (Tránh truy vấn lặp trong vòng lặp học sinh)
     final int giaHocPhiMoiBuoi = await _docGiaHocPhiBuoi();
     final int hocPhiThangToiDa = await _docHocPhiThang();
-    final int soBuoiChuanThang = await _docSoBuoiChuanThang();
 
     // Để tránh deadlock SQLite do việc đọc dữ liệu trong khi transaction ghi đang hoạt động,
     // ta thực hiện tất cả các truy vấn đọc dữ liệu trước ngoài transaction,
@@ -51,7 +50,8 @@ class ReportService {
     for (var hsViewModel in dsHsLop) {
       if (hsViewModel.id != null) {
         final idHocSinh = hsViewModel.id!;
-        int soBuoiDuHienTai = hsViewModel.soBuoiDu ?? 0;
+        final int mienGiam = hsViewModel.mienGiam ?? 0;
+        int soBuoiDuHienTai = hsViewModel.soBuoiDu;
 
         // Đọc bản ghi thanh toán cũ nếu có
         final List<Map<String, dynamic>> existingRecords = await db.query(
@@ -70,20 +70,26 @@ class ReportService {
           if (soBuoiDuHienTai < 0) soBuoiDuHienTai = 0;
         }
 
-        DateTime? ngayThamGia;
-        if (hsViewModel.ngayThamGia.isNotEmpty) {
-          ngayThamGia = DateTime.tryParse(hsViewModel.ngayThamGia);
-        }
+        DateTime? ngayThamGia = parseFlexibleDate(hsViewModel.ngayThamGia);
+        DateTime? ngayTamNgung = parseFlexibleDate(hsViewModel.ngayTamNgung);
+        DateTime? ngayHocLai = parseFlexibleDate(hsViewModel.ngayHocLaiThucTe);
+        DateTime? ngayNghiHoc = parseFlexibleDate(hsViewModel.ngayNghiHoc);
+        DateTime? ngayHocLaiSauNghi = parseFlexibleDate(hsViewModel.ngayHocLaiSauNghi);
 
-        final int mienGiam = hsViewModel.mienGiam ?? 0;
-
-        // 1. Lấy tổng số buổi học dự kiến của cá nhân trong tháng theo lớp này
         final int tongSoBuoiDuKien = await _lhcService.demSoBuoiHocCaNhanTrongThang(
           idHocSinh,
           thang,
           ngayThamGia: ngayThamGia,
           idLop: idLop,
+          ngayTamNgung: ngayTamNgung,
+          ngayHocLai: ngayHocLai,
+          ngayNghiHoc: ngayNghiHoc,
+          ngayHocLaiSauNghi: ngayHocLaiSauNghi,
         );
+
+        final int soBuoiChuanThang = await _docSoBuoiChuanThang();
+
+
 
         // 2. Lấy số buổi nghỉ (chỉ tính sau ngày nhập học)
         final int soBuoiNghiKhongPhep = await _diemDanhService.demSoBuoiTheoThang(
@@ -100,16 +106,41 @@ class ReportService {
           'Nghỉ có phép',
           ngayBatDauTinh: ngayThamGia,
         );
+        final int soBuoiHocBu = await _diemDanhService.demSoBuoiTheoThang(
+          idHocSinh,
+          idLop,
+          thang,
+          'Học bù',
+          ngayBatDauTinh: ngayThamGia,
+        );
 
-        // 3. Công thức tính tiền thu mới khấu trừ theo buổi dư và chuyển tiếp nghỉ có phép
-        final int soBuoiDuocBuTru = (soBuoiDuHienTai < tongSoBuoiDuKien)
-            ? soBuoiDuHienTai
-            : tongSoBuoiDuKien;
+        // 3. Số buổi học thực tế học sinh tham gia/được tính trong tháng
+        int soBuoiHocThucTe = tongSoBuoiDuKien - soBuoiNghiCoPhep - soBuoiNghiKhongPhep + soBuoiHocBu;
+        if (soBuoiHocThucTe < 0) soBuoiHocThucTe = 0;
 
-        final int soBuoiDuChuaDung = soBuoiDuHienTai - soBuoiDuocBuTru;
-        final int soBuoiDuCuoiCung = soBuoiDuChuaDung + soBuoiNghiCoPhep;
+        int soBuoiCanThanhToan = 0;
+        int soBuoiVuotChuan = 0;
+        int soBuoiDuocBuTru = 0;
 
-        int soBuoiTinhPhi = tongSoBuoiDuKien - soBuoiDuocBuTru;
+        if (soBuoiHocThucTe >= soBuoiChuanThang) {
+          soBuoiCanThanhToan = soBuoiChuanThang;
+          soBuoiVuotChuan = soBuoiHocThucTe - soBuoiChuanThang;
+          soBuoiDuocBuTru = 0;
+        } else {
+          soBuoiCanThanhToan = soBuoiHocThucTe;
+          soBuoiVuotChuan = 0;
+          int thieuBuoi = soBuoiChuanThang - soBuoiHocThucTe;
+          if (soBuoiDuHienTai > 0 && thieuBuoi > 0) {
+            soBuoiDuocBuTru = (soBuoiDuHienTai < thieuBuoi) ? soBuoiDuHienTai : thieuBuoi;
+          }
+        }
+
+        int soBuoiDuConLai = soBuoiDuHienTai - soBuoiDuocBuTru + soBuoiVuotChuan;
+        if (soBuoiDuConLai < 0) soBuoiDuConLai = 0;
+
+        final int soBuoiDuCuoiCung = soBuoiDuConLai;
+
+        int soBuoiTinhPhi = soBuoiCanThanhToan - soBuoiDuocBuTru;
         if (soBuoiTinhPhi < 0) soBuoiTinhPhi = 0;
         
         int hocPhiDuKien = soBuoiTinhPhi * giaHocPhiMoiBuoi;
@@ -126,6 +157,22 @@ class ReportService {
         final int soTienDaDong = existingRecords.isNotEmpty
             ? existingRecords.first['so_tien_da_dong'] as int? ?? 0
             : 0;
+
+        // Bỏ qua học sinh đã nghỉ học/tạm ngừng từ trước tháng này (0 buổi dự kiến, 0 điểm danh, 0 nợ, 0 đã đóng)
+        if ((hsViewModel.trangThai == 'NGHI_HOC' || hsViewModel.trangThai == 'TAM_NGUNG') &&
+            tongSoBuoiDuKien == 0 &&
+            soBuoiNghiCoPhep == 0 &&
+            soBuoiNghiKhongPhep == 0 &&
+            soBuoiHocBu == 0 &&
+            tongThanhToan == 0 &&
+            soTienDaDong == 0) {
+          await db.delete(
+            tenBangThanhToan,
+            where: 'id_hoc_sinh = ? AND id_lop = ? AND thang = ? AND so_tien_da_dong = 0',
+            whereArgs: [idHocSinh, idLop, thang],
+          );
+          continue;
+        }
 
         dsTinhToan.add(_TinhToanHocSinhResult(
           idHocSinh: idHocSinh,
@@ -210,6 +257,7 @@ class ReportService {
             soTienConNo: conNo,
             mienGiam: map['mien_giam'] as int? ?? 0,
             soBuoiDu: map['so_buoi_du'] as int? ?? 0,
+            tongSoBuoi: map['tong_so_buoi'] as int? ?? 12,
             sdt: map['sdt'] as String?,
           ),
         );
@@ -223,7 +271,7 @@ class ReportService {
 
     return HocPhiTongHop(
       tongSoBuoi: tongSoBuoi,
-      tongSoHocSinh: dsHsLop.length,
+      tongSoHocSinh: maps.length,
       tongSoTienCanThu: tongSoTienCanThu,
       tongSoTienDaThu: tongSoTienDaThu,
       tongSoTienConNo: tongSoTienConNo,
@@ -301,6 +349,7 @@ class ReportService {
   }) async {
     final db = executor ?? await _database;
     final hsModel = hs ?? await _hsService.docHocSinhTheoId(idHocSinh);
+    final int mienGiam = hsModel?.mienGiam ?? 0;
     int soBuoiDuHienTai = hsModel?.soBuoiDu ?? 0;
 
     // Đọc bản ghi thanh toán cũ nếu có để đảm bảo tính idempotent (tránh cộng dồn vô hạn khi xem báo cáo)
@@ -321,34 +370,48 @@ class ReportService {
     }
 
     DateTime? ngayThamGia;
-    if (ngayThamGiaStr != null) {
-      if (ngayThamGiaStr.isNotEmpty) {
-        ngayThamGia = DateTime.tryParse(ngayThamGiaStr);
-      }
-    } else {
-      // Lấy ngày tham gia của học sinh trong lớp này
-      final lopHsRecords = await db.query(
-        DBHelper.tenBangLopHS,
-        where: 'id_hoc_sinh = ? AND id_lop = ?',
-        whereArgs: [idHocSinh, idLop],
-        limit: 1,
-      );
-      if (lopHsRecords.isNotEmpty) {
-        ngayThamGia = DateTime.tryParse(
-          lopHsRecords.first['ngay_tham_gia'] as String? ?? '',
-        );
-      }
+    DateTime? ngayTamNgung;
+    DateTime? ngayHocLai;
+    DateTime? ngayNghiHoc;
+    DateTime? ngayHocLaiSauNghi;
+    String trangThai = 'DANG_HOC';
+
+    if (ngayThamGiaStr != null && ngayThamGiaStr.isNotEmpty) {
+      ngayThamGia = parseFlexibleDate(ngayThamGiaStr);
     }
 
-    final int mienGiam = hsModel?.mienGiam ?? 0;
+    final lopHsRecords = await db.query(
+      DBHelper.tenBangLopHS,
+      where: 'id_hoc_sinh = ? AND id_lop = ?',
+      whereArgs: [idHocSinh, idLop],
+      limit: 1,
+    );
+    if (lopHsRecords.isNotEmpty) {
+      final rec = lopHsRecords.first;
+      trangThai = rec['trang_thai'] as String? ?? 'DANG_HOC';
+      if (ngayThamGia == null) {
+        ngayThamGia = parseFlexibleDate(rec['ngay_tham_gia'] as String?);
+      }
+      ngayTamNgung = parseFlexibleDate(rec['ngay_tam_ngung'] as String?);
+      ngayHocLai = parseFlexibleDate(rec['ngay_hoc_lai_thuc_te'] as String?);
+      ngayNghiHoc = parseFlexibleDate(rec['ngay_nghi_hoc'] as String?);
+      ngayHocLaiSauNghi = parseFlexibleDate(rec['ngay_hoc_lai_sau_nghi'] as String?);
+    }
 
-    // 1. Lấy tổng số buổi học dự kiến của cá nhân trong tháng theo lớp này
     final int tongSoBuoiDuKien = await _lhcService.demSoBuoiHocCaNhanTrongThang(
       idHocSinh,
       thang,
       ngayThamGia: ngayThamGia,
       idLop: idLop,
+      ngayTamNgung: ngayTamNgung,
+      ngayHocLai: ngayHocLai,
+      ngayNghiHoc: ngayNghiHoc,
+      ngayHocLaiSauNghi: ngayHocLaiSauNghi,
     );
+
+    final int soBuoiChuanThang = await _docSoBuoiChuanThang();
+
+
 
     // 2. Lấy số buổi nghỉ (chỉ tính sau ngày nhập học)
     final int soBuoiNghiKhongPhep = await _diemDanhService.demSoBuoiTheoThang(
@@ -365,21 +428,41 @@ class ReportService {
       'Nghỉ có phép',
       ngayBatDauTinh: ngayThamGia,
     );
+    final int soBuoiHocBu = await _diemDanhService.demSoBuoiTheoThang(
+      idHocSinh,
+      idLop,
+      thang,
+      'Học bù',
+      ngayBatDauTinh: ngayThamGia,
+    );
 
-    // 3. Công thức tính tiền thu mới khấu trừ theo buổi dư và chuyển tiếp nghỉ có phép
-    // Số buổi dư được sử dụng để bù trừ cho tháng này (không vượt quá tổng số buổi dự kiến)
-    final int soBuoiDuocBuTru = (soBuoiDuHienTai < tongSoBuoiDuKien)
-        ? soBuoiDuHienTai
-        : tongSoBuoiDuKien;
+    // 3. Số buổi học thực tế học sinh tham gia/được tính trong tháng
+    int soBuoiHocThucTe = tongSoBuoiDuKien - soBuoiNghiCoPhep - soBuoiNghiKhongPhep + soBuoiHocBu;
+    if (soBuoiHocThucTe < 0) soBuoiHocThucTe = 0;
 
-    // Số buổi dư còn lại sau khi đã khấu trừ cho các buổi dự kiến
-    final int soBuoiDuChuaDung = soBuoiDuHienTai - soBuoiDuocBuTru;
+    int soBuoiCanThanhToan = 0;
+    int soBuoiVuotChuan = 0;
+    int soBuoiDuocBuTru = 0;
 
-    // Số buổi dư cuối cùng mang sang tháng sau (bao gồm số chưa dùng + số nghỉ có phép tháng này)
-    final int soBuoiDuCuoiCung = soBuoiDuChuaDung + soBuoiNghiCoPhep;
+    if (soBuoiHocThucTe >= soBuoiChuanThang) {
+      soBuoiCanThanhToan = soBuoiChuanThang;
+      soBuoiVuotChuan = soBuoiHocThucTe - soBuoiChuanThang;
+      soBuoiDuocBuTru = 0;
+    } else {
+      soBuoiCanThanhToan = soBuoiHocThucTe;
+      soBuoiVuotChuan = 0;
+      int thieuBuoi = soBuoiChuanThang - soBuoiHocThucTe;
+      if (soBuoiDuHienTai > 0 && thieuBuoi > 0) {
+        soBuoiDuocBuTru = (soBuoiDuHienTai < thieuBuoi) ? soBuoiDuHienTai : thieuBuoi;
+      }
+    }
 
-    // Số buổi tính phí của tháng này (số buổi dự kiến trừ đi số buổi dư đã khấu trừ)
-    int soBuoiTinhPhi = tongSoBuoiDuKien - soBuoiDuocBuTru;
+    int soBuoiDuConLai = soBuoiDuHienTai - soBuoiDuocBuTru + soBuoiVuotChuan;
+    if (soBuoiDuConLai < 0) soBuoiDuConLai = 0;
+
+    final int soBuoiDuCuoiCung = soBuoiDuConLai;
+
+    int soBuoiTinhPhi = soBuoiCanThanhToan - soBuoiDuocBuTru;
     if (soBuoiTinhPhi < 0) soBuoiTinhPhi = 0;
     
     int hocPhiDuKien = soBuoiTinhPhi * giaHocPhiMoiBuoi;
@@ -403,6 +486,22 @@ class ReportService {
       whereArgs: [idHocSinh, idLop, thang],
     );
     final int soTienDaDong = mapsDaDong.isNotEmpty ? mapsDaDong.first['so_tien_da_dong'] as int? ?? 0 : 0;
+
+    // Bỏ qua học sinh đã nghỉ học/tạm ngừng từ trước tháng này (0 buổi dự kiến, 0 điểm danh, 0 nợ, 0 đã đóng)
+    if ((trangThai == 'NGHI_HOC' || trangThai == 'TAM_NGUNG') &&
+        tongSoBuoiDuKien == 0 &&
+        soBuoiNghiCoPhep == 0 &&
+        soBuoiNghiKhongPhep == 0 &&
+        soBuoiHocBu == 0 &&
+        tongThanhToan == 0 &&
+        soTienDaDong == 0) {
+      await db.delete(
+        tenBangThanhToan,
+        where: 'id_hoc_sinh = ? AND id_lop = ? AND thang = ? AND so_tien_da_dong = 0',
+        whereArgs: [idHocSinh, idLop, thang],
+      );
+      return;
+    }
 
     final newThanhToan = ThanhToan(
       idHocSinh: idHocSinh,
@@ -488,6 +587,47 @@ class ReportService {
         }
       }
     }
+  }
+
+  static DateTime? parseFlexibleDate(String? dateStr) {
+    if (dateStr == null || dateStr.trim().isEmpty) return null;
+    final str = dateStr.trim();
+    final parsedIso = DateTime.tryParse(str);
+    if (parsedIso != null) {
+      return DateTime(parsedIso.year, parsedIso.month, parsedIso.day);
+    }
+    if (str.contains('/')) {
+      final parts = str.split('/');
+      if (parts.length == 3) {
+        final day = int.tryParse(parts[0]);
+        final month = int.tryParse(parts[1]);
+        final year = int.tryParse(parts[2].split(' ')[0]);
+        if (day != null && month != null && year != null) {
+          return DateTime(year, month, day);
+        }
+      }
+    }
+    if (str.contains('-')) {
+      final parts = str.split('-');
+      if (parts.length == 3) {
+        if (parts[0].length == 4) {
+          final year = int.tryParse(parts[0]);
+          final month = int.tryParse(parts[1]);
+          final day = int.tryParse(parts[2].split(' ')[0]);
+          if (year != null && month != null && day != null) {
+            return DateTime(year, month, day);
+          }
+        } else {
+          final day = int.tryParse(parts[0]);
+          final month = int.tryParse(parts[1]);
+          final year = int.tryParse(parts[2].split(' ')[0]);
+          if (day != null && month != null && year != null) {
+            return DateTime(year, month, day);
+          }
+        }
+      }
+    }
+    return null;
   }
 }
 

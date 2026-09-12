@@ -2,14 +2,14 @@
 
 class HoaDonViewModel {
   // --- THÔNG SỐ BUỔI HỌC (Từ Điểm Danh) ---
-  final int tongSoBuoiHoc;      // Tổng số buổi lớp học đã diễn ra trong tháng
-  final int soBuoiCoMat;        // Số buổi có mặt
-  final int soBuoiVangCoPhep;   // Buổi vắng được miễn 100% học phí
-  final int soBuoiVangKhongPhep;// Buổi vắng vẫn tính 100% học phí
+  final int tongSoBuoiHoc; // Tổng số buổi lớp học đã diễn ra trong tháng
+  final int soBuoiCoMat; // Số buổi có mặt
+  final int soBuoiVangCoPhep; // Buổi vắng được miễn 100% học phí
+  final int soBuoiVangKhongPhep; // Buổi vắng vẫn tính 100% học phí
 
   // --- THÔNG SỐ HỌC PHÍ (Từ Cài Đặt) ---
-  final int hocPhiThangCoDinh;  // Học phí tháng cố định (ví dụ: 600,000)
-  final int hocPhiBuoi;         // Học phí buổi (ví dụ: 50,000)
+  final int hocPhiThangCoDinh; // Học phí tháng cố định (ví dụ: 600,000)
+  final int hocPhiBuoi; // Học phí buổi (ví dụ: 50,000)
 
   // --- THÔNG SỐ TÍNH TOÁN VÀ THANH TOÁN ---
   // Số tiền phải nộp tính theo công thức buổi:

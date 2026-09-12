@@ -15,8 +15,10 @@ class QuyTacDiemSettingsPage extends StatefulWidget {
 class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
-  Color get lightText => Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
-  Color get secondaryText => Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+  Color get lightText =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+  Color get secondaryText =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
   Color get accentColor => Theme.of(context).primaryColor;
   Color get deleteColor => Theme.of(context).colorScheme.error;
 
@@ -53,8 +55,8 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
       builder: (ctx) => AlertDialog(
         backgroundColor: cardColor,
         title: Text(
-          isEditing 
-              ? (isVi ? 'Sửa Quy Tắc Điểm' : 'Edit Score Rule') 
+          isEditing
+              ? (isVi ? 'Sửa Quy Tắc Điểm' : 'Edit Score Rule')
               : (isVi ? 'Quy tắc cộng/trừ điểm' : 'Add/Subtract Score Rule'),
           style: TextStyle(color: lightText, fontWeight: FontWeight.bold),
         ),
@@ -65,7 +67,7 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<String>(
-                    value: loaiQuyTac,
+                    initialValue: loaiQuyTac,
                     dropdownColor: darkBackground,
                     style: TextStyle(color: lightText),
                     decoration: InputDecoration(
@@ -103,7 +105,7 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    value: hangMuc,
+                    initialValue: hangMuc,
                     dropdownColor: darkBackground,
                     style: TextStyle(color: lightText),
                     decoration: InputDecoration(
@@ -185,7 +187,10 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(isVi ? 'Hủy' : 'Cancel', style: TextStyle(color: secondaryText)),
+            child: Text(
+              isVi ? 'Hủy' : 'Cancel',
+              style: TextStyle(color: secondaryText),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -207,7 +212,7 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
 
               if (isEditing) {
                 await _quyTacDiemService.capNhatQuyTacDiem(
-                  quyTac!.copyWith(
+                  quyTac.copyWith(
                     loaiQuyTac: loaiQuyTac,
                     hangMuc: hangMuc,
                     moTa: moTa,
@@ -224,7 +229,7 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
                   ),
                 );
               }
-              if (mounted) {
+              if (ctx.mounted) {
                 Navigator.of(ctx).pop();
                 _taiDuLieu();
               }
@@ -234,8 +239,8 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
               foregroundColor: darkBackground,
             ),
             child: Text(
-              isEditing 
-                  ? (isVi ? 'Cập Nhật' : 'Update') 
+              isEditing
+                  ? (isVi ? 'Cập Nhật' : 'Update')
                   : (isVi ? 'Thêm' : 'Add'),
             ),
           ),
@@ -255,13 +260,18 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
           style: TextStyle(color: deleteColor, fontWeight: FontWeight.bold),
         ),
         content: Text(
-          isVi ? 'Bạn có chắc chắn muốn xóa quy tắc điểm này?' : 'Are you sure you want to delete this score rule?',
+          isVi
+              ? 'Bạn có chắc chắn muốn xóa quy tắc điểm này?'
+              : 'Are you sure you want to delete this score rule?',
           style: TextStyle(color: lightText),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(isVi ? 'Hủy' : 'Cancel', style: TextStyle(color: secondaryText)),
+            child: Text(
+              isVi ? 'Hủy' : 'Cancel',
+              style: TextStyle(color: secondaryText),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -289,14 +299,24 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
     if (listQuyTac.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isVi ? 'Chưa có quy tắc nào để chia điểm!' : 'No rules defined yet!')),
+          SnackBar(
+            content: Text(
+              isVi
+                  ? 'Chưa có quy tắc nào để chia điểm!'
+                  : 'No rules defined yet!',
+            ),
+          ),
         );
       }
       return;
     }
 
-    final positiveRules = listQuyTac.where((r) => r.loaiQuyTac == 'CONG_DIEM').toList();
-    final negativeRules = listQuyTac.where((r) => r.loaiQuyTac == 'TRU_DIEM').toList();
+    final positiveRules = listQuyTac
+        .where((r) => r.loaiQuyTac == 'CONG_DIEM')
+        .toList();
+    final negativeRules = listQuyTac
+        .where((r) => r.loaiQuyTac == 'TRU_DIEM')
+        .toList();
 
     // 2. Tính điểm phân phối và cập nhật
     if (positiveRules.isNotEmpty) {
@@ -306,11 +326,15 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
         if (i == positiveRules.length - 1) {
           share = 10.0 - sumAllocated;
         } else {
-          share = double.parse((10.0 / positiveRules.length).toStringAsFixed(2));
+          share = double.parse(
+            (10.0 / positiveRules.length).toStringAsFixed(2),
+          );
           sumAllocated += share;
         }
         share = double.parse(share.toStringAsFixed(2));
-        await _quyTacDiemService.capNhatQuyTacDiem(positiveRules[i].copyWith(diemThayDoi: share));
+        await _quyTacDiemService.capNhatQuyTacDiem(
+          positiveRules[i].copyWith(diemThayDoi: share),
+        );
       }
     }
 
@@ -321,11 +345,15 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
         if (i == negativeRules.length - 1) {
           share = -5.0 - sumAllocated;
         } else {
-          share = double.parse((-5.0 / negativeRules.length).toStringAsFixed(2));
+          share = double.parse(
+            (-5.0 / negativeRules.length).toStringAsFixed(2),
+          );
           sumAllocated += share;
         }
         share = double.parse(share.toStringAsFixed(2));
-        await _quyTacDiemService.capNhatQuyTacDiem(negativeRules[i].copyWith(diemThayDoi: share));
+        await _quyTacDiemService.capNhatQuyTacDiem(
+          negativeRules[i].copyWith(diemThayDoi: share),
+        );
       }
     }
 
@@ -337,7 +365,7 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
           content: Text(
             isVi
                 ? 'Đã chia điểm: Tổng cộng = 10đ, Tổng trừ = -5đ!'
-                : 'Points distributed: Total plus = 10, Total minus = -5!'
+                : 'Points distributed: Total plus = 10, Total minus = -5!',
           ),
           backgroundColor: Colors.green,
         ),
@@ -371,9 +399,17 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSection(isVi ? 'Cộng Điểm' : 'Plus Points', _congDiemFuture, 'CONG_DIEM'),
+            _buildSection(
+              isVi ? 'Cộng Điểm' : 'Plus Points',
+              _congDiemFuture,
+              'CONG_DIEM',
+            ),
             const SizedBox(height: 32),
-            _buildSection(isVi ? 'Trừ Điểm' : 'Minus Points', _truDiemFuture, 'TRU_DIEM'),
+            _buildSection(
+              isVi ? 'Trừ Điểm' : 'Minus Points',
+              _truDiemFuture,
+              'TRU_DIEM',
+            ),
           ],
         ),
       ),
@@ -406,14 +442,17 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
         FutureBuilder<List<QuyTacDiem>>(
           future: future,
           builder: (context, snapshot) {
-            final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
+            final isVi =
+                AppLocalizations.of(context)?.locale.languageCode == 'vi';
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
               return Center(
                 child: Text(
-                  isVi ? 'Lỗi tải dữ liệu: ${snapshot.error}' : 'Error loading data: ${snapshot.error}',
+                  isVi
+                      ? 'Lỗi tải dữ liệu: ${snapshot.error}'
+                      : 'Error loading data: ${snapshot.error}',
                   style: TextStyle(color: deleteColor),
                 ),
               );
@@ -458,7 +497,8 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
                       ),
                     ),
                     subtitle: Text(
-                      (isVi ? 'Điểm: ' : 'Points: ') + quyTac.diemThayDoi.toStringAsFixed(1),
+                      (isVi ? 'Điểm: ' : 'Points: ') +
+                          quyTac.diemThayDoi.toStringAsFixed(1),
                       style: TextStyle(
                         color: loaiQuyTac == 'CONG_DIEM'
                             ? Colors.greenAccent

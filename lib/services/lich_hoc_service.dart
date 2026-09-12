@@ -3,6 +3,7 @@
 import 'package:sqflite/sqflite.dart';
 import '../utils/db.dart';
 import '../utils/schedule_helpers.dart'; // <-- IMPORT HELPER
+import '../models/hs.dart';
 import '../models/lich_hoc.dart';
 import 'dart:developer' as developer;
 import 'notification_service.dart';
@@ -11,11 +12,6 @@ import 'widget_sync_service.dart';
 class LichHocService {
   final dbHelper = DBHelper.instance;
   final String tenBang = DBHelper.tenBangLichHoc;
-
-  // Phương thức để lấy Database instance
-  Future<Database> get _database async {
-    return await DBHelper.instance.database;
-  }
 
   // ===================================================
   // 1. THÊM LỊCH HỌC (CREATE)
@@ -263,8 +259,10 @@ class LichHocService {
         if (oldRecords.isNotEmpty) {
           final oldRecord = oldRecords.first;
           final int oldThu = oldRecord['thuTrongTuan'] as int;
-          final String oldGioBatDau = (oldRecord['gioBatDau'] as String).substring(0, 5);
-          final String oldGioKetThuc = (oldRecord['gioKetThuc'] as String).substring(0, 5);
+          final String oldGioBatDau = (oldRecord['gioBatDau'] as String)
+              .substring(0, 5);
+          final String oldGioKetThuc = (oldRecord['gioKetThuc'] as String)
+              .substring(0, 5);
 
           // Chuyển đổi thứ của lịch cũ sang tiếng Việt
           final oldNgayTrongTuan = _thuTrongTuanToVN(oldThu);
@@ -277,8 +275,14 @@ class LichHocService {
               'gio_bat_dau': lichHoc.gioBatDau.substring(0, 5),
               'gio_ket_thuc': lichHoc.gioKetThuc.substring(0, 5),
             },
-            where: 'id_lop = ? AND ngay_trong_tuan = ? AND gio_bat_dau = ? AND gio_ket_thuc = ?',
-            whereArgs: [lichHoc.idLop, oldNgayTrongTuan, oldGioBatDau, oldGioKetThuc],
+            where:
+                'id_lop = ? AND ngay_trong_tuan = ? AND gio_bat_dau = ? AND gio_ket_thuc = ?',
+            whereArgs: [
+              lichHoc.idLop,
+              oldNgayTrongTuan,
+              oldGioBatDau,
+              oldGioKetThuc,
+            ],
           );
         }
 
@@ -399,4 +403,212 @@ class LichHocService {
       return false;
     }
   }
+
+  // ===================================================
+  // 5. LẤY TẤT CẢ LỊCH HỌC KÈM TÊN LỚP (READ ALL FOR SCHEDULE VIEW)
+  // ===================================================
+  Future<List<LichHocCoTenLop>> layTatCaLichHocCoTenLop() async {
+    try {
+      final db = await dbHelper.database;
+      final List<Map<String, dynamic>> maps = await db.rawQuery('''
+        SELECT 
+          lh.*, 
+          l.ten as ten_lop, 
+          l.khoi as khoi_lop,
+          COUNT(lhs.id_hoc_sinh) as si_so
+        FROM ${DBHelper.tenBangLichHoc} lh
+        JOIN ${DBHelper.tenBangLop} l ON lh.id_lop = l.id
+        LEFT JOIN ${DBHelper.tenBangLopHS} lhs ON l.id = lhs.id_lop 
+          AND (lhs.ngay_nghi_hoc IS NULL OR lhs.ngay_nghi_hoc > date('now', 'localtime') OR lhs.ngay_hoc_lai_sau_nghi <= date('now', 'localtime'))
+        GROUP BY lh.id
+        ORDER BY lh.thuTrongTuan ASC, lh.gioBatDau ASC
+      ''');
+
+      return maps.map((map) {
+        final lich = LichHoc.fromMap(map);
+        return LichHocCoTenLop(
+          lichHoc: lich,
+          tenLop: map['ten_lop'] as String? ?? 'Lớp ${lich.idLop}',
+          khoi: map['khoi_lop'] as int? ?? 0,
+          siSo: map['si_so'] as int? ?? 0,
+        );
+      }).toList();
+    } catch (e, st) {
+      developer.log('Lỗi layTatCaLichHocCoTenLop', error: e, stackTrace: st);
+      return [];
+    }
+  }
+
+  // ===================================================
+  // 6. THUẬT TOÁN GỢI Ý CA HỌC TỐI ƯU CHO HỌC SINH CẤN LỊCH
+  // ===================================================
+  // ===================================================
+  // 6. THUẬT TOÁN GỢI Ý CA HỌC TỐI ƯU CHO HỌC SINH CẤN LỊCH
+  // ===================================================
+  Future<List<GoiYCaHoc>> layGoiYCaHocPhuHop({
+    int? targetKhoi,
+    HS? targetHocSinh,
+  }) async {
+    try {
+      final all = await layTatCaLichHocCoTenLop();
+      if (all.isEmpty) return [];
+
+      // Helper function to check school conflict
+      bool isSchoolConflict(int thu, String gioStart, String caSchool) {
+        final startHour = int.tryParse(gioStart.split(':').first) ?? 17;
+        if (caSchool == 'Sáng') {
+          // Trường học sáng (07:00 - 12:00) -> Ca dạy < 12:00 bị trùng
+          return startHour < 12;
+        } else if (caSchool == 'Chiều') {
+          // Trường học chiều (12:00 - 17:15) -> Ca dạy từ 12:00 đến 17:15 bị trùng
+          return startHour >= 12 && startHour < 17;
+        } else if (caSchool == 'Cả ngày') {
+          // Học cả ngày từ T2 đến T6 trước 17:15 bị trùng
+          return (thu >= 2 && thu <= 6) && startHour < 17;
+        }
+        return false;
+      }
+
+      // Helper function to check subject conflict
+      bool isSubjectConflict(int thu, String? lichCanText) {
+        if (lichCanText == null || lichCanText.trim().isEmpty) return false;
+        final text = lichCanText.toLowerCase();
+
+        final Map<int, List<String>> dayKeywords = {
+          2: ['t2', 'thứ 2', 'thứ hai', 'thu 2', 'thu hai'],
+          3: ['t3', 'thứ 3', 'thứ ba', 'thu 3', 'thu ba'],
+          4: ['t4', 'thứ 4', 'thứ tư', 'thu 4', 'thu tu'],
+          5: ['t5', 'thứ 5', 'thứ năm', 'thu 5', 'thu nam'],
+          6: ['t6', 'thứ 6', 'thứ sáu', 'thu 6', 'thu sau'],
+          7: ['t7', 'thứ 7', 'thứ bảy', 'thu 7', 'thu bay'],
+          1: ['cn', 'chủ nhật', 'chu nhat'],
+        };
+
+        final keywords = dayKeywords[thu] ?? [];
+        return keywords.any((kw) => text.contains(kw));
+      }
+
+      // Build recommendation items with scoring
+      final List<_ScoredItem> scoredList = [];
+
+      for (var item in all) {
+        final thu = item.lichHoc.thuTrongTuan;
+        final gioStart = item.lichHoc.gioBatDau;
+
+        bool schoolConflict = false;
+        bool subjectConflict = false;
+
+        if (targetHocSinh != null) {
+          schoolConflict = isSchoolConflict(thu, gioStart, targetHocSinh.caHocTruong);
+          subjectConflict = isSubjectConflict(thu, targetHocSinh.lichCanMonKhac);
+        }
+
+        final bool sameGrade = targetKhoi != null && item.khoi == targetKhoi;
+
+        int score = 0;
+        if (schoolConflict) score += 10000;
+        if (subjectConflict) score += 5000;
+        if (targetKhoi != null && !sameGrade) score += 500;
+        score += item.siSo;
+
+        scoredList.add(_ScoredItem(
+          item: item,
+          sameGrade: sameGrade,
+          schoolConflict: schoolConflict,
+          subjectConflict: subjectConflict,
+          score: score,
+        ));
+      }
+
+      scoredList.sort((a, b) => a.score.compareTo(b.score));
+
+      final int lowestScore = scoredList.isNotEmpty ? scoredList.first.score : 0;
+
+      return scoredList.map((s) {
+        final item = s.item;
+        final bool hasConflict = s.schoolConflict || s.subjectConflict;
+        final bool isBest = (s.score == lowestScore) && !hasConflict;
+
+        List<String> reasons = [];
+        if (targetHocSinh != null) {
+          if (s.schoolConflict) {
+            reasons.add('⚠️ Trùng ca ${targetHocSinh.caHocTruong} ở trường');
+          } else {
+            reasons.add('☀️ Rảnh lịch trường (Ca ${targetHocSinh.caHocTruong})');
+          }
+
+          if (s.subjectConflict) {
+            reasons.add('⚠️ Trùng môn khác (${targetHocSinh.lichCanMonKhac})');
+          } else if (targetHocSinh.lichCanMonKhac != null && targetHocSinh.lichCanMonKhac!.isNotEmpty) {
+            reasons.add('✅ Không vướng môn khác');
+          }
+        }
+
+        reasons.add('Sĩ số: ${item.siSo} học sinh');
+        if (s.sameGrade) {
+          reasons.add('Đúng Khối ${item.khoi}');
+        }
+        if (isBest) {
+          reasons.add('🌟 GỢI Ý TỐT NHẤT');
+        }
+
+        return GoiYCaHoc(
+          item: item,
+          isSameGrade: s.sameGrade,
+          isBestChoice: isBest,
+          hasConflict: hasConflict,
+          reason: reasons.join(' • '),
+        );
+      }).toList();
+    } catch (e, st) {
+      developer.log('Lỗi layGoiYCaHocPhuHop', error: e, stackTrace: st);
+      return [];
+    }
+  }
+}
+
+class _ScoredItem {
+  final LichHocCoTenLop item;
+  final bool sameGrade;
+  final bool schoolConflict;
+  final bool subjectConflict;
+  final int score;
+
+  _ScoredItem({
+    required this.item,
+    required this.sameGrade,
+    required this.schoolConflict,
+    required this.subjectConflict,
+    required this.score,
+  });
+}
+
+class LichHocCoTenLop {
+  final LichHoc lichHoc;
+  final String tenLop;
+  final int khoi;
+  final int siSo;
+
+  LichHocCoTenLop({
+    required this.lichHoc,
+    required this.tenLop,
+    required this.khoi,
+    required this.siSo,
+  });
+}
+
+class GoiYCaHoc {
+  final LichHocCoTenLop item;
+  final bool isSameGrade;
+  final bool isBestChoice;
+  final bool hasConflict;
+  final String reason;
+
+  GoiYCaHoc({
+    required this.item,
+    required this.isSameGrade,
+    required this.isBestChoice,
+    this.hasConflict = false,
+    required this.reason,
+  });
 }

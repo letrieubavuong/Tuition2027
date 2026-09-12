@@ -24,8 +24,10 @@ class NhiemVuDialog extends StatefulWidget {
 class _NhiemVuDialogState extends State<NhiemVuDialog> {
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
-  Color get lightText => Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
-  Color get secondaryText => Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+  Color get lightText =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+  Color get secondaryText =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
   Color get accentColor => Theme.of(context).primaryColor;
   Color get deleteColor => Theme.of(context).colorScheme.error;
 
@@ -74,7 +76,7 @@ class _NhiemVuDialogState extends State<NhiemVuDialog> {
               surface: cardColor,
               onSurface: lightText,
             ),
-            dialogBackgroundColor: cardColor,
+            dialogTheme: DialogThemeData(backgroundColor: cardColor),
           ),
           child: child!,
         );
@@ -114,8 +116,8 @@ class _NhiemVuDialogState extends State<NhiemVuDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Center(
         child: Text(
-          _isEditing 
-              ? (isVi ? 'SỬA NHIỆM VỤ' : 'EDIT TASK') 
+          _isEditing
+              ? (isVi ? 'SỬA NHIỆM VỤ' : 'EDIT TASK')
               : (isVi ? 'THÊM NHIỆM VỤ' : 'ADD TASK'),
           style: TextStyle(color: lightText, fontWeight: FontWeight.bold),
         ),
@@ -133,10 +135,7 @@ class _NhiemVuDialogState extends State<NhiemVuDialog> {
                 decoration: InputDecoration(
                   labelText: isVi ? 'Tên nhiệm vụ' : 'Task Name',
                   labelStyle: TextStyle(color: secondaryText),
-                  prefixIcon: Icon(
-                    Icons.assignment,
-                    color: secondaryText,
-                  ),
+                  prefixIcon: Icon(Icons.assignment, color: secondaryText),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -145,7 +144,9 @@ class _NhiemVuDialogState extends State<NhiemVuDialog> {
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return isVi ? 'Vui lòng nhập tên nhiệm vụ' : 'Please enter task name';
+                    return isVi
+                        ? 'Vui lòng nhập tên nhiệm vụ'
+                        : 'Please enter task name';
                   }
                   return null;
                 },
@@ -170,7 +171,10 @@ class _NhiemVuDialogState extends State<NhiemVuDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(isVi ? 'HỦY' : 'CANCEL', style: TextStyle(color: secondaryText)),
+          child: Text(
+            isVi ? 'HỦY' : 'CANCEL',
+            style: TextStyle(color: secondaryText),
+          ),
         ),
         ElevatedButton.icon(
           onPressed: _handleSave,

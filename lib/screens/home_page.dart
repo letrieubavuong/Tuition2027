@@ -6,6 +6,7 @@ import '../l10n/app_localizations.dart';
 import 'package:fl_chart/fl_chart.dart'; // Import thư viện biểu đồ
 import 'package:intl/intl.dart';
 import '../services/dashboard_service.dart';
+import '../services/tuition_event_service.dart';
 import '../widgets/main_drawer.dart';
 // Import các trang cần điều hướng đến
 import 'diem_danh_page.dart';
@@ -34,6 +35,19 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadDashboardData();
+    TuitionEventService().addListener(_onTuitionEventChanged);
+  }
+
+  void _onTuitionEventChanged() {
+    if (mounted) {
+      _loadDashboardData();
+    }
+  }
+
+  @override
+  void dispose() {
+    TuitionEventService().removeListener(_onTuitionEventChanged);
+    super.dispose();
   }
 
   void _loadDashboardData() {
@@ -80,9 +94,11 @@ class _HomePageState extends State<HomePage> {
 
           final data = snapshot.data ?? DashboardData();
           final formatCurrency = NumberFormat('#,##0', 'vi_VN');
-          
+
           final totalPotential = data.tongTienThu + data.tongTienNo;
-          final collectionRate = totalPotential > 0 ? data.tongTienThu / totalPotential : 0.0;
+          final collectionRate = totalPotential > 0
+              ? data.tongTienThu / totalPotential
+              : 0.0;
 
           return SingleChildScrollView(
             child: Padding(
@@ -105,8 +121,11 @@ class _HomePageState extends State<HomePage> {
                         Icons.group_rounded,
                         Colors.blueAccent,
                         progress: null,
-                        subtitle: loc.homeSubtitleClassCount(data.soLopHoc.toString()),
-                        onTap: () => widget.mainScreenKey.currentState?.onItemTapped(2),
+                        subtitle: loc.homeSubtitleClassCount(
+                          data.soLopHoc.toString(),
+                        ),
+                        onTap: () =>
+                            widget.mainScreenKey.currentState?.onItemTapped(2),
                       ),
                       _buildSummaryCard(
                         loc.homeMetricClass,
@@ -131,7 +150,8 @@ class _HomePageState extends State<HomePage> {
                         Colors.pinkAccent,
                         progress: null,
                         subtitle: loc.homeSubtitleRemainingDebt,
-                        onTap: () => widget.mainScreenKey.currentState?.onItemTapped(3),
+                        onTap: () =>
+                            widget.mainScreenKey.currentState?.onItemTapped(3),
                       ),
                     ],
                   ),
@@ -258,7 +278,10 @@ class _HomePageState extends State<HomePage> {
                 final item = data[i];
                 final color = pieColors[i % pieColors.length];
                 final loc = AppLocalizations.of(context)!;
-                return _buildIndicator(color: color, text: loc.grade(item.khoi.toString()));
+                return _buildIndicator(
+                  color: color,
+                  text: loc.grade(item.khoi.toString()),
+                );
               },
             ),
           ),
@@ -301,7 +324,7 @@ class _HomePageState extends State<HomePage> {
   }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -358,15 +381,22 @@ class _HomePageState extends State<HomePage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  value,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : Colors.black87,
-                    letterSpacing: -0.5,
+                SizedBox(
+                  width: double.infinity,
+                  height: 34,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      value,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : Colors.black87,
+                        letterSpacing: -0.5,
+                      ),
+                      maxLines: 1,
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   title,

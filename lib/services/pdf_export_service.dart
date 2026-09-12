@@ -67,7 +67,9 @@ class PdfExportService {
 
               // Thông tin lớp và tổng quan
               pw.Text(
-                lop.id == -1 ? 'Tất cả các lớp' : 'Lớp: ${lop.ten} (Khối ${lop.khoi})',
+                lop.id == -1
+                    ? 'Tất cả các lớp'
+                    : 'Lớp: ${lop.ten} (Khối ${lop.khoi})',
                 style: pw.TextStyle(
                   fontWeight: pw.FontWeight.bold,
                   fontSize: 16,
@@ -139,13 +141,13 @@ class PdfExportService {
       return [
         (report.dsHocSinhConNo.indexOf(hs) + 1).toString(),
         hs.tenHocSinh,
-        '${formatCurrency.format(hs.soTienCanNop)}',
-        '${formatCurrency.format(hs.soTienDaDong)}',
-        '${formatCurrency.format(hs.soTienConNo)}',
+        (formatCurrency.format(hs.soTienCanNop)),
+        (formatCurrency.format(hs.soTienDaDong)),
+        (formatCurrency.format(hs.soTienConNo)),
       ];
     }).toList();
 
-    return pw.Table.fromTextArray(
+    return pw.TableHelper.fromTextArray(
       headers: headers,
       data: data,
       border: pw.TableBorder.all(),
@@ -190,7 +192,9 @@ class PdfExportService {
       italic: ttf,
       boldItalic: boldTtf,
     );
-    final String formattedThang = DateFormat('MM/yyyy').format(DateFormat('yyyy-MM').parse(thang));
+    final String formattedThang = DateFormat(
+      'MM/yyyy',
+    ).format(DateFormat('yyyy-MM').parse(thang));
 
     pdf.addPage(
       pw.Page(
@@ -204,13 +208,20 @@ class PdfExportService {
               pw.Center(
                 child: pw.Text(
                   'PHIẾU ĐÁNH GIÁ KẾT QUẢ HỌC TẬP',
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20, color: PdfColors.teal800),
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 20,
+                    color: PdfColors.teal800,
+                  ),
                 ),
               ),
               pw.Center(
                 child: pw.Text(
                   'Tháng $formattedThang',
-                  style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 13),
+                  style: pw.TextStyle(
+                    fontStyle: pw.FontStyle.italic,
+                    fontSize: 13,
+                  ),
                 ),
               ),
               pw.SizedBox(height: 24),
@@ -219,21 +230,56 @@ class PdfExportService {
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('Học sinh: ${hs.ten}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                  pw.Text('Lớp: $tenLop', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
+                  pw.Text(
+                    'Học sinh: ${hs.ten}',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  pw.Text(
+                    'Lớp: $tenLop',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                 ],
               ),
               pw.Divider(height: 16, thickness: 1.5, color: PdfColors.teal),
               pw.SizedBox(height: 8),
 
               // Điểm chi tiết
-              pw.Text('Kết Quả Học Tập Chi Tiết:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13, color: PdfColors.teal900)),
+              pw.Text(
+                'Kết Quả Học Tập Chi Tiết:',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 13,
+                  color: PdfColors.teal900,
+                ),
+              ),
               pw.SizedBox(height: 8),
 
-              _buildEvaluationRow('Chuyên cần (Điểm danh)', nhanXet.diemChuyenCan, '/ 10.0'),
-              _buildEvaluationRow('Thái độ học tập trên lớp', nhanXet.diemThaiDo, '/ 10.0'),
-              _buildEvaluationRow('Hoàn thành bài tập về nhà', nhanXet.diemBaiTap, '/ 10.0'),
-              _buildEvaluationRow('Hiểu bài & Điểm kiểm tra', nhanXet.diemKiemTra, '/ 10.0'),
+              _buildEvaluationRow(
+                'Chuyên cần (Điểm danh)',
+                nhanXet.diemChuyenCan,
+                '/ 10.0',
+              ),
+              _buildEvaluationRow(
+                'Thái độ học tập trên lớp',
+                nhanXet.diemThaiDo,
+                '/ 10.0',
+              ),
+              _buildEvaluationRow(
+                'Hoàn thành bài tập về nhà',
+                nhanXet.diemBaiTap,
+                '/ 10.0',
+              ),
+              _buildEvaluationRow(
+                'Hiểu bài & Điểm kiểm tra',
+                nhanXet.diemKiemTra,
+                '/ 10.0',
+              ),
 
               pw.SizedBox(height: 16),
               pw.Divider(height: 8),
@@ -243,35 +289,74 @@ class PdfExportService {
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('ĐIỂM TRUNG BÌNH:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                  pw.Text(nhanXet.diemTrungBinh.toStringAsFixed(2), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16, color: PdfColors.teal)),
+                  pw.Text(
+                    'ĐIỂM TRUNG BÌNH:',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  pw.Text(
+                    nhanXet.diemTrungBinh.toStringAsFixed(2),
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 16,
+                      color: PdfColors.teal,
+                    ),
+                  ),
                 ],
               ),
               pw.SizedBox(height: 8),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('XẾP HẠNG THÁNG:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                  pw.Text(nhanXet.xepHang ?? 'Chưa xếp hạng', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13, color: PdfColors.amber800)),
+                  pw.Text(
+                    'XẾP HẠNG THÁNG:',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  pw.Text(
+                    nhanXet.xepHang ?? 'Chưa xếp hạng',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 13,
+                      color: PdfColors.amber800,
+                    ),
+                  ),
                 ],
               ),
 
               pw.SizedBox(height: 24),
 
               // Nhận xét chung
-              pw.Text('Nhận xét chung của giáo viên:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13, color: PdfColors.teal900)),
+              pw.Text(
+                'Nhận xét chung của giáo viên:',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 13,
+                  color: PdfColors.teal900,
+                ),
+              ),
               pw.SizedBox(height: 6),
               pw.Container(
                 width: double.infinity,
                 padding: const pw.EdgeInsets.all(10),
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.grey400, width: 1),
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                  borderRadius: const pw.BorderRadius.all(
+                    pw.Radius.circular(6),
+                  ),
                   color: PdfColors.grey100,
                 ),
                 child: pw.Text(
-                  nhanXet.nhanXetChung ?? 'Học sinh đi học đầy đủ, có thái độ học tập tích cực, chuẩn bị bài tốt.',
-                  style: pw.TextStyle(fontSize: 11, fontStyle: pw.FontStyle.italic),
+                  nhanXet.nhanXetChung ??
+                      'Học sinh đi học đầy đủ, có thái độ học tập tích cực, chuẩn bị bài tốt.',
+                  style: pw.TextStyle(
+                    fontSize: 11,
+                    fontStyle: pw.FontStyle.italic,
+                  ),
                 ),
               ),
 
@@ -284,16 +369,35 @@ class PdfExportService {
                   pw.SizedBox(),
                   pw.Column(
                     children: [
-                      pw.Text('Giáo viên chủ nhiệm', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                      pw.Text(
+                        'Giáo viên chủ nhiệm',
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
                       pw.SizedBox(height: 36),
-                      pw.Text('(Ký và ghi rõ họ tên)', style: pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic)),
+                      pw.Text(
+                        '(Ký và ghi rõ họ tên)',
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          fontStyle: pw.FontStyle.italic,
+                        ),
+                      ),
                     ],
                   ),
                 ],
               ),
               pw.SizedBox(height: 20),
               pw.Center(
-                child: pw.Text('Trân trọng gửi đến quý phụ huynh học sinh!', style: pw.TextStyle(fontSize: 10, fontStyle: pw.FontStyle.italic, color: PdfColors.grey600)),
+                child: pw.Text(
+                  'Trân trọng gửi đến quý phụ huynh học sinh!',
+                  style: pw.TextStyle(
+                    fontSize: 10,
+                    fontStyle: pw.FontStyle.italic,
+                    color: PdfColors.grey600,
+                  ),
+                ),
               ),
             ],
           );
@@ -301,7 +405,14 @@ class PdfExportService {
       ),
     );
 
-    final page2 = await _buildMatrixPage(hs.id!, nhanXet.idLop, thang, theme, hs.ten, tenLop);
+    final page2 = await _buildMatrixPage(
+      hs.id!,
+      nhanXet.idLop,
+      thang,
+      theme,
+      hs.ten,
+      tenLop,
+    );
     pdf.addPage(page2);
 
     await Printing.layoutPdf(
@@ -317,7 +428,10 @@ class PdfExportService {
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           pw.Text(label, style: const pw.TextStyle(fontSize: 11)),
-          pw.Text('${score.toStringAsFixed(1)} $suffix', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+          pw.Text(
+            '${score.toStringAsFixed(1)} $suffix',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
+          ),
         ],
       ),
     );
@@ -343,7 +457,9 @@ class PdfExportService {
       italic: ttf,
       boldItalic: boldTtf,
     );
-    final String formattedThang = DateFormat('MM/yyyy').format(DateFormat('yyyy-MM').parse(thang));
+    final String formattedThang = DateFormat(
+      'MM/yyyy',
+    ).format(DateFormat('yyyy-MM').parse(thang));
 
     pdf.addPage(
       pw.Page(
@@ -357,13 +473,20 @@ class PdfExportService {
               pw.Center(
                 child: pw.Text(
                   'PHIẾU ĐÁNH GIÁ KẾT QUẢ HỌC TẬP',
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20, color: PdfColors.teal800),
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 20,
+                    color: PdfColors.teal800,
+                  ),
                 ),
               ),
               pw.Center(
                 child: pw.Text(
                   'Tháng $formattedThang',
-                  style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 13),
+                  style: pw.TextStyle(
+                    fontStyle: pw.FontStyle.italic,
+                    fontSize: 13,
+                  ),
                 ),
               ),
               pw.SizedBox(height: 24),
@@ -372,21 +495,56 @@ class PdfExportService {
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('Học sinh: ${hs.ten}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                  pw.Text('Lớp: $tenLop', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
+                  pw.Text(
+                    'Học sinh: ${hs.ten}',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  pw.Text(
+                    'Lớp: $tenLop',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
                 ],
               ),
               pw.Divider(height: 16, thickness: 1.5, color: PdfColors.teal),
               pw.SizedBox(height: 8),
 
               // Điểm chi tiết
-              pw.Text('Kết Quả Học Tập Chi Tiết:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13, color: PdfColors.teal900)),
+              pw.Text(
+                'Kết Quả Học Tập Chi Tiết:',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 13,
+                  color: PdfColors.teal900,
+                ),
+              ),
               pw.SizedBox(height: 8),
 
-              _buildEvaluationRow('Chuyên cần (Điểm danh)', nhanXet.diemChuyenCan, '/ 10.0'),
-              _buildEvaluationRow('Thái độ học tập trên lớp', nhanXet.diemThaiDo, '/ 10.0'),
-              _buildEvaluationRow('Hoàn thành bài tập về nhà', nhanXet.diemBaiTap, '/ 10.0'),
-              _buildEvaluationRow('Hiểu bài & Điểm kiểm tra', nhanXet.diemKiemTra, '/ 10.0'),
+              _buildEvaluationRow(
+                'Chuyên cần (Điểm danh)',
+                nhanXet.diemChuyenCan,
+                '/ 10.0',
+              ),
+              _buildEvaluationRow(
+                'Thái độ học tập trên lớp',
+                nhanXet.diemThaiDo,
+                '/ 10.0',
+              ),
+              _buildEvaluationRow(
+                'Hoàn thành bài tập về nhà',
+                nhanXet.diemBaiTap,
+                '/ 10.0',
+              ),
+              _buildEvaluationRow(
+                'Hiểu bài & Điểm kiểm tra',
+                nhanXet.diemKiemTra,
+                '/ 10.0',
+              ),
 
               pw.SizedBox(height: 16),
               pw.Divider(height: 8),
@@ -396,35 +554,74 @@ class PdfExportService {
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('ĐIỂM TRUNG BÌNH:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                  pw.Text(nhanXet.diemTrungBinh.toStringAsFixed(2), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16, color: PdfColors.teal)),
+                  pw.Text(
+                    'ĐIỂM TRUNG BÌNH:',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  pw.Text(
+                    nhanXet.diemTrungBinh.toStringAsFixed(2),
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 16,
+                      color: PdfColors.teal,
+                    ),
+                  ),
                 ],
               ),
               pw.SizedBox(height: 8),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('XẾP HẠNG THÁNG:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                  pw.Text(nhanXet.xepHang ?? 'Chưa xếp hạng', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13, color: PdfColors.amber800)),
+                  pw.Text(
+                    'XẾP HẠNG THÁNG:',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  pw.Text(
+                    nhanXet.xepHang ?? 'Chưa xếp hạng',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 13,
+                      color: PdfColors.amber800,
+                    ),
+                  ),
                 ],
               ),
 
               pw.SizedBox(height: 24),
 
               // Nhận xét chung
-              pw.Text('Nhận xét chung của giáo viên:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13, color: PdfColors.teal900)),
+              pw.Text(
+                'Nhận xét chung của giáo viên:',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 13,
+                  color: PdfColors.teal900,
+                ),
+              ),
               pw.SizedBox(height: 6),
               pw.Container(
                 width: double.infinity,
                 padding: const pw.EdgeInsets.all(10),
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.grey400, width: 1),
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                  borderRadius: const pw.BorderRadius.all(
+                    pw.Radius.circular(6),
+                  ),
                   color: PdfColors.grey100,
                 ),
                 child: pw.Text(
-                  nhanXet.nhanXetChung ?? 'Học sinh đi học đầy đủ, có thái độ học tập tích cực, chuẩn bị bài tốt.',
-                  style: pw.TextStyle(fontSize: 11, fontStyle: pw.FontStyle.italic),
+                  nhanXet.nhanXetChung ??
+                      'Học sinh đi học đầy đủ, có thái độ học tập tích cực, chuẩn bị bài tốt.',
+                  style: pw.TextStyle(
+                    fontSize: 11,
+                    fontStyle: pw.FontStyle.italic,
+                  ),
                 ),
               ),
 
@@ -437,16 +634,35 @@ class PdfExportService {
                   pw.SizedBox(),
                   pw.Column(
                     children: [
-                      pw.Text('Giáo viên chủ nhiệm', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                      pw.Text(
+                        'Giáo viên chủ nhiệm',
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
                       pw.SizedBox(height: 36),
-                      pw.Text('(Ký và ghi rõ họ tên)', style: pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic)),
+                      pw.Text(
+                        '(Ký và ghi rõ họ tên)',
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          fontStyle: pw.FontStyle.italic,
+                        ),
+                      ),
                     ],
                   ),
                 ],
               ),
               pw.SizedBox(height: 20),
               pw.Center(
-                child: pw.Text('Trân trọng gửi đến quý phụ huynh học sinh!', style: pw.TextStyle(fontSize: 10, fontStyle: pw.FontStyle.italic, color: PdfColors.grey600)),
+                child: pw.Text(
+                  'Trân trọng gửi đến quý phụ huynh học sinh!',
+                  style: pw.TextStyle(
+                    fontSize: 10,
+                    fontStyle: pw.FontStyle.italic,
+                    color: PdfColors.grey600,
+                  ),
+                ),
               ),
             ],
           );
@@ -454,19 +670,31 @@ class PdfExportService {
       ),
     );
 
-    final page2 = await _buildMatrixPage(hs.id!, nhanXet.idLop, thang, theme, hs.ten, tenLop);
+    final page2 = await _buildMatrixPage(
+      hs.id!,
+      nhanXet.idLop,
+      thang,
+      theme,
+      hs.ten,
+      tenLop,
+    );
     pdf.addPage(page2);
 
     final pdfBytes = await pdf.save();
-    
+
     // Convert PDF pages to PNG image bytes
     final List<XFile> shareFiles = [];
     final tempDir = await getTemporaryDirectory();
     int pageNum = 1;
-    
-    await for (final page in Printing.raster(pdfBytes, pages: [0, 1], dpi: 200)) {
+
+    await for (final page in Printing.raster(
+      pdfBytes,
+      pages: [0, 1],
+      dpi: 200,
+    )) {
       final pngBytes = await page.toPng();
-      final imgPath = '${tempDir.path}/PhieuDanhGia_${hs.ten.replaceAll(' ', '_')}_${pageNum}_$thang.png';
+      final imgPath =
+          '${tempDir.path}/PhieuDanhGia_${hs.ten.replaceAll(' ', '_')}_${pageNum}_$thang.png';
       final imgFile = File(imgPath);
       await imgFile.writeAsBytes(pngBytes);
       shareFiles.add(XFile(imgFile.path));
@@ -474,9 +702,12 @@ class PdfExportService {
     }
 
     if (shareFiles.isNotEmpty) {
-      await Share.shareXFiles(
-        shareFiles,
-        text: 'Phiếu đánh giá & Bảng thống kê học tập tháng $formattedThang của học sinh ${hs.ten}',
+      await SharePlus.instance.share(
+        ShareParams(
+          files: shareFiles,
+          text:
+              'Phiếu đánh giá & Bảng thống kê học tập tháng $formattedThang của học sinh ${hs.ten}',
+        ),
       );
     }
   }
@@ -496,12 +727,14 @@ class PdfExportService {
     final startDateStr = '$thang-01 00:00:00';
     final nextMonth = month == 12 ? 1 : month + 1;
     final nextYear = month == 12 ? year + 1 : year;
-    final endDateStr = '$nextYear-${nextMonth.toString().padLeft(2, '0')}-01 00:00:00';
+    final endDateStr =
+        '$nextYear-${nextMonth.toString().padLeft(2, '0')}-01 00:00:00';
 
     // 1. Lấy danh sách điểm danh
     final List<Map<String, dynamic>> sessions = await db.query(
       DBHelper.tenBangDiemDanh,
-      where: 'id_hoc_sinh = ? AND id_lop = ? AND gio_diem_danh >= ? AND gio_diem_danh < ?',
+      where:
+          'id_hoc_sinh = ? AND id_lop = ? AND gio_diem_danh >= ? AND gio_diem_danh < ?',
       whereArgs: [idHocSinh, idLop, startDateStr, endDateStr],
       orderBy: 'gio_diem_danh ASC',
     );
@@ -528,7 +761,9 @@ class PdfExportService {
       }
     }
 
-    final String formattedThang = DateFormat('MM/yyyy').format(DateFormat('yyyy-MM').parse(thang));
+    final String formattedThang = DateFormat(
+      'MM/yyyy',
+    ).format(DateFormat('yyyy-MM').parse(thang));
 
     return pw.Page(
       theme: theme,
@@ -538,7 +773,15 @@ class PdfExportService {
         final headers = ['Quy tắc cộng/trừ'];
         for (var sess in sessions) {
           final dt = DateTime.parse(sess['gio_diem_danh'] as String);
-          final weekdayStr = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][dt.weekday % 7];
+          final weekdayStr = [
+            'CN',
+            'T2',
+            'T3',
+            'T4',
+            'T5',
+            'T6',
+            'T7',
+          ][dt.weekday % 7];
           headers.add('$weekdayStr\n${DateFormat('dd/MM').format(dt)}');
         }
 
@@ -579,21 +822,40 @@ class PdfExportService {
             pw.Center(
               child: pw.Text(
                 'BẢNG THỐNG KÊ CHI TIẾT TỪNG BUỔI HỌC',
-                style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18, color: PdfColors.teal800),
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 18,
+                  color: PdfColors.teal800,
+                ),
               ),
             ),
             pw.Center(
               child: pw.Text(
                 'Tháng $formattedThang',
-                style: pw.TextStyle(fontStyle: pw.FontStyle.italic, fontSize: 12),
+                style: pw.TextStyle(
+                  fontStyle: pw.FontStyle.italic,
+                  fontSize: 12,
+                ),
               ),
             ),
             pw.SizedBox(height: 16),
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
-                pw.Text('Học sinh: $tenHocSinh', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
-                pw.Text('Lớp: $tenLop', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                pw.Text(
+                  'Học sinh: $tenHocSinh',
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 11,
+                  ),
+                ),
+                pw.Text(
+                  'Lớp: $tenLop',
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 11,
+                  ),
+                ),
               ],
             ),
             pw.Divider(height: 12, color: PdfColors.teal),
@@ -603,7 +865,13 @@ class PdfExportService {
               pw.Center(
                 child: pw.Padding(
                   padding: const pw.EdgeInsets.all(20),
-                  child: pw.Text('Không có dữ liệu buổi học nào trong tháng này.', style: pw.TextStyle(fontSize: 12, fontStyle: pw.FontStyle.italic)),
+                  child: pw.Text(
+                    'Không có dữ liệu buổi học nào trong tháng này.',
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      fontStyle: pw.FontStyle.italic,
+                    ),
+                  ),
                 ),
               )
             else
@@ -621,7 +889,10 @@ class PdfExportService {
                         child: pw.Text(
                           h,
                           textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
+                          style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                            fontSize: 8,
+                          ),
                         ),
                       );
                     }).toList(),
@@ -634,17 +905,31 @@ class PdfExportService {
                         final val = entry.value as String;
                         if (idx == 0) {
                           return pw.Container(
-                            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            padding: const pw.EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
+                            ),
                             alignment: pw.Alignment.centerLeft,
-                            child: pw.Text(val, style: const pw.TextStyle(fontSize: 8)),
+                            child: pw.Text(
+                              val,
+                              style: const pw.TextStyle(fontSize: 8),
+                            ),
                           );
                         } else {
                           // Render tick/cross with colors
                           pw.TextStyle textStyle;
                           if (val == 'v') {
-                            textStyle = pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.green, fontSize: 9);
+                            textStyle = pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.green,
+                              fontSize: 9,
+                            );
                           } else if (val == 'x') {
-                            textStyle = pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.red, fontSize: 9);
+                            textStyle = pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.red,
+                              fontSize: 9,
+                            );
                           } else {
                             textStyle = const pw.TextStyle(fontSize: 9);
                           }
@@ -656,18 +941,44 @@ class PdfExportService {
                         }
                       }).toList(),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             pw.SizedBox(height: 20),
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.start,
               children: [
-                pw.Text('Chú thích:   ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-                pw.Text('v', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.green, fontSize: 8)),
-                pw.Text(' : Được cộng điểm (phát biểu, bài tập tốt, ngoan...)   ', style: pw.TextStyle(fontSize: 8)),
-                pw.Text('x', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.red, fontSize: 8)),
-                pw.Text(' : Bị trừ điểm (nói chuyện, đi muộn, thiếu bài...)', style: pw.TextStyle(fontSize: 8)),
+                pw.Text(
+                  'Chú thích:   ',
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 8,
+                  ),
+                ),
+                pw.Text(
+                  'v',
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.green,
+                    fontSize: 8,
+                  ),
+                ),
+                pw.Text(
+                  ' : Được cộng điểm (phát biểu, bài tập tốt, ngoan...)   ',
+                  style: pw.TextStyle(fontSize: 8),
+                ),
+                pw.Text(
+                  'x',
+                  style: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.red,
+                    fontSize: 8,
+                  ),
+                ),
+                pw.Text(
+                  ' : Bị trừ điểm (nói chuyện, đi muộn, thiếu bài...)',
+                  style: pw.TextStyle(fontSize: 8),
+                ),
               ],
             ),
           ],

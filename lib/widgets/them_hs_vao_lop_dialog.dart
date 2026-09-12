@@ -11,16 +11,8 @@ import '../services/hoc_sinh_service.dart';
 import 'hs_form.dart';
 import '../utils/toast_helper.dart';
 
-// --- HẰNG SỐ MÀU SẮC (Lấy từ LopDetail để đồng bộ) ---
-// const Color darkBackground = Color(0xFF1A1A2E);
-// const Color cardColor = Color(0xFF16213E);
-// const Color lightText = Colors.white;
-// const Color secondaryText = Colors.white70;
-// const Color accentColor = Color(0xFF00BFA5); // Teal Accent
-
 class ThemHSVaoLopDialog extends StatefulWidget {
   final Lop lop;
-  // Danh sách HS chỉ chứa những người chưa có trong lớp hiện tại
   final List<HS> danhSachTatCaHS;
   final LopHocSinhService lhsService;
   final HocSinhService hsService;
@@ -42,25 +34,43 @@ class ThemHSVaoLopDialog extends StatefulWidget {
 class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
-  Color get lightText => Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
-  Color get secondaryText => Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+  Color get lightText =>
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+  Color get secondaryText =>
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
   Color get accentColor => Theme.of(context).primaryColor;
   Color get deleteColor => Theme.of(context).colorScheme.error;
 
-  HS? _selectedHS;
+  final TextEditingController _searchController = TextEditingController();
+  final Set<int> _selectedHsIds = {};
   DateTime _ngayThamGia = DateTime.now();
-  final _formKey = GlobalKey<FormState>();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    // Khởi tạo _selectedHS nếu danh sách không rỗng (chọn HS đầu tiên)
-    if (widget.danhSachTatCaHS.isNotEmpty) {
-      _selectedHS = widget.danhSachTatCaHS.first;
-    }
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.trim().toLowerCase();
+      });
+    });
   }
 
-  // Hàm chọn ngày (Date Picker)
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<HS> get _filteredStudents {
+    if (_searchQuery.isEmpty) return widget.danhSachTatCaHS;
+    return widget.danhSachTatCaHS.where((hs) {
+      final name = hs.ten.toLowerCase();
+      final phone = (hs.sdt ?? '').replaceAll(RegExp(r'[^\d]'), '');
+      return name.contains(_searchQuery) || phone.contains(_searchQuery);
+    }).toList();
+  }
+
   Future<void> _chonNgayThamGia(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -69,11 +79,11 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
       lastDate: DateTime.now(),
       builder: (BuildContext context, Widget? child) {
         return Theme(
-          data: ThemeData.dark().copyWith(
+          data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.dark(
-              primary: accentColor, // Màu nhấn cho ngày được chọn
+              primary: accentColor,
               onPrimary: darkBackground,
-              surface: cardColor, // Màu nền của DatePicker
+              surface: cardColor,
               onSurface: lightText,
             ),
             dialogTheme: DialogThemeData(backgroundColor: cardColor),
@@ -89,7 +99,6 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
     }
   }
 
-  // Hàm tạo mới HS và thêm vào lớp
   Future<void> _handleTaoMoiVaThem() async {
     final newHs = await showHocSinhFormDialog(
       context: context,
@@ -97,7 +106,7 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
       hsService: widget.hsService,
     );
 
-    if (newHs != null) {
+    if (newHs != null && newHs.id != null) {
       try {
         final lhs = LopHocSinh(
           idLop: widget.lop.id!,
@@ -108,237 +117,340 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
         await widget.lhsService.themHocSinhVaoLop(lhs);
 
         if (mounted) {
+          ToastHelper.showSuccess(
+            context,
+            'Đã tạo mới và thêm ${newHs.ten} vào lớp!',
+          );
           Navigator.of(context).pop(true);
         }
       } catch (e) {
         if (mounted) {
-          final isVi = Localizations.localeOf(context).languageCode == 'vi';
-          ToastHelper.showError(context, isVi ? 'Lỗi khi thêm học sinh mới vào lớp: $e' : 'Error adding new student to class: $e');
+          ToastHelper.showError(context, 'Lỗi thêm học sinh mới vào lớp: $e');
         }
       }
     }
   }
 
-  // Hàm lưu (Thêm HS vào Lớp)
   void _handleThemHS() async {
-    // Đảm bảo đã chọn học sinh
-    if (_formKey.currentState!.validate() && _selectedHS != null) {
-      try {
+    if (_selectedHsIds.isEmpty) {
+      ToastHelper.showWarning(context, 'Vui lòng chọn ít nhất 1 học sinh!');
+      return;
+    }
+
+    try {
+      final ngayThamGiaStr = DateFormat('yyyy-MM-dd').format(_ngayThamGia);
+      int addedCount = 0;
+
+      for (final idHs in _selectedHsIds) {
         final lhs = LopHocSinh(
           idLop: widget.lop.id!,
-          idHocSinh: _selectedHS!.id!,
-          ngayThamGia: DateFormat(
-            'yyyy-MM-dd',
-          ).format(_ngayThamGia), // Lưu dưới dạng SQL format
-          // trangThai sẽ dùng giá trị mặc định 'Dang hoc'
+          idHocSinh: idHs,
+          ngayThamGia: ngayThamGiaStr,
         );
-
         await widget.lhsService.themHocSinhVaoLop(lhs);
+        addedCount++;
+      }
 
-        // Trả về true để LopDetail refresh danh sách
-        if (mounted) {
-          Navigator.of(context).pop(true);
-          // Không hiển thị SnackBar ở đây, để LopDetail xử lý (đã có ở bước trước)
-        }
-      } catch (e) {
-        // Xử lý lỗi UNIQUE constraint (HS đã có trong lớp)
-        final isVi = Localizations.localeOf(context).languageCode == 'vi';
-        String errorMessage = isVi ? 'Lỗi: Không thể thêm học sinh.' : 'Error: Cannot add student.';
-        if (e.toString().contains('UNIQUE constraint failed')) {
-          errorMessage = isVi ? 'Lỗi: Học sinh này đã có trong lớp!' : 'Error: This student is already in the class!';
-        }
-        if (mounted) {
-          ToastHelper.showError(context, errorMessage);
-        }
+      if (mounted) {
+        ToastHelper.showSuccess(
+          context,
+          'Đã thêm thành công $addedCount học sinh vào lớp!',
+        );
+        Navigator.of(context).pop(true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastHelper.showError(context, 'Lỗi khi thêm học sinh vào lớp: $e');
       }
     }
+  }
+
+  void _toggleSelectAll() {
+    final filtered = _filteredStudents;
+    final allSelected = filtered.every((hs) => _selectedHsIds.contains(hs.id));
+
+    setState(() {
+      if (allSelected) {
+        for (var hs in filtered) {
+          if (hs.id != null) _selectedHsIds.remove(hs.id!);
+        }
+      } else {
+        for (var hs in filtered) {
+          if (hs.id != null) _selectedHsIds.add(hs.id!);
+        }
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
-    return AlertDialog(
+    final filteredList = _filteredStudents;
+    final bool isAllSelected = filteredList.isNotEmpty &&
+        filteredList.every((hs) => _selectedHsIds.contains(hs.id));
+
+    return Dialog(
       backgroundColor: cardColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Center(
-        child: Text(
-          isVi ? 'THÊM HỌC SINH' : 'ADD STUDENT',
-          style: TextStyle(color: lightText, fontWeight: FontWeight.bold),
-        ),
-      ),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Nút tạo mới học sinh
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _handleTaoMoiVaThem,
-                  icon: const Icon(Icons.person_add_alt_1, size: 20),
-                  label: Text(isVi ? 'TẠO MỚI HỌC SINH' : 'CREATE NEW STUDENT'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: accentColor,
-                    side: BorderSide(color: accentColor),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.94,
+        height: MediaQuery.of(context).size.height * 0.85,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Title & Close Button
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.person_add_alt_1_rounded, color: accentColor, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isVi ? 'THÊM HỌC SINH VÀO LỚP' : 'ADD STUDENTS TO CLASS',
+                        style: TextStyle(
+                          color: lightText,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      Text(
+                        widget.lop.ten,
+                        style: TextStyle(color: accentColor, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.close_rounded, color: secondaryText),
+                  onPressed: () => Navigator.of(context).pop(false),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Nút Tạo mới học sinh
+            SizedBox(
+              width: double.infinity,
+              height: 42,
+              child: OutlinedButton.icon(
+                onPressed: _handleTaoMoiVaThem,
+                icon: Icon(Icons.add_circle_outline_rounded, size: 18, color: accentColor),
+                label: Text(
+                  isVi ? 'TẠO MỚI HỌC SINH MỚI PHÁT SINH' : 'CREATE NEW STUDENT',
+                  style: TextStyle(
+                    color: accentColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: accentColor.withValues(alpha: 0.6)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Ô Tìm kiếm Học Sinh
+            TextField(
+              controller: _searchController,
+              style: TextStyle(color: lightText, fontSize: 14),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: isVi ? 'Tìm học sinh theo tên hoặc SĐT...' : 'Search by name or phone...',
+                hintStyle: TextStyle(color: secondaryText.withValues(alpha: 0.6), fontSize: 13),
+                prefixIcon: Icon(Icons.search_rounded, color: accentColor, size: 20),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(Icons.clear_rounded, color: secondaryText, size: 18),
+                        onPressed: () => _searchController.clear(),
+                      )
+                    : null,
+                filled: true,
+                fillColor: darkBackground,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Ngày tham gia & Chọn tất cả
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                InkWell(
+                  onTap: () => _chonNgayThamGia(context),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: darkBackground,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: accentColor.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.calendar_today_rounded, size: 16, color: accentColor),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${isVi ? "Ngày vào:" : "Joined:"} ${DateFormat("dd/MM/yyyy").format(_ngayThamGia)}',
+                          style: TextStyle(color: lightText, fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(child: Divider(color: secondaryText)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Text(isVi ? 'HOẶC CHỌN TỪ DANH SÁCH' : 'OR SELECT FROM LIST',
-                        style: TextStyle(color: secondaryText, fontSize: 10)),
+                if (filteredList.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: _toggleSelectAll,
+                    icon: Icon(
+                      isAllSelected ? Icons.deselect_rounded : Icons.select_all_rounded,
+                      size: 16,
+                      color: accentColor,
+                    ),
+                    label: Text(
+                      isAllSelected
+                          ? (isVi ? 'Bỏ chọn hết' : 'Deselect all')
+                          : (isVi ? 'Chọn tất cả (${filteredList.length})' : 'Select all'),
+                      style: TextStyle(color: accentColor, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
                   ),
-                  Expanded(child: Divider(color: secondaryText)),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // --- 1. Dropdown Chọn Học Sinh ---
-              if (widget.danhSachTatCaHS.isEmpty)
-                Text(
-                  isVi ? 'Tất cả học sinh hiện tại đã có trong lớp.' : 'All current students are already in this class.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: secondaryText, fontSize: 13),
-                )
-              else
-                _buildDropdownChonHS(),
-
-              const SizedBox(height: 20),
-
-              // --- 2. Chọn Ngày Nhập Học ---
-              _buildChonNgayThamGia(context),
-            ],
-          ),
-        ),
-      ),
-      actionsAlignment: MainAxisAlignment.center,
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(
-            isVi ? 'HỦY' : 'CANCEL',
-            style: TextStyle(color: secondaryText, fontWeight: FontWeight.bold),
-          ),
-        ),
-        if (widget.danhSachTatCaHS.isNotEmpty)
-          ElevatedButton(
-            onPressed: _handleThemHS,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: accentColor,
-              foregroundColor: darkBackground,
+              ],
             ),
-            child: Text(
-              isVi ? 'THÊM' : 'ADD',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: darkBackground,
-              ),
+            const SizedBox(height: 6),
+
+            // Danh sách Học sinh dạng Checkbox ListView
+            Expanded(
+              child: filteredList.isEmpty
+                  ? Center(
+                      child: Text(
+                        widget.danhSachTatCaHS.isEmpty
+                            ? (isVi
+                                ? 'Tất cả học sinh trong hệ thống đã thuộc lớp này.'
+                                : 'All students are already in this class.')
+                            : (isVi
+                                ? 'Không tìm thấy học sinh phù hợp.'
+                                : 'No matching students found.'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: secondaryText, fontSize: 13),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: filteredList.length,
+                      itemBuilder: (context, index) {
+                        final hs = filteredList[index];
+                        final isSelected = hs.id != null && _selectedHsIds.contains(hs.id);
+
+                        return Card(
+                          color: isSelected
+                              ? accentColor.withValues(alpha: 0.15)
+                              : darkBackground,
+                          margin: const EdgeInsets.symmetric(vertical: 3),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? accentColor
+                                  : secondaryText.withValues(alpha: 0.1),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: CheckboxListTile(
+                            value: isSelected,
+                            onChanged: (bool? val) {
+                              if (hs.id == null) return;
+                              setState(() {
+                                if (val == true) {
+                                  _selectedHsIds.add(hs.id!);
+                                } else {
+                                  _selectedHsIds.remove(hs.id!);
+                                }
+                              });
+                            },
+                            activeColor: accentColor,
+                            checkColor: darkBackground,
+                            dense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                            title: Text(
+                              hs.ten,
+                              style: TextStyle(
+                                color: lightText,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 14,
+                              ),
+                            ),
+                            subtitle: (hs.sdt != null && hs.sdt!.isNotEmpty)
+                                ? Text(
+                                    'SĐT: ${hs.sdt}',
+                                    style: TextStyle(color: secondaryText, fontSize: 12),
+                                  )
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
             ),
-          ),
-      ],
-    );
-  }
+            const SizedBox(height: 10),
 
-  Widget _buildDropdownChonHS() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: darkBackground,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: secondaryText.withOpacity(0.5)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<HS>(
-          value: _selectedHS,
-          dropdownColor: darkBackground,
-          style: TextStyle(color: lightText, fontSize: 16),
-          icon: Icon(Icons.arrow_drop_down, color: secondaryText),
-          onChanged: (HS? newValue) {
-            setState(() {
-              _selectedHS = newValue;
-            });
-          },
-          isExpanded: true,
-          items: widget.danhSachTatCaHS.map<DropdownMenuItem<HS>>((HS hs) {
-            return DropdownMenuItem<HS>(
-              value: hs,
-              child: Text(
-                '${hs.ten}',
-                style: TextStyle(color: lightText),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildChonNgayThamGia(BuildContext context) {
-    final isVi = Localizations.localeOf(context).languageCode == 'vi';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start, // Căn lề trái cho các mục
-      children: [
-        // Dòng 1: Tiêu đề "Ngày Tham Gia"
-        Row(
-          children: [
-            Icon(Icons.calendar_today, color: accentColor),
-            const SizedBox(width: 10),
-            Text(
-              isVi ? 'Ngày Tham Gia:' : 'Date Joined:',
-              style: TextStyle(
-                color: lightText,
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-              ),
+            // Bottom Actions
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text(
+                      isVi ? 'HỦY' : 'CANCEL',
+                      style: TextStyle(color: secondaryText, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton.icon(
+                    onPressed: _selectedHsIds.isEmpty ? null : _handleThemHS,
+                    icon: const Icon(Icons.add_rounded, size: 20),
+                    label: Text(
+                      isVi
+                          ? 'THÊM (${_selectedHsIds.length} HS)'
+                          : 'ADD (${_selectedHsIds.length})',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: darkBackground,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accentColor,
+                      foregroundColor: darkBackground,
+                      disabledBackgroundColor: Colors.grey.withValues(alpha: 0.3),
+                      elevation: 2,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
-
-        const SizedBox(height: 10),
-
-        // Dòng 2: Hiển thị ngày và Nút chọn ngày
-        Row(
-          mainAxisAlignment:
-              MainAxisAlignment.spaceBetween, // Đẩy hai mục ra hai bên
-          children: [
-            // Hiển thị ngày đã chọn
-            Padding(
-              padding: const EdgeInsets.only(left: 35),
-              child: Text(
-                // SỬA: Chuẩn hóa định dạng ngày
-                DateFormat('dd/MM/yyyy').format(_ngayThamGia),
-                style: TextStyle(
-                  color: lightText,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-
-            // Nút Chọn Ngày
-            TextButton(
-              onPressed: () => _chonNgayThamGia(context),
-              child: Text(
-                isVi ? 'CHỌN NGÀY' : 'SELECT DATE',
-                style: TextStyle(
-                  color: accentColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
   }
 }

@@ -16,7 +16,8 @@ class ThongKePage extends StatefulWidget {
 
 class _ThongKePageState extends State<ThongKePage> {
   final ThongKeService _service = ThongKeService();
-  final DashboardService _dashboardService = DashboardService(); // KHỞI TẠO SERVICE
+  final DashboardService _dashboardService =
+      DashboardService(); // KHỞI TẠO SERVICE
   late Future<Map<String, dynamic>> _dataFuture;
 
   // Theme màu
@@ -44,7 +45,8 @@ class _ThongKePageState extends State<ThongKePage> {
   Future<Map<String, dynamic>> _fetchData() async {
     final studentData = await _service.getSoLuongHSHoatDong12Thang();
     final tuitionData = await _service.getHocPhi12Thang();
-    final dashboardData = await _dashboardService.getDashboardData(); // LẤY DỮ LIỆU TỔNG QUAN
+    final dashboardData = await _dashboardService
+        .getDashboardData(); // LẤY DỮ LIỆU TỔNG QUAN
     return {
       'students': studentData,
       'tuition': tuitionData,
@@ -98,7 +100,8 @@ class _ThongKePageState extends State<ThongKePage> {
           final List<HocSinhThang> studentData =
               snapshot.data!['students'] ?? [];
           final List<HocPhiThang> tuitionData = snapshot.data!['tuition'] ?? [];
-          final DashboardData summary = snapshot.data!['summary'] ?? DashboardData();
+          final DashboardData summary =
+              snapshot.data!['summary'] ?? DashboardData();
           final formatCurrency = NumberFormat('#,##0', 'vi_VN');
 
           return SingleChildScrollView(
@@ -154,12 +157,16 @@ class _ThongKePageState extends State<ThongKePage> {
                 const SizedBox(height: 32),
 
                 _buildChartCard(
-                  title: isVi ? 'Học Sinh Hoạt Động (12 Tháng)' : 'Active Students (12 Months)',
+                  title: isVi
+                      ? 'Học Sinh Hoạt Động (12 Tháng)'
+                      : 'Active Students (12 Months)',
                   chart: _buildStudentChart(studentData),
                 ),
                 const SizedBox(height: 24),
                 _buildChartCard(
-                  title: isVi ? 'Học Phí (12 Tháng)' : 'Tuition Fees (12 Months)',
+                  title: isVi
+                      ? 'Học Phí (12 Tháng)'
+                      : 'Tuition Fees (12 Months)',
                   chart: _buildTuitionChart(tuitionData),
                 ),
               ],
@@ -170,13 +177,18 @@ class _ThongKePageState extends State<ThongKePage> {
     );
   }
 
-  Widget _buildMetricCard(String title, String value, IconData icon, Color color) {
+  Widget _buildMetricCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.2), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,7 +253,10 @@ class _ThongKePageState extends State<ThongKePage> {
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
     if (data.isEmpty) {
       return Center(
-        child: Text(isVi ? 'Không có dữ liệu' : 'No data', style: const TextStyle(color: secondaryText)),
+        child: Text(
+          isVi ? 'Không có dữ liệu' : 'No data',
+          style: const TextStyle(color: secondaryText),
+        ),
       );
     }
 
@@ -330,7 +345,10 @@ class _ThongKePageState extends State<ThongKePage> {
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
     if (data.isEmpty) {
       return Center(
-        child: Text(isVi ? 'Không có dữ liệu' : 'No data', style: const TextStyle(color: secondaryText)),
+        child: Text(
+          isVi ? 'Không có dữ liệu' : 'No data',
+          style: const TextStyle(color: secondaryText),
+        ),
       );
     }
 
@@ -345,9 +363,13 @@ class _ThongKePageState extends State<ThongKePage> {
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               String text;
               if (rod.color == incomeColor) {
-                text = (isVi ? 'Thu: ' : 'Collected: ') + NumberFormat('#,##0', 'vi_VN').format(rod.toY);
+                text =
+                    (isVi ? 'Thu: ' : 'Collected: ') +
+                    NumberFormat('#,##0', 'vi_VN').format(rod.toY);
               } else {
-                text = (isVi ? 'Nợ: ' : 'Debt: ') + NumberFormat('#,##0', 'vi_VN').format(rod.toY);
+                text =
+                    (isVi ? 'Nợ: ' : 'Debt: ') +
+                    NumberFormat('#,##0', 'vi_VN').format(rod.toY);
               }
               return BarTooltipItem(
                 '${data[groupIndex].thang}\n',

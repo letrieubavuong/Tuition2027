@@ -1,8 +1,14 @@
 // File: lib/screens/hoc_phi_page.dart (HOÀN THIỆN)
 
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/lop.dart';
@@ -14,10 +20,13 @@ import '../services/caidat_service.dart';
 import '../main.dart';
 import '../widgets/main_drawer.dart';
 import '../widgets/thu_tien_hoc_phi_dialog.dart';
+import '../widgets/gui_thong_bao_hang_loat_dialog.dart';
 import '../l10n/app_localizations.dart';
+import '../services/tuition_event_service.dart';
+import '../utils/vietqr_util.dart';
 import '../utils/toast_helper.dart';
 
-// --- Màu sắc động được định nghĩa trong _HocPhiPageState ---
+// --- Màu sắc động được định nghĩa trong HocPhiPageState ---
 
 // =======================================================
 // MODEL TẠM: Kết hợp Lop và Báo cáo (Dùng cho ListView)
@@ -42,10 +51,10 @@ class HocPhiPage extends StatefulWidget {
   });
 
   @override
-  State<HocPhiPage> createState() => _HocPhiPageState();
+  State<HocPhiPage> createState() => HocPhiPageState();
 }
 
-class _HocPhiPageState extends State<HocPhiPage> {
+class HocPhiPageState extends State<HocPhiPage> {
   Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
   Color get lightText =>
@@ -83,11 +92,26 @@ class _HocPhiPageState extends State<HocPhiPage> {
       'yyyy-MM',
     ).format(DateTime(now.year, defaultMonth));
     _tongHopFuture = _taiDuLieuTongHop(_selectedMonthYear);
+
+    TuitionEventService().addListener(_onTuitionEventChanged);
   }
 
   @override
   void dispose() {
+    TuitionEventService().removeListener(_onTuitionEventChanged);
     super.dispose();
+  }
+
+  void _onTuitionEventChanged() {
+    if (mounted) {
+      lamMoiDuLieu();
+    }
+  }
+
+  void lamMoiDuLieu() {
+    setState(() {
+      _tongHopFuture = _taiDuLieuTongHop(_selectedMonthYear);
+    });
   }
 
   // Hàm tải dữ liệu tổng hợp cho TẤT CẢ các lớp trong tháng
@@ -172,9 +196,8 @@ class _HocPhiPageState extends State<HocPhiPage> {
     }
   }
 
-  void _chiaSeNoCaNhan(HocSinhNoHocPhi hs, String tenLop) async {
+  void _chiaSeNoCaNhan(HocSinhNoHocPhi hs, int idLop, String tenLop) async {
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
-    final formatCurrency = NumberFormat('#,##0', 'vi_VN');
     final caiDatService = CaiDatService();
 
     // Đọc thông tin ngân hàng từ cài đặt
@@ -185,57 +208,483 @@ class _HocPhiPageState extends State<HocPhiPage> {
     final String accountName =
         (await caiDatService.layCaiDat('account_name')) ?? 'LE TRIEU BA VUONG';
 
-    final StringBuffer buffer = StringBuffer();
-    final parts = _selectedMonthYear.split('-');
-    final formattedMonth = parts.reversed.join('/');
+    final int amount = hs.soTienConNo > 0 ? hs.soTienConNo : hs.soTienCanNop;
+    final String studentNameNoAccent = VietQRUtil.removeVietnameseAccents(
+      hs.tenHocSinh,
+    );
+    final String description =
+        'Hoc phi $studentNameNoAccent thang $_selectedMonthYear';
+    final String qrPayload = VietQRUtil.generateVietQRPayload(
+      bankId: bankId,
+      accountNo: accountNo,
+      amount: amount,
+      description: description,
+    );
 
-    if (isVi) {
-      buffer.writeln(
-        'Kính gửi phụ huynh học sinh ${hs.tenHocSinh} (Lớp $tenLop),',
-      );
-      buffer.writeln('Học phí tháng $formattedMonth của học sinh là:');
-      buffer.writeln('- Cần nộp: ${formatCurrency.format(hs.soTienCanNop)}đ');
-      buffer.writeln('- Đã đóng: ${formatCurrency.format(hs.soTienDaDong)}đ');
-      buffer.writeln('- Còn nợ: ${formatCurrency.format(hs.soTienConNo)}đ');
-      buffer.writeln(
-        '\nQuý phụ huynh vui lòng thanh toán chuyển khoản vào tài khoản ngân hàng:',
-      );
-      buffer.writeln('- Ngân hàng: ${bankId.toUpperCase()}');
-      buffer.writeln('- Số tài khoản: $accountNo');
-      buffer.writeln('- Chủ tài khoản: $accountName');
-      buffer.writeln('Xin chân thành cảm ơn quý phụ huynh!');
-    } else {
-      buffer.writeln(
-        'Dear parent of student ${hs.tenHocSinh} (Class $tenLop),',
-      );
-      buffer.writeln('Tuition fee for month $formattedMonth:');
-      buffer.writeln(
-        '- Amount due: ${formatCurrency.format(hs.soTienCanNop)}đ',
-      );
-      buffer.writeln('- Paid: ${formatCurrency.format(hs.soTienDaDong)}đ');
-      buffer.writeln('- Debt: ${formatCurrency.format(hs.soTienConNo)}đ');
-      buffer.writeln('\nPlease settle the payment via bank transfer:');
-      buffer.writeln('- Bank: ${bankId.toUpperCase()}');
-      buffer.writeln('- Account Number: $accountNo');
-      buffer.writeln('- Account Name: $accountName');
-      buffer.writeln('Thank you very much!');
+    final String message = VietQRUtil.taoNoiDungThongBaoHocPhi(
+      tenHocSinh: hs.tenHocSinh,
+      tenLop: tenLop,
+      thang: _selectedMonthYear,
+      soBuoiDu: hs.soBuoiDu,
+      tongSoBuoi: hs.tongSoBuoi,
+      soTienCanNop: hs.soTienCanNop,
+      soTienDaDong: hs.soTienDaDong,
+      soTienConNo: hs.soTienConNo,
+      bankId: bankId,
+      accountNo: accountNo,
+      accountName: accountName,
+      isVi: isVi,
+    );
+
+    final GlobalKey cardKey = GlobalKey();
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cardColor,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          isVi ? 'Phiếu Nhắc Nợ Học Phí' : 'Tuition Debt Notice Card',
+          style: TextStyle(
+            color: lightText,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: SizedBox(
+          width: 320,
+          child: SingleChildScrollView(
+            child: RepaintBoundary(
+              key: cardKey,
+              child: _buildThongBaoHocPhiCard(
+                studentName: hs.tenHocSinh,
+                className: tenLop,
+                thang: _selectedMonthYear,
+                soBuoiDu: hs.soBuoiDu,
+                tongSoBuoi: hs.tongSoBuoi,
+                amount: amount,
+                bankId: bankId,
+                accountNo: accountNo,
+                accountName: accountName,
+                description: description,
+                qrPayload: qrPayload,
+                isVi: isVi,
+              ),
+            ),
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () async {
+                  final bytes = await _captureCardPng(cardKey);
+                  if (!ctx.mounted) return;
+                  if (bytes != null) {
+                    _chiaSeAnhMaQR(
+                      ctx,
+                      bytes,
+                      'NhacNo_${studentNameNoAccent}_$_selectedMonthYear.png',
+                    );
+                  }
+                },
+                icon: const Icon(Icons.share, size: 16),
+                label: Text(
+                  isVi ? 'Chia sẻ ảnh' : 'Share Image',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: lightText,
+                  side: BorderSide(color: secondaryText.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () async {
+                  final bytes = await _captureCardPng(cardKey);
+                  if (!ctx.mounted) return;
+                  if (bytes != null) {
+                    _luuAnhMaQR(
+                      ctx,
+                      bytes,
+                      'NhacNo_${studentNameNoAccent}_$_selectedMonthYear.png',
+                    );
+                  }
+                },
+                icon: const Icon(Icons.save_alt, size: 16),
+                label: Text(
+                  isVi ? 'Lưu ảnh' : 'Save Image',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: lightText,
+                  side: BorderSide(color: secondaryText.withValues(alpha: 0.5)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: message));
+                  if (!ctx.mounted) return;
+                  ToastHelper.showInfo(
+                    ctx,
+                    isVi
+                        ? 'Đã sao chép văn bản vào bộ nhớ tạm!'
+                        : 'Text copied to clipboard!',
+                  );
+                },
+                icon: const Icon(Icons.copy, size: 16),
+                label: Text(
+                  isVi ? 'Copy chữ' : 'Copy Text',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              isVi ? 'Đóng' : 'Close',
+              style: TextStyle(color: secondaryText),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThongBaoHocPhiCard({
+    required String studentName,
+    required String className,
+    required String thang,
+    required int soBuoiDu,
+    required int tongSoBuoi,
+    required int amount,
+    required String bankId,
+    required String accountNo,
+    required String accountName,
+    required String description,
+    required String qrPayload,
+    required bool isVi,
+  }) {
+    String formattedThang = thang;
+    if (thang.contains('-')) {
+      final parts = thang.split('-');
+      if (parts.length == 2) {
+        formattedThang = '${parts[1]}/${parts[0]}';
+      }
     }
+    final formatCurrency = NumberFormat('#,##0', 'vi_VN');
 
-    final String message = buffer.toString();
+    return Container(
+      width: 320,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Banner tiêu đề
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF0F3460), Color(0xFF16213E)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Text(
+              isVi ? 'THÔNG BÁO HỌC PHÍ' : 'TUITION NOTICE',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                letterSpacing: 1.1,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  studentName,
+                  style: const TextStyle(
+                    color: Color(0xFF1E293B),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${isVi ? "Lớp" : "Class"}: $className   |   ${isVi ? "Tháng" : "Month"}: $formattedThang',
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      isVi ? '• Số buổi dư tích lũy:' : '• Rollover sessions:',
+                      style: const TextStyle(
+                        color: Color(0xFF475569),
+                        fontSize: 13,
+                      ),
+                    ),
+                    Text(
+                      '$soBuoiDu ${isVi ? "buổi" : "sessions"}',
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      isVi ? '• Số buổi dự kiến:' : '• Expected sessions:',
+                      style: const TextStyle(
+                        color: Color(0xFF475569),
+                        fontSize: 13,
+                      ),
+                    ),
+                    Text(
+                      '$tongSoBuoi ${isVi ? "buổi" : "sessions"}',
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFCA5A5)),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        isVi ? 'SỐ TIỀN CẦN THANH TOÁN' : 'TOTAL AMOUNT DUE',
+                        style: const TextStyle(
+                          color: Color(0xFF991B1B),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${formatCurrency.format(amount)} VNĐ',
+                        style: const TextStyle(
+                          color: Color(0xFFDC2626),
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: QrImageView(
+                      data: qrPayload,
+                      size: 180,
+                      version: QrVersions.auto,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Center(
+                  child: Text(
+                    isVi
+                        ? 'Quét mã VietQR bằng ứng dụng Ngân hàng'
+                        : 'Scan VietQR using your Mobile Banking App',
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 10.5,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildBankRowCard(
+                        isVi ? 'Ngân hàng' : 'Bank',
+                        bankId.toUpperCase(),
+                      ),
+                      const SizedBox(height: 4),
+                      _buildBankRowCard(isVi ? 'Số TK' : 'Account No', accountNo),
+                      const SizedBox(height: 4),
+                      _buildBankRowCard(
+                        isVi ? 'Chủ TK' : 'Account Name',
+                        accountName,
+                      ),
+                      const SizedBox(height: 4),
+                      _buildBankRowCard(
+                        isVi ? 'Nội dung CK' : 'Reference',
+                        description,
+                        isBoldValue: true,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: Text(
+                    isVi
+                        ? 'Trân trọng cảm ơn quý phụ huynh!'
+                        : 'Thank you very much!',
+                    style: const TextStyle(
+                      color: Color(0xFF475569),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-    // Copy vào clipboard
-    await Clipboard.setData(ClipboardData(text: message));
+  Widget _buildBankRowCard(
+    String label,
+    String value, {
+    bool isBoldValue = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 85,
+          child: Text(
+            '$label:',
+            style: const TextStyle(color: Color(0xFF64748B), fontSize: 11.5),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              color: const Color(0xFF0F172A),
+              fontSize: 11.5,
+              fontWeight: isBoldValue ? FontWeight.bold : FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-    if (mounted) {
-      ToastHelper.showInfo(
+  Future<Uint8List?> _captureCardPng(GlobalKey key) async {
+    try {
+      RenderRepaintBoundary? boundary =
+          key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return null;
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      return byteData?.buffer.asUint8List();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> _luuAnhMaQR(
+    BuildContext context,
+    Uint8List bytes,
+    String fileName,
+  ) async {
+    var status = await Permission.manageExternalStorage.request();
+    if (!status.isGranted) return;
+    final dir = Directory('/storage/emulated/0/Download');
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsBytes(bytes);
+    if (context.mounted) {
+      final isVi = Localizations.localeOf(context).languageCode == 'vi';
+      ToastHelper.showSuccess(
         context,
-        isVi
-            ? 'Đã copy thông tin nhắc nợ của học sinh vào bộ nhớ tạm!'
-            : 'Copied student debt details to clipboard!',
+        isVi ? 'Đã lưu ảnh vào thư mục Download' : 'Saved image to Download',
       );
     }
+  }
 
-    await Share.share(message);
+  Future<void> _chiaSeAnhMaQR(
+    BuildContext context,
+    Uint8List bytes,
+    String fileName,
+  ) async {
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsBytes(bytes);
+
+    await SharePlus.instance.share(
+      ShareParams(files: [XFile(file.path)]),
+    );
   }
 
   void _moZaloPhuHuynh(String sdt) async {
@@ -345,7 +794,7 @@ class _HocPhiPageState extends State<HocPhiPage> {
                   const SizedBox(width: 8),
                 ],
                 InkWell(
-                  onTap: () => _chiaSeNoCaNhan(hs, tenLop),
+                  onTap: () => _chiaSeNoCaNhan(hs, idLop, tenLop),
                   borderRadius: BorderRadius.circular(6),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -520,8 +969,32 @@ class _HocPhiPageState extends State<HocPhiPage> {
               ),
             ],
           ),
-          //const SizedBox(height: 8),
-          //const Divider(color: Colors.white10, height: 16, thickness: 1),
+          const SizedBox(height: 10),
+          ElevatedButton.icon(
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (ctx) => GuiThongBaoHangLoatDialog(
+                  initialThang: _selectedMonthYear,
+                  initialOnlyUnpaid: true,
+                  initialType: NotificationType.hocPhi,
+                  allowedTypes: const [NotificationType.hocPhi],
+                  dialogTitle: 'Gửi Nhắc Học Phí Hàng Loạt',
+                ),
+              );
+            },
+            icon: const Icon(Icons.send_rounded, size: 16),
+            label: Text(
+              isVi ? 'Gửi nhắc học phí hàng loạt' : 'Bulk Fee Reminders',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accentColor,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              minimumSize: const Size.fromHeight(38),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
         ],
       ),
     );
@@ -588,6 +1061,24 @@ class _HocPhiPageState extends State<HocPhiPage> {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.send_rounded),
+            tooltip: isVi ? 'Gửi thông báo hàng loạt' : 'Bulk Notifications',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (ctx) => GuiThongBaoHangLoatDialog(
+                  initialThang: _selectedMonthYear,
+                  initialOnlyUnpaid: true,
+                  initialType: NotificationType.hocPhi,
+                  allowedTypes: const [NotificationType.hocPhi],
+                  dialogTitle: 'Gửi Nhắc Học Phí Hàng Loạt',
+                ),
+              );
+            },
+          ),
+        ],
       ),
       // SỬA: Thêm drawer vào Scaffold để nút menu hoạt động
       drawer: MainDrawer(
@@ -600,7 +1091,12 @@ class _HocPhiPageState extends State<HocPhiPage> {
           _buildMonthYearSelector(),
 
           Expanded(
-            child: FutureBuilder<List<LopHocPhiViewModel>>(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                lamMoiDuLieu();
+                await _tongHopFuture;
+              },
+              child: FutureBuilder<List<LopHocPhiViewModel>>(
               future: _tongHopFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -842,6 +1338,7 @@ class _HocPhiPageState extends State<HocPhiPage> {
               },
             ),
           ),
+        ),
         ],
       ),
     );

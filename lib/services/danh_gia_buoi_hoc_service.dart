@@ -4,7 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import '../models/danh_gia_lich_su_view_model.dart';
 import '../models/su_kien_hoc_tap.dart';
 import 'su_kien_hoc_tap_service.dart';
-import 'quy_tac_diem_service.dart'; // Import service mới
+// Import service mới
 import '../models/danh_gia_buoi_hoc.dart';
 import '../utils/db.dart';
 
@@ -67,7 +67,7 @@ class DanhGiaBuoiHocService {
 
     for (var suKien in dsSuKien) {
       final diem = suKien.diemThayDoi;
-      
+
       // Phân bổ điểm dựa trên trường loaiSuKien đã được lưu
       if (suKien.loaiSuKien == LoaiSuKien.thaiDo) {
         diemThayDoiThaiDo += diem;

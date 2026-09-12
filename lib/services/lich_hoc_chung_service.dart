@@ -462,7 +462,10 @@ class LichHocChungService {
   // ===================================================
   // 7. LẤY LỊCH HỌC CÁ NHÂN CỦA HỌC SINH
   // ===================================================
-  Future<List<LichHocChung>> layLichHocCaNhanCuaHocSinh(int idHocSinh, {int? idLop}) async {
+  Future<List<LichHocChung>> layLichHocCaNhanCuaHocSinh(
+    int idHocSinh, {
+    int? idLop,
+  }) async {
     try {
       if (idHocSinh <= 0) {
         developer.log(
@@ -476,25 +479,26 @@ class LichHocChungService {
       final db = await _database;
 
       // JOIN để lấy thông tin lịch học chung, có lọc theo lớp nếu được truyền vào
-      String sql = '''
+      String sql =
+          '''
         SELECT lhc.* 
         FROM $tenBangLHC lhc
         INNER JOIN $tenBangLHCN lhcn ON lhc.id = lhcn.id_lich_hoc_chung
         WHERE lhcn.id_hoc_sinh = ?
       ''';
       List<dynamic> args = [idHocSinh];
-      
+
       if (idLop != null) {
         sql += ' AND lhc.id_lop = ?';
         args.add(idLop);
       }
-      
+
       sql += ' ORDER BY lhc.ngay_trong_tuan ASC, lhc.gio_bat_dau ASC';
 
       final List<Map<String, dynamic>> maps = await db.rawQuery(sql, args);
 
       developer.log(
-        '✅ Đọc thành công ${maps.length} lịch học cá nhân của học sinh ID: $idHocSinh' + (idLop != null ? ' tại lớp ID: $idLop' : ''),
+        '✅ Đọc thành công ${maps.length} lịch học cá nhân của học sinh ID: $idHocSinh${idLop != null ? ' tại lớp ID: $idLop' : ''}',
         name: 'LichHocChungService.layLichHocCaNhanCuaHocSinh',
       );
 
@@ -617,6 +621,10 @@ class LichHocChungService {
     String thang, { // YYYY-MM
     DateTime? ngayThamGia, // Thêm ngày tham gia để lọc
     int? idLop, // Thêm idLop để lọc theo lớp
+    DateTime? ngayTamNgung,
+    DateTime? ngayHocLai,
+    DateTime? ngayNghiHoc,
+    DateTime? ngayHocLaiSauNghi,
   }) async {
     try {
       // 1. Lấy tất cả lịch học cá nhân của học sinh trong lớp này
@@ -630,6 +638,23 @@ class LichHocChungService {
       final int nam = int.parse(thang.substring(0, 4));
       final int month = int.parse(thang.substring(5));
       final int daysInMonth = DateTime(nam, month + 1, 0).day;
+
+      // Chuẩn hóa ngày chỉ lấy năm, tháng, ngày (bỏ giờ phút giây) để so sánh chính xác
+      final joiningDateOnly = ngayThamGia != null
+          ? DateTime(ngayThamGia.year, ngayThamGia.month, ngayThamGia.day)
+          : null;
+      final pauseDateOnly = ngayTamNgung != null
+          ? DateTime(ngayTamNgung.year, ngayTamNgung.month, ngayTamNgung.day)
+          : null;
+      final resumeDateOnly = ngayHocLai != null
+          ? DateTime(ngayHocLai.year, ngayHocLai.month, ngayHocLai.day)
+          : null;
+      final leaveDateOnly = ngayNghiHoc != null
+          ? DateTime(ngayNghiHoc.year, ngayNghiHoc.month, ngayNghiHoc.day)
+          : null;
+      final resumeAfterLeaveOnly = ngayHocLaiSauNghi != null
+          ? DateTime(ngayHocLaiSauNghi.year, ngayHocLaiSauNghi.month, ngayHocLaiSauNghi.day)
+          : null;
 
       // Map 'Thứ Hai' -> 1, 'Thứ Ba' -> 2, ..., 'Chủ Nhật' -> 7
       final Map<String, int> weekdayMap = {
@@ -653,10 +678,22 @@ class LichHocChungService {
         final currentDate = DateTime(nam, month, day);
         // Chỉ đếm nếu ngày hiện tại lớn hơn hoặc bằng ngày tham gia
         final bool afterJoiningDate =
-            ngayThamGia == null ||
-            currentDate.isAtSameMomentAs(ngayThamGia) ||
-            currentDate.isAfter(ngayThamGia);
-        if (lichHocWeekdays.contains(currentDate.weekday) && afterJoiningDate) {
+            joiningDateOnly == null ||
+            currentDate.isAtSameMomentAs(joiningDateOnly) ||
+            currentDate.isAfter(joiningDateOnly);
+        final bool inPausedPeriod =
+            pauseDateOnly != null &&
+            !currentDate.isBefore(pauseDateOnly) &&
+            (resumeDateOnly == null || currentDate.isBefore(resumeDateOnly));
+        final bool outsideLeavePeriod =
+            leaveDateOnly == null ||
+            currentDate.isBefore(leaveDateOnly) ||
+            (resumeAfterLeaveOnly != null &&
+                !currentDate.isBefore(resumeAfterLeaveOnly));
+        if (lichHocWeekdays.contains(currentDate.weekday) &&
+            afterJoiningDate &&
+            !inPausedPeriod &&
+            outsideLeavePeriod) {
           soBuoiHoc++;
         }
       }

@@ -39,7 +39,7 @@ class AppThemes {
     scaffoldBackgroundColor: AppColors.darkBackground,
     primaryColor: AppColors.darkAccent,
     cardColor: AppColors.darkCard,
-    dividerColor: AppColors.darkSecondaryText.withOpacity(0.2),
+    dividerColor: AppColors.darkSecondaryText.withValues(alpha: 0.2),
     hintColor: AppColors.darkSecondaryText,
     appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.darkCard,
@@ -67,11 +67,9 @@ class AppThemes {
     colorScheme: const ColorScheme.dark(
       primary: AppColors.darkAccent,
       secondary: AppColors.darkAccent,
-      background: AppColors.darkBackground,
       surface: AppColors.darkCard,
       onPrimary: AppColors.darkBackground,
       onSecondary: AppColors.darkBackground,
-      onBackground: AppColors.darkPrimaryText,
       onSurface: AppColors.darkPrimaryText,
       error: AppColors.darkError,
       onError: AppColors.darkPrimaryText,
@@ -112,7 +110,6 @@ class AppThemes {
     colorScheme: const ColorScheme.light(
       primary: AppColors.lightAccent,
       secondary: AppColors.lightAccent,
-      background: AppColors.lightBackground,
       surface: AppColors.lightCard,
       error: AppColors.lightError,
     ),

@@ -22,6 +22,7 @@ import '../services/lich_hoc_chung_service.dart';
 import '../services/lop_hoc_sinh_service.dart';
 import '../services/report_service.dart';
 import '../services/danh_gia_buoi_hoc_service.dart';
+import '../services/tuition_event_service.dart';
 import '../utils/db.dart';
 import '../models/hoc_phi_tong_hop.dart';
 import '../widgets/thu_tien_hoc_phi_dialog.dart';
@@ -73,6 +74,19 @@ class _HSDetailState extends ConsumerState<HSDetail> {
     _currentHocSinh = widget.hocSinh;
     _taiDanhSachTruong();
     _lamMoiDuLieuLop();
+    TuitionEventService().addListener(_onTuitionEventChanged);
+  }
+
+  void _onTuitionEventChanged() {
+    if (mounted) {
+      _lamMoiDuLieuLop();
+    }
+  }
+
+  @override
+  void dispose() {
+    TuitionEventService().removeListener(_onTuitionEventChanged);
+    super.dispose();
   }
 
   void _lamMoiDuLieuLop() {
@@ -223,6 +237,7 @@ class _HSDetailState extends ConsumerState<HSDetail> {
     int coMat = 0;
     int nghiCoPhep = 0;
     int nghiKhongPhep = 0;
+    int hocBu = 0;
 
     for (var row in results) {
       final trangThai = row['trang_thai'] as String;
@@ -233,12 +248,15 @@ class _HSDetailState extends ConsumerState<HSDetail> {
         nghiCoPhep = count;
       } else if (trangThai == 'Nghỉ không phép') {
         nghiKhongPhep = count;
+      } else if (trangThai == 'Học bù') {
+        hocBu = count;
       }
     }
     return {
       'coMat': coMat,
       'nghiCoPhep': nghiCoPhep,
       'nghiKhongPhep': nghiKhongPhep,
+      'hocBu': hocBu,
     };
   }
 
@@ -341,6 +359,23 @@ class _HSDetailState extends ConsumerState<HSDetail> {
                       Icons.card_membership,
                       isVi ? 'Miễn giảm' : 'Discount',
                       isVi ? '${hs.mienGiam ?? 0}% mức thu' : '${hs.mienGiam ?? 0}% rate',
+                    ),
+                    _buildInfoTile(
+                      Icons.history_toggle_off,
+                      isVi ? 'Buổi dư tích lũy' : 'Remaining sessions',
+                      '${hs.soBuoiDu} ${isVi ? "buổi" : "sessions"}',
+                    ),
+                    _buildInfoTile(
+                      Icons.wb_sunny_outlined,
+                      isVi ? 'Ca học trường' : 'School Session',
+                      isVi ? 'Học ${hs.caHocTruong} ở trường' : '${hs.caHocTruong} Session',
+                    ),
+                    _buildInfoTile(
+                      Icons.event_busy_outlined,
+                      isVi ? 'Lịch cấn môn khác' : 'Conflicting Subjects',
+                      hs.lichCanMonKhac != null && hs.lichCanMonKhac!.isNotEmpty
+                          ? hs.lichCanMonKhac!
+                          : (isVi ? 'Không cấn lịch' : 'None'),
                     ),
                   ],
                 ),

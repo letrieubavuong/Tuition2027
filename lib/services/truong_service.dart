@@ -13,9 +13,9 @@ class TruongService {
   Future<Truong> taoTruong(Truong truong) async {
     final db = await dbHelper.database;
     final id = await db.insert(
-        tenBang,
-        truong.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.ignore
+      tenBang,
+      truong.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.ignore,
     );
     // Trả về đối tượng Truong với ID mới được gán
     return truong.copyWith(id: id);

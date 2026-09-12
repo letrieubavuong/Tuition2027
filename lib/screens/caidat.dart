@@ -24,7 +24,6 @@ import 'pin_lock_screen.dart';
 import '../services/bank_notification_service.dart';
 import '../utils/toast_helper.dart';
 
-
 // --- Riverpod Providers ---
 
 // 1. Provider cho các services
@@ -194,17 +193,29 @@ class _CaiDatState extends ConsumerState<CaiDat> {
     await caiDatService.capNhatCaiDat('account_no', accountNo);
     await caiDatService.capNhatCaiDat('account_name', accountName);
     await caiDatService.capNhatCaiDat('reminder_minutes', _reminderMinutes);
-    await caiDatService.capNhatCaiDat('app_pin_enabled', _pinEnabled ? 'true' : 'false');
-    await caiDatService.capNhatCaiDat('auto_approve_payment', _autoApprovePayment ? '1' : '0');
-    await caiDatService.capNhatCaiDat('google_sheets_web_app_url', _googleSheetsUrlController.text.trim());
-    
+    await caiDatService.capNhatCaiDat(
+      'app_pin_enabled',
+      _pinEnabled ? 'true' : 'false',
+    );
+    await caiDatService.capNhatCaiDat(
+      'auto_approve_payment',
+      _autoApprovePayment ? '1' : '0',
+    );
+    await caiDatService.capNhatCaiDat(
+      'google_sheets_web_app_url',
+      _googleSheetsUrlController.text.trim(),
+    );
+
     // Đồng bộ lại toàn bộ thông báo với thời gian mới
     await NotificationService.instance.syncAllClassReminders();
     // Đồng bộ lại Widget mã QR ngân hàng
     await WidgetSyncService.syncBankQRWidget();
 
     if (mounted) {
-      ToastHelper.showSuccess(context, AppLocalizations.of(context)!.saveSettingsSuccess);
+      ToastHelper.showSuccess(
+        context,
+        AppLocalizations.of(context)!.saveSettingsSuccess,
+      );
     }
     // Vô hiệu hóa provider để tải lại dữ liệu mới
     ref.invalidate(settingsProvider);
@@ -299,7 +310,10 @@ class _CaiDatState extends ConsumerState<CaiDat> {
     await ref.read(truongServiceProvider).xoaTruong(id);
     ref.invalidate(settingsProvider);
     if (!mounted) return; // SỬA: Thêm kiểm tra mounted
-    ToastHelper.showSuccess(context, AppLocalizations.of(context)!.deleteSchoolSuccess);
+    ToastHelper.showSuccess(
+      context,
+      AppLocalizations.of(context)!.deleteSchoolSuccess,
+    );
   }
 
   Future<void> _backupDatabase() async {
@@ -307,34 +321,50 @@ class _CaiDatState extends ConsumerState<CaiDat> {
     var status = await Permission.manageExternalStorage.request();
     if (!mounted) return;
     if (!status.isGranted) {
-      ToastHelper.showWarning(context, loc.locale.languageCode == 'vi' ? 'Không được cấp quyền truy cập bộ nhớ.' : 'Storage permission denied.');
+      ToastHelper.showWarning(
+        context,
+        loc.locale.languageCode == 'vi'
+            ? 'Không được cấp quyền truy cập bộ nhớ.'
+            : 'Storage permission denied.',
+      );
       return;
     }
 
     try {
-      await DBHelper.instance.close(); 
+      await DBHelper.instance.close();
       final dbPath = await getDatabasesPath();
-      final sourcePath = p.join(dbPath, 'quan_ly_hs.db'); 
+      final sourcePath = p.join(dbPath, 'quan_ly_hs.db');
       final sourceFile = File(sourcePath);
 
       if (!await sourceFile.exists()) {
         if (!mounted) return;
-        ToastHelper.showError(context, loc.locale.languageCode == 'vi' ? 'Lỗi: Không tìm thấy file database.' : 'Error: Database file not found.');
+        ToastHelper.showError(
+          context,
+          loc.locale.languageCode == 'vi'
+              ? 'Lỗi: Không tìm thấy file database.'
+              : 'Error: Database file not found.',
+        );
         return;
       }
 
       final downloadsDir = '/storage/emulated/0/Download';
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
       final backupFileName = 'quan_ly_hs_backup_$timestamp.db';
-      final backupPath = p.join(downloadsDir, backupFileName); 
+      final backupPath = p.join(downloadsDir, backupFileName);
 
       await sourceFile.copy(backupPath);
       if (!mounted) return;
 
-      ToastHelper.showSuccess(context, AppLocalizations.of(context)!.backupSuccess(backupPath));
+      ToastHelper.showSuccess(
+        context,
+        AppLocalizations.of(context)!.backupSuccess(backupPath),
+      );
     } catch (e) {
       if (!mounted) return;
-      ToastHelper.showError(context, AppLocalizations.of(context)!.backupError(e.toString()));
+      ToastHelper.showError(
+        context,
+        AppLocalizations.of(context)!.backupError(e.toString()),
+      );
     } finally {
       await DBHelper.instance.database;
     }
@@ -345,13 +375,16 @@ class _CaiDatState extends ConsumerState<CaiDat> {
     var status = await Permission.manageExternalStorage.request();
     if (!mounted) return;
     if (!status.isGranted) {
-      ToastHelper.showWarning(context, loc.locale.languageCode == 'vi' ? 'Không được cấp quyền truy cập bộ nhớ.' : 'Storage permission denied.');
+      ToastHelper.showWarning(
+        context,
+        loc.locale.languageCode == 'vi'
+            ? 'Không được cấp quyền truy cập bộ nhớ.'
+            : 'Storage permission denied.',
+      );
       return;
     }
 
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.any,
-    );
+    FilePickerResult? result = await FilePicker.pickFiles(type: FileType.any);
 
     if (!mounted) return;
     if (result != null && result.files.single.path != null) {
@@ -396,7 +429,7 @@ class _CaiDatState extends ConsumerState<CaiDat> {
       try {
         await DBHelper.instance.close();
         final dbPath = await getDatabasesPath();
-        final originalDbPath = p.join(dbPath, 'quan_ly_hs.db'); 
+        final originalDbPath = p.join(dbPath, 'quan_ly_hs.db');
 
         if (!mounted) return;
         await backupFile.copy(originalDbPath);
@@ -419,8 +452,11 @@ class _CaiDatState extends ConsumerState<CaiDat> {
         );
       } catch (e) {
         if (!mounted) return;
-        ToastHelper.showError(context, AppLocalizations.of(context)!.restoreError(e.toString()));
-        await DBHelper.instance.database; 
+        ToastHelper.showError(
+          context,
+          AppLocalizations.of(context)!.restoreError(e.toString()),
+        );
+        await DBHelper.instance.database;
       }
     }
   }
@@ -444,10 +480,12 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  isVi ? 'Sao lưu / Khôi phục Google Sheets' : 'Google Sheets Backup / Restore',
+                  isVi
+                      ? 'Sao lưu / Khôi phục Google Sheets'
+                      : 'Google Sheets Backup / Restore',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
@@ -501,7 +539,11 @@ class _CaiDatState extends ConsumerState<CaiDat> {
               child: TextButton.icon(
                 onPressed: _showGoogleSheetsInstructions,
                 icon: const Icon(Icons.help_outline),
-                label: Text(isVi ? 'Hướng dẫn cài đặt Apps Script' : 'Apps Script Setup Guide'),
+                label: Text(
+                  isVi
+                      ? 'Hướng dẫn cài đặt Apps Script'
+                      : 'Apps Script Setup Guide',
+                ),
               ),
             ),
           ],
@@ -515,7 +557,12 @@ class _CaiDatState extends ConsumerState<CaiDat> {
     final url = _googleSheetsUrlController.text.trim();
 
     if (url.isEmpty) {
-      ToastHelper.showWarning(context, isVi ? 'Vui lòng cấu hình và lưu Web App URL trước.' : 'Please configure and save Web App URL first.');
+      ToastHelper.showWarning(
+        context,
+        isVi
+            ? 'Vui lòng cấu hình và lưu Web App URL trước.'
+            : 'Please configure and save Web App URL first.',
+      );
       return;
     }
 
@@ -525,14 +572,26 @@ class _CaiDatState extends ConsumerState<CaiDat> {
       builder: (ctx) => const Center(child: CircularProgressIndicator()),
     );
 
-    final success = await GoogleSheetsService.instance.backupToGoogleSheets(url);
+    final success = await GoogleSheetsService.instance.backupToGoogleSheets(
+      url,
+    );
 
     if (mounted) {
       Navigator.of(context).pop();
       if (success) {
-        ToastHelper.showSuccess(context, isVi ? 'Sao lưu dữ liệu lên Google Sheets thành công!' : 'Google Sheets backup successful!');
+        ToastHelper.showSuccess(
+          context,
+          isVi
+              ? 'Sao lưu dữ liệu lên Google Sheets thành công!'
+              : 'Google Sheets backup successful!',
+        );
       } else {
-        ToastHelper.showError(context, isVi ? 'Sao lưu thất bại. Vui lòng kiểm tra lại URL.' : 'Backup failed. Please check your URL.');
+        ToastHelper.showError(
+          context,
+          isVi
+              ? 'Sao lưu thất bại. Vui lòng kiểm tra lại URL.'
+              : 'Backup failed. Please check your URL.',
+        );
       }
     }
   }
@@ -543,36 +602,43 @@ class _CaiDatState extends ConsumerState<CaiDat> {
     final url = _googleSheetsUrlController.text.trim();
 
     if (url.isEmpty) {
-      ToastHelper.showWarning(context, isVi ? 'Vui lòng cấu hình Web App URL trước.' : 'Please configure Web App URL first.');
+      ToastHelper.showWarning(
+        context,
+        isVi
+            ? 'Vui lòng cấu hình Web App URL trước.'
+            : 'Please configure Web App URL first.',
+      );
       return;
     }
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(ctx).cardColor,
-        title: Text(isVi ? 'Xác nhận khôi phục' : 'Confirm Restore'),
-        content: Text(
-          isVi
-              ? 'Dữ liệu hiện tại trên thiết bị sẽ bị ghi đè hoàn toàn bằng dữ liệu từ Google Sheets. Bạn có chắc chắn muốn tiếp tục?'
-              : 'Current local data will be completely overwritten by data from Google Sheets. Are you sure you want to continue?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(loc.get('cancel')!),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              foregroundColor: Colors.white,
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Theme.of(ctx).cardColor,
+            title: Text(isVi ? 'Xác nhận khôi phục' : 'Confirm Restore'),
+            content: Text(
+              isVi
+                  ? 'Dữ liệu hiện tại trên thiết bị sẽ bị ghi đè hoàn toàn bằng dữ liệu từ Google Sheets. Bạn có chắc chắn muốn tiếp tục?'
+                  : 'Current local data will be completely overwritten by data from Google Sheets. Are you sure you want to continue?',
             ),
-            child: Text(loc.get('restoreData')!),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(loc.get('cancel')!),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(loc.get('restoreData')!),
+              ),
+            ],
           ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
 
     if (!confirmed || !mounted) return;
 
@@ -582,7 +648,9 @@ class _CaiDatState extends ConsumerState<CaiDat> {
       builder: (ctx) => const Center(child: CircularProgressIndicator()),
     );
 
-    final success = await GoogleSheetsService.instance.restoreFromGoogleSheets(url);
+    final success = await GoogleSheetsService.instance.restoreFromGoogleSheets(
+      url,
+    );
 
     if (mounted) {
       Navigator.pop(context);
@@ -595,10 +663,7 @@ class _CaiDatState extends ConsumerState<CaiDat> {
             title: Text(loc.restoreSuccessTitle),
             content: Text(loc.restoreSuccessContent),
             actions: [
-              TextButton(
-                onPressed: () => exit(0),
-                child: Text(loc.restart),
-              ),
+              TextButton(onPressed: () => exit(0), child: Text(loc.restart)),
             ],
           ),
         );
@@ -615,33 +680,39 @@ class _CaiDatState extends ConsumerState<CaiDat> {
 
   Future<void> _tinhLaiSoBuoiDu() async {
     final isVi = AppLocalizations.of(context)!.locale.languageCode == 'vi';
-    
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(ctx).cardColor,
-        title: Text(isVi ? 'Tính toán lại số buổi dư' : 'Recalculate remaining sessions'),
-        content: Text(
-          isVi
-              ? 'Ứng dụng sẽ tự động đặt lại và tính toán lại chính xác số buổi dư của tất cả học sinh theo dòng lịch sử điểm danh và thanh toán. Bạn có muốn tiếp tục?'
-              : 'The app will reset and recalculate all students\' remaining sessions chronologically from attendance and payment history. Do you want to proceed?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(AppLocalizations.of(ctx)!.get('cancel')!),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+
+    final confirm =
+        await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Theme.of(ctx).cardColor,
+            title: Text(
+              isVi
+                  ? 'Tính toán lại số buổi dư'
+                  : 'Recalculate remaining sessions',
             ),
-            child: Text(isVi ? 'Đồng ý' : 'Confirm'),
+            content: Text(
+              isVi
+                  ? 'Ứng dụng sẽ tự động đặt lại và tính toán lại chính xác số buổi dư của tất cả học sinh theo dòng lịch sử điểm danh và thanh toán. Bạn có muốn tiếp tục?'
+                  : 'The app will reset and recalculate all students\' remaining sessions chronologically from attendance and payment history. Do you want to proceed?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(AppLocalizations.of(ctx)!.get('cancel')!),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                ),
+                child: Text(isVi ? 'Đồng ý' : 'Confirm'),
+              ),
+            ],
           ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
 
     if (!confirm || !mounted) return;
 
@@ -654,12 +725,14 @@ class _CaiDatState extends ConsumerState<CaiDat> {
     try {
       final reportService = ReportService();
       await reportService.recalculateAllStudentsRemainingSessions();
-      
+
       if (mounted) {
         Navigator.pop(context); // Close loading dialog
         ToastHelper.showSuccess(
           context,
-          isVi ? 'Tính toán lại số buổi dư thành công!' : 'Recalculated remaining sessions successfully!',
+          isVi
+              ? 'Tính toán lại số buổi dư thành công!'
+              : 'Recalculated remaining sessions successfully!',
         );
         ref.invalidate(settingsProvider);
       }
@@ -680,7 +753,9 @@ class _CaiDatState extends ConsumerState<CaiDat> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Theme.of(ctx).cardColor,
-        title: Text(isVi ? 'Hướng dẫn thiết lập Apps Script' : 'Apps Script Setup Guide'),
+        title: Text(
+          isVi ? 'Hướng dẫn thiết lập Apps Script' : 'Apps Script Setup Guide',
+        ),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -688,19 +763,19 @@ class _CaiDatState extends ConsumerState<CaiDat> {
               Text(
                 isVi
                     ? '1. Tạo một bảng tính Google Sheets mới trên Google Drive của bạn.\n'
-                      '2. Vào Tiện ích mở rộng -> Apps Script.\n'
-                      '3. Xóa hết code cũ và dán đoạn code dưới đây vào.\n'
-                      '4. Nhấp vào nút Lưu và sau đó nhấp vào Triển khai -> Triển khai mới.\n'
-                      '5. Chọn loại là "Ứng dụng web" (Web App).\n'
-                      '6. Tại phần "Ai có quyền truy cập", chọn "Bất kỳ ai" (Anyone).\n'
-                      '7. Nhấn Triển khai, cấp quyền nếu Google hỏi và sao chép đường dẫn Web App URL thu được dán vào ô bên dưới.'
+                          '2. Vào Tiện ích mở rộng -> Apps Script.\n'
+                          '3. Xóa hết code cũ và dán đoạn code dưới đây vào.\n'
+                          '4. Nhấp vào nút Lưu và sau đó nhấp vào Triển khai -> Triển khai mới.\n'
+                          '5. Chọn loại là "Ứng dụng web" (Web App).\n'
+                          '6. Tại phần "Ai có quyền truy cập", chọn "Bất kỳ ai" (Anyone).\n'
+                          '7. Nhấn Triển khai, cấp quyền nếu Google hỏi và sao chép đường dẫn Web App URL thu được dán vào ô bên dưới.'
                     : '1. Create a new Google Sheets on Google Drive.\n'
-                      '2. Go to Extensions -> Apps Script.\n'
-                      '3. Delete old code and paste the code snippet below.\n'
-                      '4. Click Save, then click Deploy -> New deployment.\n'
-                      '5. Select type as "Web App".\n'
-                      '6. Under "Who has access", select "Anyone".\n'
-                      '7. Click Deploy, authorize permissions, and copy the Web App URL into the App.',
+                          '2. Go to Extensions -> Apps Script.\n'
+                          '3. Delete old code and paste the code snippet below.\n'
+                          '4. Click Save, then click Deploy -> New deployment.\n'
+                          '5. Select type as "Web App".\n'
+                          '6. Under "Who has access", select "Anyone".\n'
+                          '7. Click Deploy, authorize permissions, and copy the Web App URL into the App.',
                 style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 12),
@@ -906,63 +981,182 @@ class _CaiDatState extends ConsumerState<CaiDat> {
               Card(
                 color: Theme.of(context).cardColor,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          loc.locale.languageCode == 'vi' ? 'Thông báo nhắc ca học' : 'Class reminders',
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                      ),
-                      DropdownButton<String>(
-                        value: _reminderMinutes,
-                        dropdownColor: Theme.of(context).cardColor,
-                        onChanged: (String? newValue) async {
-                          if (newValue != null) {
-                            if (newValue != 'off') {
-                              final granted = await NotificationService.instance.requestPermissions();
-                              if (!granted && mounted) {
-                                ToastHelper.showWarning(
-                                  context,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.alarm_on,
+                                  color: Theme.of(context).primaryColor,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
                                   loc.locale.languageCode == 'vi'
-                                      ? 'Vui lòng cấp quyền thông báo trong cài đặt máy'
-                                      : 'Please enable notifications in device settings',
-                                );
+                                      ? 'Thông báo nhắc ca học'
+                                      : 'Class reminders',
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          DropdownButton<String>(
+                            value: _reminderMinutes,
+                            dropdownColor: Theme.of(context).cardColor,
+                            onChanged: (String? newValue) async {
+                              if (newValue != null) {
+                                if (newValue != 'off') {
+                                  final granted = await NotificationService.instance
+                                      .requestPermissions();
+                                  if (!context.mounted) return;
+                                  if (!granted) {
+                                    ToastHelper.showWarning(
+                                      context,
+                                      loc.locale.languageCode == 'vi'
+                                          ? 'Vui lòng cấp quyền thông báo trong cài đặt máy'
+                                          : 'Please enable notifications in device settings',
+                                    );
+                                  }
+                                }
+                                setState(() {
+                                  _reminderMinutes = newValue;
+                                });
                               }
-                            }
-                            setState(() {
-                              _reminderMinutes = newValue;
-                            });
-                          }
-                        },
-                        items: [
-                          DropdownMenuItem(
-                            value: 'off',
-                            child: Text(loc.locale.languageCode == 'vi' ? 'Tắt thông báo' : 'Disable notifications'),
-                          ),
-                          DropdownMenuItem(
-                            value: '5',
-                            child: Text(loc.locale.languageCode == 'vi' ? 'Báo trước 5 phút' : '5 minutes before'),
-                          ),
-                          DropdownMenuItem(
-                            value: '10',
-                            child: Text(loc.locale.languageCode == 'vi' ? 'Báo trước 10 phút' : '10 minutes before'),
-                          ),
-                          DropdownMenuItem(
-                            value: '15',
-                            child: Text(loc.locale.languageCode == 'vi' ? 'Báo trước 15 phút' : '15 minutes before'),
-                          ),
-                          DropdownMenuItem(
-                            value: '30',
-                            child: Text(loc.locale.languageCode == 'vi' ? 'Báo trước 30 phút' : '30 minutes before'),
+                            },
+                            items: [
+                              DropdownMenuItem(
+                                value: 'off',
+                                child: Text(
+                                  loc.locale.languageCode == 'vi'
+                                      ? 'Tắt thông báo'
+                                      : 'Disable notifications',
+                                ),
+                              ),
+                              DropdownMenuItem(
+                                value: '5',
+                                child: Text(
+                                  loc.locale.languageCode == 'vi'
+                                      ? 'Báo trước 5 phút'
+                                      : '5 minutes before',
+                                ),
+                              ),
+                              DropdownMenuItem(
+                                value: '10',
+                                child: Text(
+                                  loc.locale.languageCode == 'vi'
+                                      ? 'Báo trước 10 phút'
+                                      : '10 minutes before',
+                                ),
+                              ),
+                              DropdownMenuItem(
+                                value: '15',
+                                child: Text(
+                                  loc.locale.languageCode == 'vi'
+                                      ? 'Báo trước 15 phút'
+                                      : '15 minutes before',
+                                ),
+                              ),
+                              DropdownMenuItem(
+                                value: '30',
+                                child: Text(
+                                  loc.locale.languageCode == 'vi'
+                                      ? 'Báo trước 30 phút'
+                                      : '30 minutes before',
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
+                      if (_reminderMinutes != 'off') ...[
+                        const Divider(height: 20),
+                        Text(
+                          loc.locale.languageCode == 'vi'
+                              ? 'Tối ưu hóa cho máy thật (Android 12+):'
+                              : 'Real Device Optimization (Android 12+):',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).hintColor,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                await NotificationService.instance.openExactAlarmSettings();
+                              },
+                              icon: const Icon(Icons.access_alarm, size: 16),
+                              label: Text(
+                                loc.locale.languageCode == 'vi'
+                                    ? 'Cấp quyền báo thức chính xác'
+                                    : 'Exact Alarm Permission',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                final status = await Permission.ignoreBatteryOptimizations.request();
+                                if (!context.mounted) return;
+                                if (status.isGranted) {
+                                  ToastHelper.showSuccess(
+                                    context,
+                                    loc.locale.languageCode == 'vi'
+                                        ? 'Đã tắt tối ưu hóa pin cho ứng dụng'
+                                        : 'Battery optimization disabled',
+                                  );
+                                } else {
+                                  ToastHelper.showWarning(
+                                    context,
+                                    loc.locale.languageCode == 'vi'
+                                        ? 'Chưa tắt tối ưu pin. Vui lòng chọn Không tối ưu hóa trong cài đặt'
+                                        : 'Please set battery to unrestricted in device settings',
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.battery_saver, size: 16),
+                              label: Text(
+                                loc.locale.languageCode == 'vi'
+                                    ? 'Tắt tối ưu hóa pin'
+                                    : 'Disable Battery Optimization',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              onPressed: () async {
+                                await NotificationService.instance.scheduleTestNotification(10);
+                                if (!context.mounted) return;
+                                ToastHelper.showSuccess(
+                                  context,
+                                  loc.locale.languageCode == 'vi'
+                                      ? 'Đã hẹn reo chuông sau 10 giây! Bạn có thể tắt/khóa màn hình để thử.'
+                                      : 'Test alarm scheduled in 10s! You can turn off screen to test.',
+                                );
+                              },
+                              icon: const Icon(Icons.play_circle_fill, size: 16),
+                              label: Text(
+                                loc.locale.languageCode == 'vi'
+                                    ? 'Thử reo chuông (10 giây)'
+                                    : 'Test Alarm (10s)',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context).primaryColor,
+                                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -975,7 +1169,9 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                   children: [
                     SwitchListTile(
                       title: Text(
-                        loc.locale.languageCode == 'vi' ? 'Khóa ứng dụng bằng PIN' : 'App PIN Lock',
+                        loc.locale.languageCode == 'vi'
+                            ? 'Khóa ứng dụng bằng PIN'
+                            : 'App PIN Lock',
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
                       value: _pinEnabled,
@@ -986,7 +1182,8 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                           final success = await Navigator.push<bool>(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const PinLockScreen(isConfiguring: true),
+                              builder: (_) =>
+                                  const PinLockScreen(isConfiguring: true),
                             ),
                           );
                           if (success == true) {
@@ -997,8 +1194,14 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                           }
                         } else {
                           // Tắt PIN và tắt vân tay luôn
-                          await caiDatService.capNhatCaiDat('app_pin_enabled', 'false');
-                          await caiDatService.capNhatCaiDat('app_biometric_enabled', 'false');
+                          await caiDatService.capNhatCaiDat(
+                            'app_pin_enabled',
+                            'false',
+                          );
+                          await caiDatService.capNhatCaiDat(
+                            'app_biometric_enabled',
+                            'false',
+                          );
                           setState(() {
                             _pinEnabled = false;
                             _biometricEnabled = false;
@@ -1025,10 +1228,14 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                         onChanged: (bool value) async {
                           final caiDatService = ref.read(caiDatServiceProvider);
                           if (value) {
-                            final LocalAuthentication auth = LocalAuthentication();
+                            final LocalAuthentication auth =
+                                LocalAuthentication();
                             try {
-                              final bool canAuthenticateWithBiometrics = await auth.canCheckBiometrics;
-                              final bool canAuthenticate = canAuthenticateWithBiometrics || await auth.isDeviceSupported();
+                              final bool canAuthenticateWithBiometrics =
+                                  await auth.canCheckBiometrics;
+                              final bool canAuthenticate =
+                                  canAuthenticateWithBiometrics ||
+                                  await auth.isDeviceSupported();
                               if (!canAuthenticate) {
                                 if (context.mounted) {
                                   ToastHelper.showError(
@@ -1040,7 +1247,8 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                                 }
                                 return;
                               }
-                              final List<BiometricType> availableBiometrics = await auth.getAvailableBiometrics();
+                              final List<BiometricType> availableBiometrics =
+                                  await auth.getAvailableBiometrics();
                               if (availableBiometrics.isEmpty) {
                                 if (context.mounted) {
                                   ToastHelper.showError(
@@ -1053,7 +1261,8 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                                 return;
                               }
 
-                              final bool didAuthenticate = await auth.authenticate(
+                              final bool
+                              didAuthenticate = await auth.authenticate(
                                 localizedReason: loc.locale.languageCode == 'vi'
                                     ? 'Xác thực vân tay/khuôn mặt để kích hoạt mở khóa'
                                     : 'Authenticate to enable biometric unlock',
@@ -1064,7 +1273,10 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                               );
 
                               if (didAuthenticate) {
-                                await caiDatService.capNhatCaiDat('app_biometric_enabled', 'true');
+                                await caiDatService.capNhatCaiDat(
+                                  'app_biometric_enabled',
+                                  'true',
+                                );
                                 setState(() {
                                   _biometricEnabled = true;
                                 });
@@ -1080,11 +1292,17 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                               }
                             } catch (e) {
                               if (context.mounted) {
-                                ToastHelper.showError(context, 'Lỗi xác thực: $e');
+                                ToastHelper.showError(
+                                  context,
+                                  'Lỗi xác thực: $e',
+                                );
                               }
                             }
                           } else {
-                            await caiDatService.capNhatCaiDat('app_biometric_enabled', 'false');
+                            await caiDatService.capNhatCaiDat(
+                              'app_biometric_enabled',
+                              'false',
+                            );
                             setState(() {
                               _biometricEnabled = false;
                             });
@@ -1107,7 +1325,9 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                                 final success = await Navigator.push<bool>(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => const PinLockScreen(isConfiguring: true),
+                                    builder: (_) => const PinLockScreen(
+                                      isConfiguring: true,
+                                    ),
                                   ),
                                 );
                                 if (success == true) {
@@ -1116,7 +1336,9 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                               },
                               icon: const Icon(Icons.lock_reset, size: 18),
                               label: Text(
-                                loc.locale.languageCode == 'vi' ? 'Đổi mã PIN' : 'Change PIN',
+                                loc.locale.languageCode == 'vi'
+                                    ? 'Đổi mã PIN'
+                                    : 'Change PIN',
                                 style: const TextStyle(fontSize: 13),
                               ),
                             ),
@@ -1131,83 +1353,147 @@ class _CaiDatState extends ConsumerState<CaiDat> {
               // Cài đặt đọc thông báo biến động số dư Sacombank
               Card(
                 color: Theme.of(context).cardColor,
-                child: SwitchListTile(
-                  title: Text(
-                    loc.locale.languageCode == 'vi'
-                        ? 'Duyệt học phí qua thông báo ngân hàng'
-                        : 'Auto-approve via bank notification',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  subtitle: Text(
-                    loc.locale.languageCode == 'vi'
-                        ? 'Tự động quét thông báo từ Sacombank để cập nhật trạng thái đóng học phí'
-                        : 'Automatically scan notifications from Sacombank to update payment status',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      title: Text(
+                        loc.locale.languageCode == 'vi'
+                            ? 'Duyệt học phí qua thông báo ngân hàng'
+                            : 'Auto-approve via bank notification',
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                      subtitle: Text(
+                        loc.locale.languageCode == 'vi'
+                            ? 'Tự động quét biến động số dư từ tất cả ngân hàng (Sacombank, VCB, MB, Vietinbank, BIDV, Agribank, VPBank, MoMo...) để gạch nợ & phát thông báo tức thì'
+                            : 'Scan notifications from all banks (Sacombank, VCB, MB, Vietinbank, BIDV, MoMo...) to auto-update payment & push instant alerts',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).hintColor,
                           fontSize: 12,
                         ),
-                  ),
-                  value: _autoApprovePayment,
-                  onChanged: (bool value) async {
-                    if (value) {
-                      // Check permission first
-                      final permissionGranted = await BankNotificationService.instance.checkPermission();
-                      if (!permissionGranted) {
-                        // Ask user to grant permission
-                        if (mounted) {
-                          showDialog(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              backgroundColor: Theme.of(ctx).cardColor,
-                              title: Text(
-                                loc.locale.languageCode == 'vi'
-                                    ? 'Cần cấp quyền truy cập'
-                                    : 'Access Permission Required',
-                                style: Theme.of(ctx).textTheme.titleLarge,
-                              ),
-                              content: Text(
-                                loc.locale.languageCode == 'vi'
-                                    ? 'Ứng dụng cần quyền "Truy cập thông báo" (Notification Access) để tự động đọc biến động số dư từ app Sacombank.\n\n*Lưu ý (Android 13+): Nếu nút bật bị mờ (Cài đặt bị hạn chế), bạn hãy vào Cài đặt máy > Ứng dụng > Quản lý Học phí > Nhấn biểu tượng 3 chấm ở góc trên bên phải > Chọn "Cho phép cài đặt bị hạn chế" để mở khóa.'
-                                    : 'The app needs "Notification Access" permission to automatically read balance changes from Sacombank app.\n\n*Note (Android 13+): If the toggle is greyed out (Restricted settings), go to Device Settings > Apps > Quản lý Học phí > Tap the 3 dots in the top-right corner > Choose "Allow restricted settings" to unlock.',
-                                style: Theme.of(ctx).textTheme.bodyLarge,
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx),
-                                  child: Text(loc.get('cancel')!),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () async {
-                                    Navigator.pop(ctx);
-                                    await BankNotificationService.instance.openSettings();
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Theme.of(context).primaryColor,
-                                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                      value: _autoApprovePayment,
+                      onChanged: (bool value) async {
+                        if (value) {
+                          // Check permission first
+                          final permissionGranted = await BankNotificationService
+                              .instance
+                              .checkPermission();
+                          if (!context.mounted) return;
+                          if (!permissionGranted) {
+                            // Ask user to grant permission
+                            if (mounted) {
+                              showDialog(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  backgroundColor: Theme.of(ctx).cardColor,
+                                  title: Text(
+                                    loc.locale.languageCode == 'vi'
+                                        ? 'Cần cấp quyền truy cập'
+                                        : 'Access Permission Required',
+                                    style: Theme.of(ctx).textTheme.titleLarge,
                                   ),
-                                  child: Text(
-                                    loc.locale.languageCode == 'vi' ? 'Mở cài đặt' : 'Open Settings',
+                                  content: Text(
+                                    loc.locale.languageCode == 'vi'
+                                        ? 'Ứng dụng cần quyền "Truy cập thông báo" (Notification Access) để tự động đọc biến động số dư từ app ngân hàng (Sacombank, Vietcombank, MB, Techcombank, MoMo, v.v.).\n\n*Lưu ý (Android 13+): Nếu nút bật bị mờ (Cài đặt bị hạn chế), bạn hãy vào Cài đặt máy > Ứng dụng > Quản lý Học phí > Nhấn biểu tượng 3 chấm ở góc trên bên phải > Chọn "Cho phép cài đặt bị hạn chế" để mở khóa.'
+                                        : 'The app needs "Notification Access" permission to automatically read balance changes from banking apps.\n\n*Note (Android 13+): If the toggle is greyed out (Restricted settings), go to Device Settings > Apps > Quản lý Học phí > Tap 3 dots in top right > Choose "Allow restricted settings".',
+                                    style: Theme.of(ctx).textTheme.bodyLarge,
                                   ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx),
+                                      child: Text(loc.get('cancel')!),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: () async {
+                                        Navigator.pop(ctx);
+                                        await BankNotificationService.instance
+                                            .openSettings();
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Theme.of(
+                                          context,
+                                        ).primaryColor,
+                                        foregroundColor: Theme.of(
+                                          context,
+                                        ).colorScheme.onPrimary,
+                                      ),
+                                      child: Text(
+                                        loc.locale.languageCode == 'vi'
+                                            ? 'Mở cài đặt'
+                                            : 'Open Settings',
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          );
+                              );
+                            }
+                            return;
+                          }
                         }
-                        return;
-                      }
-                    }
-                    setState(() {
-                      _autoApprovePayment = value;
-                    });
-                    // Save setting immediately
-                    await ref.read(caiDatServiceProvider).capNhatCaiDat('auto_approve_payment', value ? '1' : '0');
-                    ref.invalidate(settingsProvider);
-                  },
-                  secondary: Icon(
-                    Icons.notifications_active_outlined,
-                    color: Theme.of(context).textTheme.bodyMedium?.color,
-                  ),
-                  activeThumbColor: Theme.of(context).primaryColor,
+                        setState(() {
+                          _autoApprovePayment = value;
+                        });
+                        // Save setting immediately
+                        await ref
+                            .read(caiDatServiceProvider)
+                            .capNhatCaiDat(
+                              'auto_approve_payment',
+                              value ? '1' : '0',
+                            );
+                        ref.invalidate(settingsProvider);
+                      },
+                      secondary: Icon(
+                        Icons.notifications_active_outlined,
+                        color: Theme.of(context).textTheme.bodyMedium?.color,
+                      ),
+                      activeThumbColor: Theme.of(context).primaryColor,
+                    ),
+
+                    if (_autoApprovePayment) ...[
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              loc.locale.languageCode == 'vi'
+                                  ? 'Thử nghiệm thông báo:'
+                                  : 'Test push alert:',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const Spacer(),
+                            TextButton.icon(
+                              onPressed: () async {
+                                await BankNotificationService.instance
+                                    .showTestNotification();
+                                if (context.mounted) {
+                                  ToastHelper.showSuccess(
+                                    context,
+                                    loc.locale.languageCode == 'vi'
+                                        ? 'Đã gửi thông báo thử nghiệm! Kiểm tra thanh thông báo thiết bị.'
+                                        : 'Test notification sent! Check device status bar.',
+                                  );
+                                }
+                              },
+                              icon: const Icon(
+                                Icons.notification_add_rounded,
+                                size: 18,
+                              ),
+                              label: Text(
+                                loc.locale.languageCode == 'vi'
+                                    ? 'Phát thông báo mẫu'
+                                    : 'Send Test Alert',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const Divider(height: 32),
@@ -1253,7 +1539,9 @@ class _CaiDatState extends ConsumerState<CaiDat> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 10.0),
                 child: Text(
-                  loc.locale.languageCode == 'vi' ? 'Thông tin Ngân hàng (Để tạo mã QR)' : 'Bank Information (For QR)',
+                  loc.locale.languageCode == 'vi'
+                      ? 'Thông tin Ngân hàng (Để tạo mã QR)'
+                      : 'Bank Information (For QR)',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -1262,7 +1550,9 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                 style: Theme.of(context).textTheme.bodyLarge,
                 decoration: _inputDecoration(
                   context,
-                  loc.locale.languageCode == 'vi' ? 'Mã Ngân hàng (VD: sacombank, vcb, acb)' : 'Bank Code (e.g. sacombank, vcb, acb)',
+                  loc.locale.languageCode == 'vi'
+                      ? 'Mã Ngân hàng (VD: sacombank, vcb, acb)'
+                      : 'Bank Code (e.g. sacombank, vcb, acb)',
                   Icons.account_balance,
                 ),
               ),
@@ -1273,7 +1563,9 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                 style: Theme.of(context).textTheme.bodyLarge,
                 decoration: _inputDecoration(
                   context,
-                  loc.locale.languageCode == 'vi' ? 'Số tài khoản' : 'Account number',
+                  loc.locale.languageCode == 'vi'
+                      ? 'Số tài khoản'
+                      : 'Account number',
                   Icons.numbers,
                 ),
               ),
@@ -1283,7 +1575,9 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                 style: Theme.of(context).textTheme.bodyLarge,
                 decoration: _inputDecoration(
                   context,
-                  loc.locale.languageCode == 'vi' ? 'Tên chủ tài khoản (KHÔNG DẤU)' : 'Account name (NO ACCENTS)',
+                  loc.locale.languageCode == 'vi'
+                      ? 'Tên chủ tài khoản (KHÔNG DẤU)'
+                      : 'Account name (NO ACCENTS)',
                   Icons.badge,
                 ),
               ),
@@ -1333,7 +1627,9 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                   context,
                 ).textTheme.bodyLarge, // SỬA: Lấy style từ theme
                 decoration: InputDecoration(
-                  labelText: loc.locale.languageCode == 'vi' ? 'Số buổi học chuẩn/tháng' : 'Standard sessions/month',
+                  labelText: loc.locale.languageCode == 'vi'
+                      ? 'Số buổi học chuẩn/tháng'
+                      : 'Standard sessions/month',
                   labelStyle: Theme.of(context).textTheme.bodyMedium,
                   border: const OutlineInputBorder(),
                   enabledBorder: const OutlineInputBorder(
@@ -1474,7 +1770,9 @@ class _CaiDatState extends ConsumerState<CaiDat> {
               Padding(
                 padding: const EdgeInsets.only(top: 8.0, bottom: 16.0),
                 child: Text(
-                  loc.locale.languageCode == 'vi' ? 'Quản lý dữ liệu' : 'Data Management',
+                  loc.locale.languageCode == 'vi'
+                      ? 'Quản lý dữ liệu'
+                      : 'Data Management',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
@@ -1484,7 +1782,9 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                     child: ElevatedButton.icon(
                       onPressed: _backupDatabase,
                       icon: const Icon(Icons.backup),
-                      label: Text(loc.locale.languageCode == 'vi' ? 'Sao lưu' : 'Backup'),
+                      label: Text(
+                        loc.locale.languageCode == 'vi' ? 'Sao lưu' : 'Backup',
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueGrey,
                         foregroundColor: Colors.white,
@@ -1496,7 +1796,11 @@ class _CaiDatState extends ConsumerState<CaiDat> {
                     child: ElevatedButton.icon(
                       onPressed: _restoreDatabase,
                       icon: const Icon(Icons.restore),
-                      label: Text(loc.locale.languageCode == 'vi' ? 'Phục hồi' : 'Restore'),
+                      label: Text(
+                        loc.locale.languageCode == 'vi'
+                            ? 'Phục hồi'
+                            : 'Restore',
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orangeAccent,
                         foregroundColor: Colors.white,
@@ -1509,7 +1813,11 @@ class _CaiDatState extends ConsumerState<CaiDat> {
               ElevatedButton.icon(
                 onPressed: _tinhLaiSoBuoiDu,
                 icon: const Icon(Icons.calculate_outlined),
-                label: Text(loc.locale.languageCode == 'vi' ? 'Tính toán lại số buổi dư học sinh' : 'Recalculate Student Remaining Sessions'),
+                label: Text(
+                  loc.locale.languageCode == 'vi'
+                      ? 'Tính toán lại số buổi dư học sinh'
+                      : 'Recalculate Student Remaining Sessions',
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.deepPurple,
                   foregroundColor: Colors.white,

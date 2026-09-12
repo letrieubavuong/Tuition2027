@@ -77,7 +77,7 @@ void main() {
         final result = await service.themHocSinhVaoLop(lhs);
 
         // Có thể null nếu đã tồn tại hoặc có lỗi
-        expect(result == null || result is LopHocSinh, isTrue);
+        expect(result, anyOf(isNull, isA<LopHocSinh>()));
         if (result != null) {
           expect(result.id, isNotNull);
           developer.log(
@@ -133,7 +133,7 @@ void main() {
         final result = await service.themHocSinhVaoLop(lhs);
 
         // Result có thể null hoặc LopHocSinh
-        expect(result == null || result is LopHocSinh, isTrue);
+        expect(result, anyOf(isNull, isA<LopHocSinh>()));
         developer.log(
           '✅ PASS: Return type đúng (LopHocSinh? - nullable)',
           name: 'LopHocSinhServiceTest',

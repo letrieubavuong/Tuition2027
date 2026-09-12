@@ -19,11 +19,11 @@ class CaHocHomNay {
 
   factory CaHocHomNay.fromMap(Map<String, dynamic> map) {
     // Helper để parse int an toàn
-    int _parseInt(dynamic v) =>
+    int parseInt(dynamic v) =>
         (v is int) ? v : (int.tryParse(v.toString()) ?? 0);
 
     return CaHocHomNay(
-      idLop: _parseInt(map['idLop']), // <-- THÊM: Đọc idLop từ map
+      idLop: parseInt(map['idLop']), // <-- THÊM: Đọc idLop từ map
       tenLop: map['tenLop'] as String,
       gioBatDau: map['gioBatDau'] as String,
       gioKetThuc: map['gioKetThuc'] as String,

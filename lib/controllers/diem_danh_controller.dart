@@ -11,6 +11,7 @@ import '../services/diem_danh_service.dart';
 import '../services/lich_hoc_service.dart';
 import '../services/lop_hoc_sinh_service.dart';
 import '../services/lop_service.dart';
+import '../services/tuition_event_service.dart';
 
 import 'service_providers.dart';
 
@@ -111,11 +112,19 @@ class DiemDanhController extends _$DiemDanhController {
         .layDiemDanhTheoLopVaNgay(lopId, ngayStr);
 
     for (var caHoc in caHocTrongNgay) {
-      final hsCuaCa = await _lhsService.docDSHSTheoCaHoc(caHoc.id!);
+      final tatCaHsCuaCa = await _lhsService.docDSHSTheoCaHoc(caHoc.id!);
+      final hsCuaCa = tatCaHsCuaCa
+          .where((hs) => _lhsService.hoatDongTrongNgay(hs, date))
+          .toList();
       danhSachHSCuaTungCaMoi[caHoc.id!] = hsCuaCa;
 
       for (var hs in hsCuaCa) {
         final key = '${hs.id}-${caHoc.id}';
+        final coDonNghi = await _lhsService.coDonNghiTrongNgay(
+          lopId,
+          hs.id!,
+          ngayStr,
+        );
         final ddRecord = diemDanhDaCoTrongNgay.firstWhere(
           (dd) =>
               dd.idHocSinh == hs.id &&
@@ -124,7 +133,7 @@ class DiemDanhController extends _$DiemDanhController {
             idHocSinh: hs.id!,
             idLop: lopId,
             gioDiemDanh: '$ngayStr ${caHoc.gioBatDau}',
-            trangThai: 'Có mặt',
+            trangThai: coDonNghi ? 'Nghỉ có phép' : 'Có mặt',
           ),
         );
         trangThaiMoi[key] = ddRecord;
@@ -209,8 +218,10 @@ class DiemDanhController extends _$DiemDanhController {
         record.id = newId;
       }
     }
-    // Optionally, reload data to get all IDs updated correctly
+    // Reload data to get all IDs updated correctly
     await changeSelection(currentState.selectedLop, currentState.selectedDate);
+    // Phát sự kiện thông báo dữ liệu học phí có thay đổi
+    TuitionEventService().notifyTuitionChanged();
   }
 
   void markAllPresent(LichHoc caHoc) {

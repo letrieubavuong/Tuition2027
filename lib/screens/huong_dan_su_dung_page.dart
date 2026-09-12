@@ -227,14 +227,16 @@ class GuideStep extends StatelessWidget {
     const Color secondaryText = Colors.white70;
 
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
-    final subText = isVi ? 'Hướng dẫn ${title.toLowerCase()}' : 'Guide for ${title.toLowerCase()}';
+    final subText = isVi
+        ? 'Hướng dẫn ${title.toLowerCase()}'
+        : 'Guide for ${title.toLowerCase()}';
 
     return Card(
       color: cardColor,
       margin: const EdgeInsets.only(bottom: 4.0),
       child: ExpansionTile(
         leading: CircleAvatar(
-          backgroundColor: accentColor.withOpacity(0.2),
+          backgroundColor: accentColor.withValues(alpha: 0.2),
           foregroundColor: accentColor,
           child: Text(
             step.replaceAll('Bước ', '').replaceAll('Step ', ''),
