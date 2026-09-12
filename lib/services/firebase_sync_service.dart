@@ -139,6 +139,16 @@ class FirebaseSyncService {
         DBHelper.tenBangCaiDat,
         DBHelper.tenBangQuyTacDiem,
         DBHelper.tenBangSuKienHocTap,
+        DBHelper.tenBangTruong,
+        DBHelper.tenBangLichHocChung,
+        DBHelper.tenBangLichHocCaNhan,
+        DBHelper.tenBangNhiemVu,
+        DBHelper.tenBangNhiemVuHocSinh,
+        DBHelper.tenBangDanhGiaBuoiHoc,
+        DBHelper.tenBangDonNghiHoc,
+        DBHelper.tenBangKhoanThu,
+        DBHelper.tenBangKhoanThuHocSinh,
+        'payment_transactions',
       ];
 
   /// Đăng ký lắng nghe các thay đổi thời gian thực từ Cloud và cập nhật về SQLite/UI
@@ -164,19 +174,29 @@ class FirebaseSyncService {
   Future<void> _dongBoDataVaoLocal(String tableName, dynamic rawData) async {
     try {
       final db = await DBHelper.instance.database;
+
+      // Lấy thông tin cột của bảng SQLite cục bộ để bỏ qua các trường không hợp lệ
+      final List<Map<String, dynamic>> columns = await db.rawQuery('PRAGMA table_info($tableName)');
+      final Set<String> validColumns = columns.map((c) => c['name'].toString()).toSet();
+
       if (rawData is Map) {
         for (final entry in rawData.entries) {
           final val = entry.value;
           if (val is Map) {
             final Map<String, dynamic> row = {};
             val.forEach((k, v) {
-              row[k.toString()] = v;
+              final keyStr = k.toString();
+              if (validColumns.isEmpty || validColumns.contains(keyStr)) {
+                row[keyStr] = v;
+              }
             });
-            await db.insert(
-              tableName,
-              row,
-              conflictAlgorithm: ConflictAlgorithm.replace,
-            );
+            if (row.isNotEmpty) {
+              await db.insert(
+                tableName,
+                row,
+                conflictAlgorithm: ConflictAlgorithm.replace,
+              );
+            }
           }
         }
       } else if (rawData is List) {
@@ -184,13 +204,18 @@ class FirebaseSyncService {
           if (val is Map) {
             final Map<String, dynamic> row = {};
             val.forEach((k, v) {
-              row[k.toString()] = v;
+              final keyStr = k.toString();
+              if (validColumns.isEmpty || validColumns.contains(keyStr)) {
+                row[keyStr] = v;
+              }
             });
-            await db.insert(
-              tableName,
-              row,
-              conflictAlgorithm: ConflictAlgorithm.replace,
-            );
+            if (row.isNotEmpty) {
+              await db.insert(
+                tableName,
+                row,
+                conflictAlgorithm: ConflictAlgorithm.replace,
+              );
+            }
           }
         }
       }
@@ -221,6 +246,12 @@ class FirebaseSyncService {
             recordId = row['khoa'].toString();
           } else if (row['id_hoc_sinh'] != null && row['id_lop'] != null) {
             recordId = '${row['id_hoc_sinh']}_${row['id_lop']}';
+          } else if (row['id_nhiem_vu'] != null && row['id_hoc_sinh'] != null) {
+            recordId = '${row['id_nhiem_vu']}_${row['id_hoc_sinh']}';
+          } else if (row['id_khoan_thu'] != null && row['id_hoc_sinh'] != null) {
+            recordId = '${row['id_khoan_thu']}_${row['id_hoc_sinh']}';
+          } else if (row['transaction_id'] != null && row['transaction_id'].toString().isNotEmpty) {
+            recordId = row['transaction_id'].toString();
           } else {
             recordId = 'item_$idx';
           }
@@ -230,7 +261,7 @@ class FirebaseSyncService {
         }
       }
       developer.log(
-        'Successfully pushed $totalPushed records to Firebase Realtime Database!',
+        'Successfully pushed $totalPushed records across all 20 SQLite tables to Firebase!',
         name: 'FirebaseSyncService',
       );
     } catch (e) {
