@@ -23,29 +23,29 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyA-tuition2025-web-key',
-    appId: '1:1052673238914:web:tuition2025',
-    messagingSenderId: '1052673238914',
+    apiKey: 'AIzaSyAalk10jjDFPeRkFxClA5frKH3Yya2nnWg',
+    appId: '1:1030301766778:web:tuition2025',
+    messagingSenderId: '1030301766778',
     projectId: 'tuition2025-d4e25',
     databaseURL: databaseURL,
-    storageBucket: 'tuition2025-d4e25.appspot.com',
+    storageBucket: 'tuition2025-d4e25.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyA-tuition2025-android-key',
-    appId: '1:1052673238914:android:tuition2025',
-    messagingSenderId: '1052673238914',
+    apiKey: 'AIzaSyAalk10jjDFPeRkFxClA5frKH3Yya2nnWg',
+    appId: '1:1030301766778:android:336fc140b6fd1250e6d7c3',
+    messagingSenderId: '1030301766778',
     projectId: 'tuition2025-d4e25',
     databaseURL: databaseURL,
-    storageBucket: 'tuition2025-d4e25.appspot.com',
+    storageBucket: 'tuition2025-d4e25.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyA-tuition2025-ios-key',
-    appId: '1:1052673238914:ios:tuition2025',
-    messagingSenderId: '1052673238914',
+    apiKey: 'AIzaSyAalk10jjDFPeRkFxClA5frKH3Yya2nnWg',
+    appId: '1:1030301766778:ios:tuition2025',
+    messagingSenderId: '1030301766778',
     projectId: 'tuition2025-d4e25',
     databaseURL: databaseURL,
-    storageBucket: 'tuition2025-d4e25.appspot.com',
+    storageBucket: 'tuition2025-d4e25.firebasestorage.app',
   );
 }
