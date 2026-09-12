@@ -136,7 +136,11 @@ export default function StudentDetailContainer() {
       alert("Học sinh này chưa có số điện thoại phụ huynh!");
       return;
     }
-    window.open(`https://zalo.me/${cleanPhone}`, "_blank");
+    // Mở trực tiếp phần mềm Zalo PC trên máy tính (zalo.exe)
+    window.location.href = `zalo://chat?phone=${cleanPhone}`;
+    setTimeout(() => {
+      window.open(`https://zalo.me/${cleanPhone}`, "_blank");
+    }, 600);
   };
 
   // Assign Student to a new Class

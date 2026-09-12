@@ -231,7 +231,12 @@ export default function HocSinhPage() {
                             type="button"
                             onClick={() => {
                               const clean = (hs.sdt_phu_huynh || hs.sdt || "").replace(/[^0-9]/g, "");
-                              if (clean) window.open(`https://zalo.me/${clean}`, "_blank");
+                              if (clean) {
+                                window.location.href = `zalo://chat?phone=${clean}`;
+                                setTimeout(() => {
+                                  window.open(`https://zalo.me/${clean}`, "_blank");
+                                }, 600);
+                              }
                             }}
                             style={{
                               backgroundColor: "#0068ff",
@@ -243,9 +248,9 @@ export default function HocSinhPage() {
                               fontWeight: "600",
                               cursor: "pointer",
                             }}
-                            title="Mở Zalo"
+                            title="Mở ứng dụng Zalo PC"
                           >
-                            Zalo
+                            Zalo PC
                           </button>
                         </div>
                       ) : (

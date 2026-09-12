@@ -345,7 +345,12 @@ export default function LopDetailContainer() {
                                 {cleanPhone && (
                                   <button
                                     type="button"
-                                    onClick={() => window.open(`https://zalo.me/${cleanPhone}`, "_blank")}
+                                    onClick={() => {
+                                      window.location.href = `zalo://chat?phone=${cleanPhone}`;
+                                      setTimeout(() => {
+                                        window.open(`https://zalo.me/${cleanPhone}`, "_blank");
+                                      }, 600);
+                                    }}
                                     style={{
                                       backgroundColor: "#0068ff",
                                       color: "#fff",
@@ -356,8 +361,9 @@ export default function LopDetailContainer() {
                                       fontWeight: "600",
                                       cursor: "pointer",
                                     }}
+                                    title="Mở ứng dụng Zalo PC"
                                   >
-                                    Zalo
+                                    Zalo PC
                                   </button>
                                 )}
                               </div>

@@ -302,7 +302,12 @@ export default function HocPhiPage() {
                             <button
                               onClick={() => {
                                 const clean = studentPhone.replace(/[^0-9]/g, "");
-                                window.open(`https://zalo.me/${clean}`, "_blank");
+                                if (clean) {
+                                  window.location.href = `zalo://chat?phone=${clean}`;
+                                  setTimeout(() => {
+                                    window.open(`https://zalo.me/${clean}`, "_blank");
+                                  }, 600);
+                                }
                               }}
                               style={{
                                 backgroundColor: "#0068ff",
@@ -317,9 +322,9 @@ export default function HocPhiPage() {
                                 alignItems: "center",
                                 gap: "0.25rem",
                               }}
-                              title="Nhắn tin Zalo phụ huynh"
+                              title="Mở ứng dụng Zalo PC nhắn tin phụ huynh"
                             >
-                              Zalo
+                              Zalo PC
                             </button>
                           )}
 
