@@ -226,6 +226,38 @@ export default function LoginPage() {
           boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
         }}
       >
+        {/* Center Real Photo Banner */}
+        <div
+          style={{
+            height: "130px",
+            borderRadius: "14px",
+            overflow: "hidden",
+            marginBottom: "1.25rem",
+            position: "relative",
+            border: "1px solid var(--border-color)",
+          }}
+        >
+          <img
+            src="/images/center/Anhcoso.jpg"
+            alt="Cơ sở 141 Nguyễn Thiện Kế"
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "linear-gradient(to top, rgba(15, 23, 42, 0.88) 0%, transparent 60%)",
+              display: "flex",
+              alignItems: "flex-end",
+              padding: "0.65rem 0.85rem",
+            }}
+          >
+            <span style={{ fontSize: "0.82rem", fontWeight: "700", color: "#ffffff" }}>
+              🏛️ Cơ Sở Dạy Thêm - Học Thêm 141 Nguyễn Thiện Kế
+            </span>
+          </div>
+        </div>
+
         {/* Logo & Header Title */}
         <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
           <div

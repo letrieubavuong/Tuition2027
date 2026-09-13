@@ -56,6 +56,7 @@ export default function CenterLandingPage() {
   const { user } = useAuth();
   const userRole = user ? user.role : "GUEST";
   const [activeTab, setActiveTab] = useState("public"); // "public" or "dashboard"
+  const [selectedPhoto, setSelectedPhoto] = useState(null); // Photo Lightbox State
 
   // Admin Dashboard State
   const [loading, setLoading] = useState(true);
@@ -518,90 +519,128 @@ export default function CenterLandingPage() {
             </div>
           </div>
 
-          {/* SECTION 2: HÌNH ẢNH CƠ SỞ VẬT CHẤT */}
+          {/* SECTION 2: HÌNH ẢNH CƠ SỞ VẬT CHẤT THỰC TẾ */}
           <div className="glass-panel" style={{ padding: "1.75rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1.25rem" }}>
-              <Building2 size={24} color="var(--accent-primary)" />
-              <h3 style={{ fontFamily: "'Be Vietnam Pro', sans-serif", fontSize: "1.35rem", fontWeight: "700" }}>
-                Hình Ảnh & Cơ Sở Vật Chất Đạt Chuẩn
-              </h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "0.75rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <Building2 size={24} color="var(--accent-primary)" />
+                <h3 style={{ fontFamily: "'Be Vietnam Pro', sans-serif", fontSize: "1.35rem", fontWeight: "700" }}>
+                  Hình Ảnh Thật Cơ Sở Vật Chất 141 Nguyễn Thiện Kế
+                </h3>
+              </div>
+              <span
+                style={{
+                  fontSize: "0.78rem",
+                  backgroundColor: "rgba(13, 148, 136, 0.15)",
+                  color: "var(--accent-primary)",
+                  padding: "0.3rem 0.75rem",
+                  borderRadius: "20px",
+                  fontWeight: "700",
+                  border: "1px solid rgba(13, 148, 136, 0.3)",
+                }}
+              >
+                📸 7 Hình ảnh chụp thực tế tại Trung tâm
+              </span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1.25rem" }}>
-              <div className="glass-card" style={{ padding: "1rem" }}>
+            {/* Photo Gallery Grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.25rem" }}>
+              {[
+                {
+                  src: "/images/center/Anhcoso.jpg",
+                  title: "Mặt Tiền & Biển Hiệu Cơ Sở 141 Nguyễn Thiện Kế",
+                  desc: "Cơ sở khang trang, sạch đẹp nằm ở vị trí trung tâm sầm uất Quận Sơn Trà.",
+                  tag: "Mặt Tiền Cơ Sở",
+                },
+                {
+                  src: "/images/center/H001.jpg",
+                  title: "Phòng Học Máy Lạnh & Ánh Sáng Chống Cận",
+                  desc: "Bàn ghế chuẩn học đường, hệ thống máy lạnh công suất lớn mát mẻ.",
+                  tag: "Phòng Học Chuẩn",
+                },
+                {
+                  src: "/images/center/H002.jpg",
+                  title: "Giờ Học Bồi Dưỡng Kiến Thức Tương Tác Sôi Nổi",
+                  desc: "Giáo viên hướng dẫn trực tiếp từng dạng bài, học sinh thoải mái hỏi đáp.",
+                  tag: "Không Gian Học",
+                },
+                {
+                  src: "/images/center/H003.jpg",
+                  title: "Buổi Luyện Đề Thi Thử & Đánh Giá Năng Lực",
+                  desc: "Rèn luyện kỹ năng làm bài kiểm tra bám sát cấu trúc đề thi mới nhất.",
+                  tag: "Luyện Đề Kiểm Tra",
+                },
+                {
+                  src: "/images/center/H005.jpg",
+                  title: "Bảng Từ Chống Lóa & Thiết Bị Giảng Dạy Hiện Đại",
+                  desc: "Trang bị đầy đủ dụng cụ hỗ trợ minh họa sinh động các môn Toán & KHTN.",
+                  tag: "Thiết Bị Hiện Đại",
+                },
+                {
+                  src: "/images/center/H006.jpg",
+                  title: "Sĩ Số Lớp Học Giới Hạn Kèm Cặp Tận Tâm",
+                  desc: "Lớp học từ 15-20 học sinh giúp thầy cô bám sát tiến độ từng em.",
+                  tag: "Theo Sát Học Sinh",
+                },
+                {
+                  src: "/images/center/H007.jpg",
+                  title: "Môi Trường Học Tập Thân Thiện & Tích Cực",
+                  desc: "Tạo động lực thi đua bứt phá điểm số và phát triển tư duy.",
+                  tag: "Tuyên Dương Kịp Thời",
+                },
+              ].map((photo, idx) => (
                 <div
+                  key={idx}
+                  onClick={() => setSelectedPhoto(photo)}
                   style={{
-                    height: "160px",
-                    borderRadius: "12px",
-                    background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "0.5rem",
-                    color: "var(--accent-primary)",
+                    backgroundColor: "var(--bg-secondary)",
+                    borderRadius: "14px",
                     border: "1px solid var(--border-color)",
-                    marginBottom: "0.85rem",
+                    overflow: "hidden",
+                    cursor: "pointer",
+                    transition: "transform 0.25s ease, box-shadow 0.25s ease",
                   }}
+                  className="hover-card-zoom"
                 >
-                  <BookOpen size={40} />
-                  <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "#ffffff" }}>Phòng Học Máy Lạnh Đạt Chuẩn</span>
-                </div>
-                <h4 style={{ fontSize: "0.95rem", fontWeight: "700", marginBottom: "0.3rem" }}>Điều Hòa & Ánh Sáng Chống Cận</h4>
-                <p style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
-                  Phòng học rộng rãi, trang bị máy lạnh công suất lớn, bàn ghế chuẩn học đường và hệ thống đèn led bảo vệ thị lực.
-                </p>
-              </div>
+                  <div style={{ height: "180px", overflow: "hidden", position: "relative" }}>
+                    <img
+                      src={photo.src}
+                      alt={photo.title}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        transition: "transform 0.4s ease",
+                      }}
+                    />
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: "0.65rem",
+                        left: "0.65rem",
+                        backgroundColor: "rgba(15, 23, 42, 0.75)",
+                        backdropFilter: "blur(4px)",
+                        color: "#ffffff",
+                        padding: "0.2rem 0.6rem",
+                        borderRadius: "8px",
+                        fontSize: "0.72rem",
+                        fontWeight: "700",
+                      }}
+                    >
+                      {photo.tag}
+                    </span>
+                  </div>
 
-              <div className="glass-card" style={{ padding: "1rem" }}>
-                <div
-                  style={{
-                    height: "160px",
-                    borderRadius: "12px",
-                    background: "linear-gradient(135deg, #065f46 0%, #0f172a 100%)",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "0.5rem",
-                    color: "var(--success)",
-                    border: "1px solid var(--border-color)",
-                    marginBottom: "0.85rem",
-                  }}
-                >
-                  <GraduationCap size={40} />
-                  <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "#ffffff" }}>Máy Chiếu & Thiết Bị Trực Quan</span>
+                  <div style={{ padding: "1rem" }}>
+                    <h4 style={{ fontSize: "0.95rem", fontWeight: "700", marginBottom: "0.35rem", color: "var(--text-primary)", lineHeight: "1.4" }}>
+                      {photo.title}
+                    </h4>
+                    <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", lineHeight: "1.5" }}>
+                      {photo.desc}
+                    </p>
+                  </div>
                 </div>
-                <h4 style={{ fontSize: "0.95rem", fontWeight: "700", marginBottom: "0.3rem" }}>Công Nghệ Giảng Dạy Mới</h4>
-                <p style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
-                  Trang bị máy chiếu độ phân giải cao, bảng từ chống lóa và loa âm thanh phục vụ tiết học Tiếng Anh & minh họa hình học.
-                </p>
-              </div>
-
-              <div className="glass-card" style={{ padding: "1rem" }}>
-                <div
-                  style={{
-                    height: "160px",
-                    borderRadius: "12px",
-                    background: "linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "0.5rem",
-                    color: "var(--info)",
-                    border: "1px solid var(--border-color)",
-                    marginBottom: "0.85rem",
-                  }}
-                >
-                  <ShieldCheck size={40} />
-                  <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "#ffffff" }}>An Ninh & Khu Chờ Phụ Huynh</span>
-                </div>
-                <h4 style={{ fontSize: "0.95rem", fontWeight: "700", marginBottom: "0.3rem" }}>Camera 24/7 & Chỗ Để Xe</h4>
-                <p style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
-                  Có hệ thống camera giám sát an toàn, chỗ để xe rộng rãi thoáng mát và khu vực chờ thuận tiện cho Phụ huynh đưa đón.
-                </p>
-              </div>
+              ))}
             </div>
           </div>
 
@@ -1272,6 +1311,98 @@ export default function CenterLandingPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* FULL-SCREEN PHOTO LIGHTBOX MODAL */}
+      {selectedPhoto && (
+        <div
+          onClick={() => setSelectedPhoto(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.88)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 200,
+            padding: "1.5rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxHeight: "90vh",
+              maxWidth: "850px",
+              backgroundColor: "var(--bg-card)",
+              borderRadius: "16px",
+              overflow: "hidden",
+              border: "1px solid var(--border-color)",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div style={{ position: "relative", backgroundColor: "#000" }}>
+              <img
+                src={selectedPhoto.src}
+                alt={selectedPhoto.title}
+                style={{
+                  width: "100%",
+                  maxHeight: "65vh",
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setSelectedPhoto(null)}
+                style={{
+                  position: "absolute",
+                  top: "1rem",
+                  right: "1rem",
+                  backgroundColor: "rgba(0,0,0,0.7)",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "36px",
+                  height: "36px",
+                  fontSize: "1.2rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: "1.25rem", backgroundColor: "var(--bg-secondary)" }}>
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  fontWeight: "700",
+                  backgroundColor: "var(--accent-primary)",
+                  color: "#ffffff",
+                  padding: "0.2rem 0.6rem",
+                  borderRadius: "6px",
+                  display: "inline-block",
+                  marginBottom: "0.4rem",
+                }}
+              >
+                {selectedPhoto.tag}
+              </span>
+              <h3 style={{ fontSize: "1.15rem", fontWeight: "800", color: "var(--text-primary)", marginBottom: "0.35rem" }}>
+                {selectedPhoto.title}
+              </h3>
+              <p style={{ fontSize: "0.88rem", color: "var(--text-secondary)", lineHeight: "1.5" }}>
+                {selectedPhoto.desc}
+              </p>
+            </div>
           </div>
         </div>
       )}
