@@ -35,6 +35,12 @@ export default function DiemDanhPage() {
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
 
+  // Modal State for Quick Diem Danh Bu / Day Bu
+  const [showBuModal, setShowBuModal] = useState(false);
+  const [buDate, setBuDate] = useState(todayStr);
+  const [buClassId, setBuClassId] = useState("");
+  const [buNote, setBuNote] = useState("");
+
   // Load Classes, Students, Schedules from Firebase Realtime DB
   useEffect(() => {
     const classRef = ref(db, "lop_hoc");
@@ -50,6 +56,7 @@ export default function DiemDanhPage() {
         setClasses(list);
         if (list.length > 0 && !selectedClassId) {
           setSelectedClassId(list[0]._key);
+          setBuClassId(list[0]._key);
         }
       }
     });
@@ -206,6 +213,15 @@ export default function DiemDanhPage() {
     }
   };
 
+  const applyDiemDanhBu = () => {
+    if (!buClassId || !buDate) return;
+    setSelectedClassId(buClassId);
+    setAttendanceDate(buDate);
+    setShowBuModal(false);
+    setSuccessMsg(`Đã chuyển tới ngày ${buDate} để điểm danh bù cho lớp! Vui lòng kiểm tra danh sách bên dưới & nhấn 'Lưu Điểm Danh'.`);
+    setTimeout(() => setSuccessMsg(""), 6000);
+  };
+
   const currentClass = classes.find((c) => String(c._key) === String(selectedClassId));
   const currentDayKey = getDayOfWeekKey(attendanceDate);
 
@@ -233,18 +249,38 @@ export default function DiemDanhPage() {
         <div>
           <h2 style={{ fontSize: "1.75rem", fontWeight: "700" }}>Điểm Danh Buổi Học</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-            Công cụ PickDate thông minh & Chọn ca học theo thời khóa biểu
+            Công cụ PickDate thông minh & Điểm danh bù cho bất kỳ ngày nào trong quá khứ
           </p>
         </div>
-        <button
-          onClick={handleSaveAttendance}
-          disabled={saving || filteredStudents.length === 0}
-          className="btn-primary"
-          style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1.25rem" }}
-        >
-          <Save size={18} />
-          {saving ? "Đang Lưu Cloud..." : "Lưu Điểm Danh"}
-        </button>
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => setShowBuModal(true)}
+            className="btn-secondary"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.75rem 1.25rem",
+              backgroundColor: "rgba(245, 158, 11, 0.15)",
+              color: "var(--warning)",
+              border: "1px solid var(--warning)",
+              fontWeight: "600",
+            }}
+          >
+            <Sparkles size={18} />
+            ⚡ Điểm Danh Bù / Dạy Bù
+          </button>
+          <button
+            onClick={handleSaveAttendance}
+            disabled={saving || filteredStudents.length === 0}
+            className="btn-primary"
+            style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 1.25rem" }}
+          >
+            <Save size={18} />
+            {saving ? "Đang Lưu Cloud..." : "Lưu Điểm Danh"}
+          </button>
+        </div>
       </div>
 
       {successMsg && (
@@ -679,6 +715,128 @@ export default function DiemDanhPage() {
           </div>
         )}
       </div>
+
+      {/* DIEM DANH BU MODAL */}
+      {showBuModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1rem",
+          }}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: "100%",
+              maxWidth: "500px",
+              padding: "1.75rem",
+              borderRadius: "var(--radius-lg)",
+              backgroundColor: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+              <h3 style={{ fontSize: "1.25rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--warning)" }}>
+                <Sparkles size={20} />
+                Điểm Danh Bù / Buổi Dạy Bù
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowBuModal(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--text-muted)",
+                  cursor: "pointer",
+                  fontSize: "1.25rem",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: "0.88rem", color: "var(--text-secondary)", marginBottom: "1.25rem" }}>
+              Chọn ngày cần điểm danh bù trong quá khứ và lớp học tương ứng. Hệ thống sẽ mở dữ liệu ngày đó để bạn cập nhật điểm danh và đồng bộ Cloud lập tức.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", color: "var(--text-muted)", marginBottom: "0.4rem" }}>
+                  1. CHỌN NGÀY HỌC BÙ / CẦN ĐIỂM DANH BÙ:
+                </label>
+                <input
+                  type="date"
+                  value={buDate}
+                  onChange={(e) => setBuDate(e.target.value)}
+                  className="input-control"
+                  style={{ width: "100%", fontWeight: "600" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", color: "var(--text-muted)", marginBottom: "0.4rem" }}>
+                  2. CHỌN LỚP HỌC:
+                </label>
+                <select
+                  value={buClassId}
+                  onChange={(e) => setBuClassId(e.target.value)}
+                  className="input-control"
+                  style={{ width: "100%", fontWeight: "600" }}
+                >
+                  {classes.map((c) => (
+                    <option key={c._key} value={c._key}>
+                      {c.ten_lop || c.ten} {c.mon ? `(${c.mon})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", color: "var(--text-muted)", marginBottom: "0.4rem" }}>
+                  3. GHI CHÚ BUỔI HỌC BÙ (NẾU CÓ):
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: Học bù ca 2 Thứ 3 tuần trước..."
+                  value={buNote}
+                  onChange={(e) => setBuNote(e.target.value)}
+                  className="input-control"
+                  style={{ width: "100%" }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+              <button
+                type="button"
+                onClick={() => setShowBuModal(false)}
+                className="btn-secondary"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                onClick={applyDiemDanhBu}
+                className="btn-primary"
+                style={{ backgroundColor: "var(--warning)", color: "#000000", fontWeight: "700" }}
+              >
+                Mở Điểm Danh Bù Ngày {buDate}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
