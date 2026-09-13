@@ -78,6 +78,17 @@ export default function HocPhiPage() {
     }).format(num || 0);
   };
 
+  const formatMonthYear = (m) => {
+    if (!m) return "";
+    if (m.includes("-")) {
+      const parts = m.split("-");
+      if (parts.length === 2) {
+        return `${parts[1]}/${parts[0]}`;
+      }
+    }
+    return m;
+  };
+
   const getStudentName = (p) => {
     if (p.ten_hoc_sinh && p.ten_hoc_sinh.trim() !== "") {
       return p.ten_hoc_sinh;
@@ -174,7 +185,7 @@ export default function HocPhiPage() {
               <option value="all">📅 Tất cả các tháng</option>
               {availableMonths.map((m) => (
                 <option key={m} value={m}>
-                  🗓️ Tháng {m}
+                  🗓️ Tháng {formatMonthYear(m)}
                 </option>
               ))}
             </select>
@@ -278,7 +289,7 @@ export default function HocPhiPage() {
                         )}
                       </td>
                       <td>
-                        <span className="badge badge-info">Tháng {p.thang || "--"}</span>
+                        <span className="badge badge-info">Tháng {formatMonthYear(p.thang) || "--"}</span>
                       </td>
                       <td style={{ fontWeight: "600" }}>{formatCurrency(tong)}</td>
                       <td style={{ color: "var(--success)", fontWeight: "600" }}>{formatCurrency(daDong)}</td>
@@ -334,7 +345,7 @@ export default function HocPhiPage() {
                                 setSelectedQr({
                                   ten: studentName,
                                   sotien: conNo,
-                                  noidung: `HOCPHI THANG ${p.thang || ""} ${studentName}`,
+                                  noidung: `HOCPHI THANG ${formatMonthYear(p.thang)} ${studentName}`,
                                 })
                               }
                               className="btn-secondary"

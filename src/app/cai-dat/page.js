@@ -189,22 +189,71 @@ export default function CaiDatPage() {
           <div className="glass-panel" style={{ padding: "1.5rem" }}>
             <h3 style={{ fontSize: "1.1rem", fontWeight: "700", marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Award size={20} color="var(--warning)" />
-              Quy Tắc Tích Điểm Thưởng
+              Xây Dựng Quy Tắc Tích Điểm Thưởng
             </h3>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", fontSize: "0.9rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>Điểm cộng Có Mặt đúng giờ:</span>
-                <span style={{ fontWeight: "700", color: "var(--success)" }}>+{pointRules.co_mat || 10} pts</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
+                  Điểm cộng Có Mặt đúng giờ (pts):
+                </label>
+                <input
+                  type="number"
+                  value={pointRules.co_mat ?? 10}
+                  onChange={(e) => setPointRules({ ...pointRules, co_mat: Number(e.target.value) })}
+                  className="input-control"
+                  style={{ width: "100%" }}
+                />
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>Điểm cộng Đi Muộn:</span>
-                <span style={{ fontWeight: "700", color: "#f97316" }}>+{pointRules.muon || 5} pts</span>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
+                  Điểm cộng Đi Muộn (pts):
+                </label>
+                <input
+                  type="number"
+                  value={pointRules.muon ?? 5}
+                  onChange={(e) => setPointRules({ ...pointRules, muon: Number(e.target.value) })}
+                  className="input-control"
+                  style={{ width: "100%" }}
+                />
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>Điểm hoàn thành Bài Tập Về Nhà:</span>
-                <span style={{ fontWeight: "700", color: "var(--accent-primary)" }}>+{pointRules.btvn_hoan_thanh || 10} pts</span>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
+                  Điểm hoàn thành BTVN / Bài Kiểm Tra (pts):
+                </label>
+                <input
+                  type="number"
+                  value={pointRules.btvn_hoan_thanh ?? 10}
+                  onChange={(e) => setPointRules({ ...pointRules, btvn_hoan_thanh: Number(e.target.value) })}
+                  className="input-control"
+                  style={{ width: "100%" }}
+                />
               </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
+                  Điểm thưởng Bài kiểm tra điểm 10 / Xuất sắc (pts):
+                </label>
+                <input
+                  type="number"
+                  value={pointRules.kiem_tra_gioi ?? 20}
+                  onChange={(e) => setPointRules({ ...pointRules, kiem_tra_gioi: Number(e.target.value) })}
+                  className="input-control"
+                  style={{ width: "100%" }}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveBank}
+                disabled={saving}
+                className="btn-primary"
+                style={{ backgroundColor: "var(--warning)", color: "#000000", fontWeight: "700", marginTop: "0.5rem" }}
+              >
+                <Save size={16} /> Lưu Quy Tắc Điểm Thưởng
+              </button>
             </div>
           </div>
 

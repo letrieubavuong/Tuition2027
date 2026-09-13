@@ -78,9 +78,12 @@ class DBHelper {
     );
   }
 
-  // Bật foreign key support để các FOREIGN KEY có hiệu lực
+  // Bật foreign key support & WAL mode cho phép vừa đọc vừa ghi siêu nhanh
   Future<void> _onConfigure(Database db) async {
     await db.execute('PRAGMA foreign_keys = ON');
+    try {
+      await db.execute('PRAGMA journal_mode = WAL');
+    } catch (_) {}
   }
 
   // onUpgrade sẽ gọi _migrate để áp dụng các bước nâng cấp theo phiên bản

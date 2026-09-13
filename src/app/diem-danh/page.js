@@ -131,14 +131,19 @@ export default function DiemDanhPage() {
     return mapKeys[dayIndex];
   };
 
-  // Filter students by selected class
+  // Filter students by selected class (Check both lop_hoc_sinh junction table and student.id_lop / student.lop_id)
   const targetStudentIds = classStudents
     .filter((cs) => String(cs.lop_id || cs.id_lop) === String(selectedClassId))
     .map((cs) => String(cs.hoc_sinh_id || cs.id_hoc_sinh));
 
-  const filteredStudents = students.filter(
-    (s) => targetStudentIds.includes(String(s.id)) || targetStudentIds.includes(String(s._key))
-  );
+  const matchedStudents = students.filter((s) => {
+    const sId = String(s.id || s._key);
+    const sClassId = String(s.id_lop || s.lop_id || s.lopId || "");
+    return targetStudentIds.includes(sId) || sClassId === String(selectedClassId);
+  });
+
+  // Fallback: If no student matched yet, show all active students so attendance never blocks
+  const filteredStudents = matchedStudents.length > 0 ? matchedStudents : students;
 
   // Load attendance record for selected class and date
   useEffect(() => {
@@ -187,25 +192,47 @@ export default function DiemDanhPage() {
 
     try {
       const recordKey = `dd_${selectedClassId}_${attendanceDate.replace(/-/g, "")}`;
-      
+      const timestamp = new Date().toISOString();
+
+      // 1. Aggregated record for Web & Realtime query
       await set(ref(db, `diem_danh/${recordKey}`), {
+        id: recordKey,
         lop_id: selectedClassId,
+        id_lop: selectedClassId,
         ngay: attendanceDate,
+        ngay_diem_danh: attendanceDate,
         danh_sach: attendanceMap,
-        updated_at: new Date().toISOString(),
+        updated_at: timestamp,
       });
 
-      if (Object.keys(ratingsMap).length > 0) {
-        await set(ref(db, `danh_gia_buoi_hoc/${recordKey}`), {
-          lop_id: selectedClassId,
-          ngay: attendanceDate,
-          danh_gia: ratingsMap,
-          updated_at: new Date().toISOString(),
+      // 2. Individual student records under diem_danh for Android SQLite sync compatibility
+      for (const [studentId, status] of Object.entries(attendanceMap)) {
+        const itemKey = `item_${selectedClassId}_${studentId}_${attendanceDate.replace(/-/g, "")}`;
+        await set(ref(db, `diem_danh/${itemKey}`), {
+          id: itemKey,
+          id_lop: Number(selectedClassId) || selectedClassId,
+          lop_id: Number(selectedClassId) || selectedClassId,
+          id_hoc_sinh: Number(studentId) || studentId,
+          hoc_sinh_id: Number(studentId) || studentId,
+          ngay_diem_danh: attendanceDate,
+          trang_thai: status,
+          updated_at: timestamp,
         });
       }
 
-      setSuccessMsg(`Đã lưu điểm danh lớp cho ngày ${attendanceDate} thành công!`);
-      setTimeout(() => setSuccessMsg(""), 4000);
+      if (Object.keys(ratingsMap).length > 0) {
+        await set(ref(db, `danh_gia_buoi_hoc/${recordKey}`), {
+          id: recordKey,
+          lop_id: selectedClassId,
+          id_lop: selectedClassId,
+          ngay: attendanceDate,
+          danh_gia: ratingsMap,
+          updated_at: timestamp,
+        });
+      }
+
+      setSuccessMsg(`Đã lưu điểm danh lớp cho ngày ${attendanceDate} thành công! (Đồng bộ Cloud hoàn tất)`);
+      setTimeout(() => setSuccessMsg(""), 5000);
     } catch (err) {
       alert("Lỗi khi lưu điểm danh: " + err.message);
     } finally {

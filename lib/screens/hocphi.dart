@@ -212,8 +212,15 @@ class HocPhiPageState extends State<HocPhiPage> {
     final String studentNameNoAccent = VietQRUtil.removeVietnameseAccents(
       hs.tenHocSinh,
     );
+    String formattedThang = _selectedMonthYear;
+    if (_selectedMonthYear.contains('-')) {
+      final parts = _selectedMonthYear.split('-');
+      if (parts.length == 2) {
+        formattedThang = '${parts[1]}/${parts[0]}';
+      }
+    }
     final String description =
-        'Hoc phi $studentNameNoAccent thang $_selectedMonthYear';
+        'Hoc phi $studentNameNoAccent thang $formattedThang';
     final String qrPayload = VietQRUtil.generateVietQRPayload(
       bankId: bankId,
       accountNo: accountNo,

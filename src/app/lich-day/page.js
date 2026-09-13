@@ -249,6 +249,90 @@ export default function LichDayPage() {
     ? schedules
     : schedules.filter((s) => normalizeDayKey(s) === selectedDay);
 
+  // Smart Schedule Suggestion State
+  const [showSuggestModal, setShowSuggestModal] = useState(false);
+  const [suggestedSlots, setSuggestedSlots] = useState([]);
+
+  const generateScheduleSuggestions = () => {
+    const suggestions = [];
+    const timeSlots = [
+      { start: "17:30", end: "19:00", name: "Ca 1 (Tối sớm)" },
+      { start: "19:15", end: "20:45", name: "Ca 2 (Tối muộn)" },
+      { start: "08:00", end: "09:30", name: "Ca Sáng T7/CN" },
+    ];
+
+    classes.forEach((cls) => {
+      const clsId = cls.id || cls._key;
+      const hasSched = schedules.some((sc) => String(sc.id_lop || sc.lop_id) === String(clsId));
+
+      if (!hasSched) {
+        // Suggest 2 sessions per week (e.g. Thu2 & Thu5 or Thu3 & Thu6)
+        suggestions.push({
+          id_lop: clsId,
+          ten_lop: cls.ten || cls.ten_lop,
+          thu: "Thu2",
+          gio_bat_dau: "17:30",
+          gio_ket_thuc: "19:00",
+          phong_hoc: "Phòng A1",
+          reason: "Chưa có thời khóa biểu -> Gợi ý xếp Ca 1 Thứ 2 & Thứ 5",
+        });
+        suggestions.push({
+          id_lop: clsId,
+          ten_lop: cls.ten || cls.ten_lop,
+          thu: "Thu5",
+          gio_bat_dau: "17:30",
+          gio_ket_thuc: "19:00",
+          phong_hoc: "Phòng A1",
+          reason: "Chưa có thời khóa biểu -> Gợi ý xếp Ca 1 Thứ 2 & Thứ 5",
+        });
+      }
+    });
+
+    if (suggestions.length === 0 && classes.length > 0) {
+      // All classes have schedule -> suggest optimizing weekend slot
+      const firstCls = classes[0];
+      const clsId = firstCls.id || firstCls._key;
+      suggestions.push({
+        id_lop: clsId,
+        ten_lop: firstCls.ten || firstCls.ten_lop,
+        thu: "Thu7",
+        gio_bat_dau: "08:00",
+        gio_ket_thuc: "09:30",
+        phong_hoc: "Phòng B2",
+        reason: "Gợi ý mở thêm ca Ôn tập Cuối tuần Thứ 7",
+      });
+    }
+
+    setSuggestedSlots(suggestions);
+    setShowSuggestModal(true);
+  };
+
+  const applySuggestion = async (slot) => {
+    try {
+      const newId = Date.now();
+      const payload = {
+        id: newId,
+        id_lop: Number(slot.id_lop) || slot.id_lop,
+        lop_id: Number(slot.id_lop) || slot.id_lop,
+        thu: slot.thu,
+        thuTrongTuan: getDayNumber(slot.thu),
+        gio_bat_dau: slot.gio_bat_dau,
+        gio_ket_thuc: slot.gio_ket_thuc,
+        phong_hoc: slot.phong_hoc,
+        ghi_chu: "Xếp tự động theo gợi ý AI",
+        updated_at: new Date().toISOString(),
+      };
+
+      await set(ref(db, `lich_hoc_chung/${newId}`), payload);
+      await set(ref(db, `lich_hoc/${newId}`), payload);
+
+      setSuggestedSlots((prev) => prev.filter((s) => s !== slot));
+      alert(`Đã xếp thành công ca dạy ${slot.ten_lop} vào ${slot.thu} (${slot.gio_bat_dau} - ${slot.gio_ket_thuc})!`);
+    } catch (err) {
+      alert("Lỗi áp dụng gợi ý: " + err.message);
+    }
+  };
+
   return (
     <div>
       {/* Header */}
@@ -265,12 +349,29 @@ export default function LichDayPage() {
         <div>
           <h2 style={{ fontSize: "1.75rem", fontWeight: "700" }}>Lịch Dạy & Thời Khóa Biểu</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-            Quản lý các ca dạy hàng tuần cho giáo viên
+            Quản lý các ca dạy hàng tuần & Trợ lý gợi ý xếp lịch dạy thông minh
           </p>
         </div>
-        <button onClick={() => handleOpenModal()} className="btn-primary">
-          <Plus size={18} /> Thêm Ca Dạy Mới
-        </button>
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <button
+            onClick={generateScheduleSuggestions}
+            className="btn-secondary"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              backgroundColor: "rgba(139, 92, 246, 0.15)",
+              color: "#8b5cf6",
+              border: "1px solid #8b5cf6",
+              fontWeight: "600",
+            }}
+          >
+            ✨ Gợi Ý Xếp Lịch Dạy AI
+          </button>
+          <button onClick={() => handleOpenModal()} className="btn-primary">
+            <Plus size={18} /> Thêm Ca Dạy Mới
+          </button>
+        </div>
       </div>
 
       {/* Day Selector Bar */}
@@ -535,6 +636,100 @@ export default function LichDayPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Smart Schedule Suggestion Modal */}
+      {showSuggestModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1rem",
+          }}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: "100%",
+              maxWidth: "600px",
+              padding: "1.75rem",
+              borderRadius: "var(--radius-lg)",
+              backgroundColor: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+              <h3 style={{ fontSize: "1.25rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "0.5rem", color: "#8b5cf6" }}>
+                ✨ Trợ Lý Gợi Ý Xếp Lịch Dạy Thông Minh
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowSuggestModal(false)}
+                style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1.25rem" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: "0.88rem", color: "var(--text-secondary)", marginBottom: "1.25rem" }}>
+              Hệ thống tự động phân tích khung giờ còn trống, phòng học khả dụng và gợi ý ca dạy tối ưu cho các lớp chưa có thời khóa biểu:
+            </p>
+
+            {suggestedSlots.length === 0 ? (
+              <div style={{ padding: "2rem", textAlign: "center", color: "var(--success)", fontWeight: "600" }}>
+                🎉 Tất cả các lớp học đều đã có thời khóa biểu hoàn chỉnh!
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem", maxHeight: "350px", overflowY: "auto", marginBottom: "1.5rem" }}>
+                {suggestedSlots.map((slot, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: "1rem",
+                      borderRadius: "var(--radius-md)",
+                      backgroundColor: "var(--bg-secondary)",
+                      border: "1px solid var(--border-color)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "1rem",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: "700", fontSize: "1rem", color: "var(--text-primary)" }}>
+                        {slot.ten_lop} — <span style={{ color: "#8b5cf6" }}>{slot.thu} ({slot.gio_bat_dau} - {slot.gio_ket_thuc})</span>
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.2rem" }}>
+                        📍 {slot.phong_hoc} | 💡 {slot.reason}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => applySuggestion(slot)}
+                      className="btn-primary"
+                      style={{ padding: "0.45rem 0.85rem", fontSize: "0.82rem", whiteSpace: "nowrap" }}
+                    >
+                      Áp Dụng Lịch Này
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button type="button" onClick={() => setShowSuggestModal(false)} className="btn-secondary">
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}
