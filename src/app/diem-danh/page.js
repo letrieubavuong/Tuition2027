@@ -131,19 +131,56 @@ export default function DiemDanhPage() {
     return mapKeys[dayIndex];
   };
 
-  // Filter students by selected class (Check both lop_hoc_sinh junction table and student.id_lop / student.lop_id)
+  // Helper to convert Thu key to Number
+  const getDayNumber = (thuKey) => {
+    switch (thuKey) {
+      case "Thu2": return 2;
+      case "Thu3": return 3;
+      case "Thu4": return 4;
+      case "Thu5": return 5;
+      case "Thu6": return 6;
+      case "Thu7": return 7;
+      case "CN": return 8;
+      default: return 2;
+    }
+  };
+
+  const currentDayKey = getDayOfWeekKey(attendanceDate);
+  const currentDayNum = getDayNumber(currentDayKey);
+
+  // Auto select first class that has schedule on selected attendanceDate
+  useEffect(() => {
+    if (classes.length === 0 || schedules.length === 0) return;
+    const scheduledCls = classes.find((c) => {
+      const cid = String(c._key || c.id);
+      return schedules.some(
+        (sc) => String(sc.lop_id || sc.id_lop) === cid && (sc.thu === currentDayKey || Number(sc.thuTrongTuan) === currentDayNum)
+      );
+    });
+    if (scheduledCls) {
+      setSelectedClassId(String(scheduledCls._key || scheduledCls.id));
+    }
+  }, [attendanceDate, schedules, classes]);
+
+  // Strictly filter students enrolled in the selected class (NO dumping total students!)
   const targetStudentIds = classStudents
-    .filter((cs) => String(cs.lop_id || cs.id_lop) === String(selectedClassId))
+    .filter((cs) => {
+      const cid = String(cs.lop_id || cs.id_lop);
+      const st = String(cs.trang_thai || cs.status || "DANG_HOC").toUpperCase();
+      return cid === String(selectedClassId) && st !== "DA_NGHI";
+    })
     .map((cs) => String(cs.hoc_sinh_id || cs.id_hoc_sinh));
 
-  const matchedStudents = students.filter((s) => {
-    const sId = String(s.id || s._key);
-    const sClassId = String(s.id_lop || s.lop_id || s.lopId || "");
-    return targetStudentIds.includes(sId) || sClassId === String(selectedClassId);
-  });
-
-  // Fallback: If no student matched yet, show all active students so attendance never blocks
-  const filteredStudents = matchedStudents.length > 0 ? matchedStudents : students;
+  const filteredStudents = students
+    .filter((s) => {
+      if (!s) return false;
+      const sId = String(s.id || s._key);
+      const sClassId = String(s.id_lop || s.lop_id || s.lopId || "");
+      const st = String(s.trang_thai || s.status || s.trangThai || "").toUpperCase();
+      if (st === "DA_NGHI" || st === "NGHI_HOC") return false;
+      return targetStudentIds.includes(sId) || sClassId === String(selectedClassId);
+    })
+    .sort((a, b) => (a.ten || "").localeCompare(b.ten || "", "vi"));
 
   // Load attendance record for selected class and date
   useEffect(() => {
@@ -250,7 +287,6 @@ export default function DiemDanhPage() {
   };
 
   const currentClass = classes.find((c) => String(c._key) === String(selectedClassId));
-  const currentDayKey = getDayOfWeekKey(attendanceDate);
 
   const stats = {
     total: filteredStudents.length,
@@ -448,60 +484,73 @@ export default function DiemDanhPage() {
             </div>
           </div>
 
-          {/* 2. SMART CLASS SELECTOR CHIPS */}
+          {/* 2. SMART CLASS SELECTOR CHIPS SORTED BY TIMETABLE SCHEDULE */}
           <div style={{ paddingTop: "0.75rem", borderTop: "1px dashed var(--border-color)" }}>
             <p style={{ fontSize: "0.8rem", fontWeight: "600", color: "var(--text-muted)", marginBottom: "0.6rem" }}>
-              CHỌN LỚP ĐIỂM DANH:
+              CHỌN LỚP ĐIỂM DANH (XẮP XẾP THEO LỊCH DẠY {getDayOfWeekName(attendanceDate).toUpperCase()}):
             </p>
             <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-              {classes.map((c) => {
-                const cid = c._key;
-                const isSelected = String(cid) === String(selectedClassId);
-                // Check if class has schedule on this day
-                const hasScheduleToday = schedules.some(
-                  (sc) => String(sc.lop_id) === String(cid) && sc.thu === currentDayKey
-                );
+              {[...classes]
+                .sort((a, b) => {
+                  const aCid = String(a._key || a.id);
+                  const bCid = String(b._key || b.id);
+                  const aHas = schedules.some(
+                    (sc) => String(sc.lop_id || sc.id_lop) === aCid && (sc.thu === currentDayKey || Number(sc.thuTrongTuan) === currentDayNum)
+                  );
+                  const bHas = schedules.some(
+                    (sc) => String(sc.lop_id || sc.id_lop) === bCid && (sc.thu === currentDayKey || Number(sc.thuTrongTuan) === currentDayNum)
+                  );
+                  if (aHas && !bHas) return -1;
+                  if (!aHas && bHas) return 1;
+                  return 0;
+                })
+                .map((c) => {
+                  const cid = String(c._key || c.id);
+                  const isSelected = String(cid) === String(selectedClassId);
+                  const matchedSched = schedules.find(
+                    (sc) => String(sc.lop_id || sc.id_lop) === cid && (sc.thu === currentDayKey || Number(sc.thuTrongTuan) === currentDayNum)
+                  );
 
-                return (
-                  <button
-                    key={cid}
-                    type="button"
-                    onClick={() => setSelectedClassId(cid)}
-                    style={{
-                      padding: "0.6rem 1rem",
-                      borderRadius: "var(--radius-md)",
-                      border: isSelected ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
-                      backgroundColor: isSelected ? "var(--accent-primary)" : "var(--bg-secondary)",
-                      color: isSelected ? "#ffffff" : "var(--text-primary)",
-                      fontWeight: isSelected ? "700" : "500",
-                      fontSize: "0.88rem",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      boxShadow: isSelected ? "0 4px 12px var(--accent-glow)" : "none",
-                      transition: "all 0.2s ease",
-                      position: "relative",
-                    }}
-                  >
-                    <span>{c.ten_lop || c.ten} {c.mon ? `(${c.mon})` : ""}</span>
-                    {hasScheduleToday && (
-                      <span
-                        style={{
-                          fontSize: "0.68rem",
-                          backgroundColor: isSelected ? "rgba(255,255,255,0.25)" : "var(--success)",
-                          color: "#ffffff",
-                          padding: "0.15rem 0.4rem",
-                          borderRadius: "10px",
-                          fontWeight: "700",
-                        }}
-                      >
-                        Lịch hôm nay
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={cid}
+                      type="button"
+                      onClick={() => setSelectedClassId(cid)}
+                      style={{
+                        padding: "0.6rem 1rem",
+                        borderRadius: "var(--radius-md)",
+                        border: isSelected ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
+                        backgroundColor: isSelected ? "var(--accent-primary)" : "var(--bg-secondary)",
+                        color: isSelected ? "#ffffff" : "var(--text-primary)",
+                        fontWeight: isSelected ? "700" : "500",
+                        fontSize: "0.88rem",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        boxShadow: isSelected ? "0 4px 12px var(--accent-glow)" : "none",
+                        transition: "all 0.2s ease",
+                        position: "relative",
+                      }}
+                    >
+                      <span>{c.ten_lop || c.ten} {c.mon ? `(${c.mon})` : ""}</span>
+                      {matchedSched && (
+                        <span
+                          style={{
+                            fontSize: "0.68rem",
+                            backgroundColor: isSelected ? "rgba(255,255,255,0.25)" : "var(--success)",
+                            color: "#ffffff",
+                            padding: "0.15rem 0.4rem",
+                            borderRadius: "10px",
+                            fontWeight: "700",
+                          }}
+                        >
+                          ⏰ {matchedSched.gio_bat_dau || matchedSched.gioBatDau || "Ca dạy"}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
             </div>
           </div>
         </div>
