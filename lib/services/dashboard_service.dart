@@ -74,9 +74,9 @@ class DashboardService {
       );
       final int soLopHoc = Sqflite.firstIntValue(soLopHocResult) ?? 0;
 
-      // 2. Đếm tổng số học sinh
+      // 2. Đếm tổng số học sinh ĐANG HỌC (loại bỏ học sinh đã nghỉ)
       final soHocSinhResult = await db.rawQuery(
-        'SELECT COUNT(*) as count FROM ${DBHelper.tenBangHS}',
+        "SELECT COUNT(*) as count FROM ${DBHelper.tenBangHS} WHERE trang_thai IS NULL OR (trang_thai != 'DA_NGHI' AND trang_thai != 'NGHI_HOC')",
       );
       final int soHocSinh = Sqflite.firstIntValue(soHocSinhResult) ?? 0;
 

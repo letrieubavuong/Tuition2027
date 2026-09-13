@@ -58,11 +58,18 @@ export default function Dashboard() {
       const val = snapshot.val();
       let count = 0;
       if (val) {
-        if (Array.isArray(val)) {
-          count = val.filter((item) => item !== null).length;
-        } else if (typeof val === "object") {
-          count = Object.keys(val).length;
-        }
+        const list = Array.isArray(val)
+          ? val.filter((item) => item !== null)
+          : Object.values(val);
+
+        count = list.filter((s) => {
+          if (!s) return false;
+          const status = String(s.trang_thai || s.status || s.trangThai || "").toUpperCase();
+          if (status === "DA_NGHI" || status === "NGHI_HOC" || s.da_nghi === 1 || s.da_nghi === true) {
+            return false;
+          }
+          return true;
+        }).length;
       }
       setStats((prev) => ({ ...prev, totalStudents: count }));
     });
