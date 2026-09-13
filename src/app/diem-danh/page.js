@@ -44,25 +44,52 @@ export default function DiemDanhPage() {
 
   // Load Classes, Students, Schedules from Firebase Realtime DB
   useEffect(() => {
-    const classRef = ref(db, "lop_hoc");
-    const unsubClasses = onValue(classRef, (snapshot) => {
+    // 1. Merge classes from both 'lop' and 'lop_hoc'
+    let listLop1 = [];
+    let listLop2 = [];
+    const mergeClasses = () => {
+      const combined = [...listLop1, ...listLop2];
+      const map = new Map();
+      combined.forEach((c) => {
+        const key = String(c.id || c._key);
+        if (!map.has(key)) map.set(key, c);
+      });
+      const finalClasses = Array.from(map.values());
+      setClasses(finalClasses);
+      if (finalClasses.length > 0 && !selectedClassId) {
+        const firstId = String(finalClasses[0]._key || finalClasses[0].id);
+        setSelectedClassId(firstId);
+        setBuClassId(firstId);
+      }
+    };
+
+    const lopRef1 = ref(db, "lop");
+    const unsubLop1 = onValue(lopRef1, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        let list = [];
-        if (Array.isArray(val)) {
-          list = val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean);
-        } else {
-          list = Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
-        }
-        setClasses(list);
-        if (list.length > 0 && !selectedClassId) {
-          const firstId = String(list[0]._key || list[0].id);
-          setSelectedClassId(firstId);
-          setBuClassId(firstId);
-        }
+        listLop1 = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+      } else {
+        listLop1 = [];
       }
+      mergeClasses();
     });
 
+    const lopRef2 = ref(db, "lop_hoc");
+    const unsubLop2 = onValue(lopRef2, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        listLop2 = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+      } else {
+        listLop2 = [];
+      }
+      mergeClasses();
+    });
+
+    // 2. Load Students
     const hsRef = ref(db, "hoc_sinh");
     const unsubHs = onValue(hsRef, (snapshot) => {
       const val = snapshot.val();
@@ -78,6 +105,7 @@ export default function DiemDanhPage() {
       setLoading(false);
     });
 
+    // 3. Load Class-Student Relations
     const lopHsRef = ref(db, "lop_hoc_sinh");
     const unsubLopHs = onValue(lopHsRef, (snapshot) => {
       const val = snapshot.val();
@@ -87,20 +115,48 @@ export default function DiemDanhPage() {
       }
     });
 
-    const schedRef = ref(db, "lich_hoc_chung");
-    const unsubSched = onValue(schedRef, (snapshot) => {
+    // 4. Merge schedules from both 'lich_hoc_chung' and 'lich_hoc'
+    let listSched1 = [];
+    let listSched2 = [];
+    const mergeSchedules = () => {
+      const combined = [...listSched1, ...listSched2];
+      const map = new Map();
+      combined.forEach((sc) => {
+        const key = String(sc.id || sc._key);
+        if (!map.has(key)) map.set(key, sc);
+      });
+      setSchedules(Array.from(map.values()));
+    };
+
+    const schedRef1 = ref(db, "lich_hoc_chung");
+    const unsubSched1 = onValue(schedRef1, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        let list = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
-        setSchedules(list);
+        listSched1 = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
+      } else {
+        listSched1 = [];
       }
+      mergeSchedules();
+    });
+
+    const schedRef2 = ref(db, "lich_hoc");
+    const unsubSched2 = onValue(schedRef2, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        listSched2 = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
+      } else {
+        listSched2 = [];
+      }
+      mergeSchedules();
     });
 
     return () => {
-      unsubClasses();
+      unsubLop1();
+      unsubLop2();
       unsubHs();
       unsubLopHs();
-      unsubSched();
+      unsubSched1();
+      unsubSched2();
     };
   }, []);
 
@@ -147,16 +203,43 @@ export default function DiemDanhPage() {
     }
   };
 
+  const currentDayName = getDayOfWeekName(attendanceDate);
   const currentDayKey = getDayOfWeekKey(attendanceDate);
   const currentDayNum = getDayNumber(currentDayKey);
 
-  // Find classes scheduled for current selected date
-  const scheduledItems = schedules.filter((sc) => {
+  // Helper function to match schedule items to current attendance date
+  const isMatchSchedule = (sc) => {
     if (!sc) return false;
+
+    // 1. Direct key match: "Thu2", "Thu3"...
     const thuKey = sc.thu || sc.thu_trong_tuan_str;
-    const thuNum = Number(sc.thu_trong_tuan || sc.thuTrongTuan || sc.day_of_week);
-    return thuKey === currentDayKey || thuNum === currentDayNum;
-  });
+    if (thuKey && thuKey === currentDayKey) return true;
+
+    // 2. Numeric match: 2, 3, 4, 5, 6, 7, 8 (or 1 for CN)
+    const thuNum = Number(sc.thu_trong_tuan ?? sc.thuTrongTuan ?? sc.day_of_week);
+    if (!isNaN(thuNum) && thuNum > 0) {
+      if (thuNum === currentDayNum) return true;
+      if (currentDayNum === 8 && (thuNum === 1 || thuNum === 8)) return true;
+    }
+
+    // 3. String match: "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"
+    const ngayText = String(sc.ngay_trong_tuan || sc.ngayTrongTuan || sc.thu_str || sc.ngay || "").toLowerCase().trim();
+    if (ngayText) {
+      if (ngayText.includes(currentDayName.toLowerCase())) return true;
+      if (currentDayKey === "Thu2" && (ngayText.includes("hai") || ngayText.includes("2"))) return true;
+      if (currentDayKey === "Thu3" && (ngayText.includes("ba") || ngayText.includes("3"))) return true;
+      if (currentDayKey === "Thu4" && (ngayText.includes("tư") || ngayText.includes("tu") || ngayText.includes("4"))) return true;
+      if (currentDayKey === "Thu5" && (ngayText.includes("năm") || ngayText.includes("nam") || ngayText.includes("5"))) return true;
+      if (currentDayKey === "Thu6" && (ngayText.includes("sáu") || ngayText.includes("sau") || ngayText.includes("6"))) return true;
+      if (currentDayKey === "Thu7" && (ngayText.includes("bảy") || ngayText.includes("bay") || ngayText.includes("7"))) return true;
+      if (currentDayKey === "CN" && (ngayText.includes("chủ") || ngayText.includes("chu") || ngayText.includes("cn"))) return true;
+    }
+
+    return false;
+  };
+
+  // Find classes scheduled for current selected date
+  const scheduledItems = schedules.filter(isMatchSchedule);
 
   const scheduledClasses = classes.filter((c) => {
     const cid = String(c._key || c.id);
@@ -319,7 +402,7 @@ export default function DiemDanhPage() {
 
   const currentClass = classes.find((c) => String(c._key || c.id) === String(selectedClassId));
   const currentSched = schedules.find(
-    (sc) => String(sc.lop_id || sc.id_lop) === String(selectedClassId) && (sc.thu === currentDayKey || Number(sc.thu_trong_tuan) === currentDayNum)
+    (sc) => String(sc.lop_id || sc.id_lop || sc.idLop) === String(selectedClassId) && isMatchSchedule(sc)
   );
 
   const stats = {
@@ -551,7 +634,7 @@ export default function DiemDanhPage() {
             const cid = String(c._key || c.id);
             const isActive = cid === String(selectedClassId);
             const matchedSched = schedules.find(
-              (sc) => String(sc.lop_id || sc.id_lop) === cid && (sc.thu === currentDayKey || Number(sc.thu_trong_tuan) === currentDayNum)
+              (sc) => String(sc.lop_id || sc.id_lop || sc.idLop) === cid && isMatchSchedule(sc)
             );
 
             return (
