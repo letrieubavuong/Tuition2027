@@ -16,7 +16,6 @@ import {
   Calendar as CalendarIcon,
   Sparkles,
   BookOpen,
-  Filter,
   Layers,
 } from "lucide-react";
 
@@ -26,7 +25,6 @@ export default function DiemDanhPage() {
   const [classStudents, setClassStudents] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState("");
-  const [showAllClassesTabs, setShowAllClassesTabs] = useState(false);
 
   // Date State - Default to Today YYYY-MM-DD
   const todayStr = new Date().toISOString().split("T")[0];
@@ -58,8 +56,9 @@ export default function DiemDanhPage() {
         }
         setClasses(list);
         if (list.length > 0 && !selectedClassId) {
-          setSelectedClassId(String(list[0]._key || list[0].id));
-          setBuClassId(String(list[0]._key || list[0].id));
+          const firstId = String(list[0]._key || list[0].id);
+          setSelectedClassId(firstId);
+          setBuClassId(firstId);
         }
       }
     });
@@ -164,41 +163,55 @@ export default function DiemDanhPage() {
     return scheduledItems.some((sc) => String(sc.lop_id || sc.id_lop || sc.idLop) === cid);
   });
 
-  // Determine active tabs to display (either scheduled classes, or all classes if toggle enabled / no schedule)
-  const displayTabClasses = (scheduledClasses.length > 0 && !showAllClassesTabs)
-    ? scheduledClasses
-    : classes;
+  // Sort classes so scheduled ones for attendanceDate come FIRST
+  const sortedClassesForTabs = [...classes].sort((a, b) => {
+    const aCid = String(a._key || a.id);
+    const bCid = String(b._key || b.id);
+    const aHas = scheduledClasses.some((c) => String(c._key || c.id) === aCid);
+    const bHas = scheduledClasses.some((c) => String(c._key || c.id) === bCid);
+    if (aHas && !bHas) return -1;
+    if (!aHas && bHas) return 1;
+    return 0;
+  });
 
-  // Auto select first scheduled class when attendanceDate changes
+  // Auto select first scheduled class (or first class in list) when attendanceDate changes
   useEffect(() => {
+    if (classes.length === 0) return;
     if (scheduledClasses.length > 0) {
       const firstId = String(scheduledClasses[0]._key || scheduledClasses[0].id);
       setSelectedClassId(firstId);
-    } else if (classes.length > 0) {
+    } else {
       const firstId = String(classes[0]._key || classes[0].id);
       setSelectedClassId(firstId);
     }
   }, [attendanceDate, schedules, classes]);
 
-  // Strictly filter students enrolled in the selected class (NO dumping total students!)
+  // Strictly filter students enrolled ONLY in selectedClassId
   const targetStudentIds = classStudents
     .filter((cs) => {
-      const cid = String(cs.lop_id || cs.id_lop);
+      if (!cs) return false;
+      const cid = String(cs.lop_id || cs.id_lop || "");
       const st = String(cs.trang_thai || cs.status || "DANG_HOC").toUpperCase();
       return cid === String(selectedClassId) && st !== "DA_NGHI";
     })
     .map((cs) => String(cs.hoc_sinh_id || cs.id_hoc_sinh));
 
-  const filteredStudents = students
-    .filter((s) => {
-      if (!s) return false;
-      const sId = String(s.id || s._key);
-      const sClassId = String(s.id_lop || s.lop_id || s.lopId || "");
-      const st = String(s.trang_thai || s.status || s.trangThai || "").toUpperCase();
-      if (st === "DA_NGHI" || st === "NGHI_HOC") return false;
-      return targetStudentIds.includes(sId) || sClassId === String(selectedClassId);
-    })
-    .sort((a, b) => (a.ten || "").localeCompare(b.ten || "", "vi"));
+  const filteredStudents = (!selectedClassId || classes.length === 0)
+    ? []
+    : students
+        .filter((s) => {
+          if (!s) return false;
+          const sId = String(s.id || s._key);
+          const sClassId = String(s.id_lop || s.lop_id || s.lopId || "");
+          const st = String(s.trang_thai || s.status || s.trangThai || "").toUpperCase();
+          if (st === "DA_NGHI" || st === "NGHI_HOC") return false;
+
+          const inLopHocSinh = targetStudentIds.includes(sId);
+          const inDirectClass = sClassId !== "" && sClassId === String(selectedClassId);
+
+          return inLopHocSinh || inDirectClass;
+        })
+        .sort((a, b) => (a.ten || "").localeCompare(b.ten || "", "vi"));
 
   // Load attendance record for selected class and date
   useEffect(() => {
@@ -333,7 +346,7 @@ export default function DiemDanhPage() {
         <div>
           <h2 style={{ fontSize: "1.75rem", fontWeight: "700" }}>Điểm Danh Buổi Học</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-            Hiển thị các Lớp học có Lịch dạy trong ngày theo dạng Tab trực quan & tiện lợi
+            Chọn Tab Lớp Học để điểm danh chính xác học sinh của từng lớp theo lịch dạy
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
@@ -504,111 +517,104 @@ export default function DiemDanhPage() {
         </div>
       </div>
 
-      {/* 2. SCHEDULED CLASSES TABS BAR */}
+      {/* 2. CLASS TABS BAR (PROMINENT TABS FOR ALL CLASSES, HIGHLIGHTING SCHEDULED ONES) */}
       <div className="glass-panel" style={{ padding: "1.25rem", marginBottom: "1.5rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem", flexWrap: "wrap", gap: "0.5rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <Layers size={18} color="var(--accent-primary)" />
             <span style={{ fontWeight: "700", fontSize: "0.95rem" }}>
-              LỊCH DẠY NỔI BẬT NÀY: {getDayOfWeekName(attendanceDate).toUpperCase()} ({scheduledClasses.length} lớp ca dạy)
+              DANH SÁCH TAB LỚP HỌC (LỊCH {getDayOfWeekName(attendanceDate).toUpperCase()}):
             </span>
           </div>
-
-          {classes.length > scheduledClasses.length && (
-            <button
-              type="button"
-              onClick={() => setShowAllClassesTabs(!showAllClassesTabs)}
-              style={{
-                backgroundColor: "transparent",
-                color: "var(--accent-primary)",
-                border: "none",
-                fontSize: "0.82rem",
-                fontWeight: "600",
-                cursor: "pointer",
-                textDecoration: "underline",
-              }}
-            >
-              {showAllClassesTabs ? "Thu gọn (Chỉ xem lịch hôm nay)" : `+ Xem tất cả ${classes.length} lớp học`}
-            </button>
+          {scheduledClasses.length > 0 ? (
+            <span style={{ fontSize: "0.8rem", color: "var(--success)", fontWeight: "600", backgroundColor: "rgba(16, 185, 129, 0.15)", padding: "0.25rem 0.65rem", borderRadius: "12px" }}>
+              ✓ Có {scheduledClasses.length} lớp dạy theo lịch hôm nay
+            </span>
+          ) : (
+            <span style={{ fontSize: "0.8rem", color: "var(--warning)", fontWeight: "600", backgroundColor: "rgba(245, 158, 11, 0.15)", padding: "0.25rem 0.65rem", borderRadius: "12px" }}>
+              Không có ca dạy cố định ngày này. Chọn Tab lớp bất kỳ để điểm danh bù.
+            </span>
           )}
         </div>
 
-        {/* Tab Headers */}
-        {displayTabClasses.length === 0 ? (
-          <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.9rem" }}>
-            Không có ca dạy nào được xếp vào ngày {getDayOfWeekName(attendanceDate)}. Bấm nút bên trên để xem tất cả các lớp.
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              gap: "0.6rem",
-              overflowX: "auto",
-              paddingBottom: "0.4rem",
-              scrollbarWidth: "thin",
-            }}
-          >
-            {displayTabClasses.map((c) => {
-              const cid = String(c._key || c.id);
-              const isActive = String(cid) === String(selectedClassId);
-              const matchedSched = schedules.find(
-                (sc) => String(sc.lop_id || sc.id_lop) === cid && (sc.thu === currentDayKey || Number(sc.thu_trong_tuan) === currentDayNum)
-              );
+        {/* Tab Buttons for All Classes */}
+        <div
+          style={{
+            display: "flex",
+            gap: "0.6rem",
+            overflowX: "auto",
+            paddingBottom: "0.5rem",
+            scrollbarWidth: "thin",
+          }}
+        >
+          {sortedClassesForTabs.map((c) => {
+            const cid = String(c._key || c.id);
+            const isActive = cid === String(selectedClassId);
+            const matchedSched = schedules.find(
+              (sc) => String(sc.lop_id || sc.id_lop) === cid && (sc.thu === currentDayKey || Number(sc.thu_trong_tuan) === currentDayNum)
+            );
 
-              return (
-                <button
-                  key={cid}
-                  type="button"
-                  onClick={() => setSelectedClassId(cid)}
-                  style={{
-                    padding: "0.75rem 1.25rem",
-                    borderRadius: "12px",
-                    border: isActive ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
-                    backgroundColor: isActive ? "var(--accent-primary)" : "var(--bg-secondary)",
-                    color: isActive ? "#ffffff" : "var(--text-primary)",
-                    fontWeight: isActive ? "700" : "600",
-                    fontSize: "0.9rem",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.55rem",
-                    whiteSpace: "nowrap",
-                    boxShadow: isActive ? "0 4px 14px var(--accent-glow)" : "none",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  <span>{c.ten_lop || c.ten} {c.mon ? `(${c.mon})` : ""}</span>
-                  {matchedSched ? (
-                    <span
-                      style={{
-                        fontSize: "0.7rem",
-                        backgroundColor: isActive ? "rgba(255,255,255,0.25)" : "rgba(16, 185, 129, 0.2)",
-                        color: isActive ? "#ffffff" : "#10b981",
-                        padding: "0.2rem 0.5rem",
-                        borderRadius: "10px",
-                        fontWeight: "700",
-                      }}
-                    >
-                      ⏰ {matchedSched.gio_bat_dau || matchedSched.gioBatDau || "Ca dạy"} - {matchedSched.gio_ket_thuc || matchedSched.gioKetThuc || ""}
-                    </span>
-                  ) : (
-                    <span
-                      style={{
-                        fontSize: "0.68rem",
-                        backgroundColor: isActive ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)",
-                        color: isActive ? "#ffffff" : "var(--text-muted)",
-                        padding: "0.15rem 0.4rem",
-                        borderRadius: "8px",
-                      }}
-                    >
-                      Khác lịch
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
+            return (
+              <button
+                key={cid}
+                type="button"
+                onClick={() => setSelectedClassId(cid)}
+                style={{
+                  padding: "0.75rem 1.25rem",
+                  borderRadius: "12px",
+                  border: isActive
+                    ? "2px solid var(--accent-primary)"
+                    : matchedSched
+                    ? "1px solid rgba(16, 185, 129, 0.5)"
+                    : "1px solid var(--border-color)",
+                  backgroundColor: isActive
+                    ? "var(--accent-primary)"
+                    : matchedSched
+                    ? "rgba(16, 185, 129, 0.08)"
+                    : "var(--bg-secondary)",
+                  color: isActive ? "#ffffff" : "var(--text-primary)",
+                  fontWeight: isActive ? "700" : "600",
+                  fontSize: "0.9rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.55rem",
+                  whiteSpace: "nowrap",
+                  boxShadow: isActive ? "0 4px 14px var(--accent-glow)" : "none",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <span>{c.ten_lop || c.ten} {c.mon ? `(${c.mon})` : ""}</span>
+                {matchedSched ? (
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      backgroundColor: isActive ? "rgba(255,255,255,0.25)" : "rgba(16, 185, 129, 0.25)",
+                      color: isActive ? "#ffffff" : "#10b981",
+                      padding: "0.2rem 0.5rem",
+                      borderRadius: "10px",
+                      fontWeight: "700",
+                    }}
+                  >
+                    ⏰ {matchedSched.gio_bat_dau || matchedSched.gioBatDau || "Ca dạy"}
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: "0.68rem",
+                      backgroundColor: isActive ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)",
+                      color: isActive ? "#ffffff" : "var(--text-muted)",
+                      padding: "0.15rem 0.4rem",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    Khác lịch
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Stats Summary Bar for Active Class */}
@@ -648,7 +654,7 @@ export default function DiemDanhPage() {
           <div>
             <h3 style={{ fontSize: "1.25rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <BookOpen size={22} color="var(--accent-primary)" />
-              Lớp: {currentClass?.ten_lop || currentClass?.ten || "Chọn Lớp"} {currentClass?.mon ? `(${currentClass.mon})` : ""}
+              Lớp: {currentClass ? (currentClass.ten_lop || currentClass.ten) : "Chưa chọn lớp"} {currentClass?.mon ? `(${currentClass.mon})` : ""}
             </h3>
             {currentSched && (
               <p style={{ fontSize: "0.82rem", color: "var(--success)", marginTop: "0.25rem", fontWeight: "600" }}>
