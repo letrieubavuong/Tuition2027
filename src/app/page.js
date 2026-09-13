@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { db, ref, onValue, set, push } from "@/lib/firebase";
+import { useAuth } from "@/context/AuthContext";
 import {
   Users,
   GraduationCap,
@@ -52,6 +53,8 @@ ChartJS.register(
 );
 
 export default function CenterLandingPage() {
+  const { user } = useAuth();
+  const userRole = user ? user.role : "GUEST";
   const [activeTab, setActiveTab] = useState("public"); // "public" or "dashboard"
 
   // Admin Dashboard State
@@ -430,27 +433,29 @@ export default function CenterLandingPage() {
           <span>GIỚI THIỆU TRUNG TÂM & ĐĂNG KÝ HỌC</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab("dashboard")}
-          style={{
-            padding: "0.75rem 1.35rem",
-            borderRadius: "12px",
-            border: activeTab === "dashboard" ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
-            backgroundColor: activeTab === "dashboard" ? "var(--accent-primary)" : "var(--bg-secondary)",
-            color: activeTab === "dashboard" ? "#ffffff" : "var(--text-primary)",
-            fontWeight: "700",
-            fontSize: "0.95rem",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.6rem",
-            boxShadow: activeTab === "dashboard" ? "0 4px 14px var(--accent-glow)" : "none",
-          }}
-        >
-          <TrendingUp size={18} />
-          <span>BẢNG QUẢN LÝ DÀNH CHO GIÁO VIÊN ({stats.totalStudents} HS)</span>
-        </button>
+        {userRole !== "STUDENT" && (
+          <button
+            type="button"
+            onClick={() => setActiveTab("dashboard")}
+            style={{
+              padding: "0.75rem 1.35rem",
+              borderRadius: "12px",
+              border: activeTab === "dashboard" ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
+              backgroundColor: activeTab === "dashboard" ? "var(--accent-primary)" : "var(--bg-secondary)",
+              color: activeTab === "dashboard" ? "#ffffff" : "var(--text-primary)",
+              fontWeight: "700",
+              fontSize: "0.95rem",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.6rem",
+              boxShadow: activeTab === "dashboard" ? "0 4px 14px var(--accent-glow)" : "none",
+            }}
+          >
+            <TrendingUp size={18} />
+            <span>BẢNG QUẢN LÝ DÀNH CHO GIÁO VIÊN ({stats.totalStudents} HS)</span>
+          </button>
+        )}
       </div>
 
       {/* 3. PUBLIC CENTER WEBSITE TAB CONTENT */}
@@ -1103,74 +1108,80 @@ export default function CenterLandingPage() {
               </div>
             </div>
 
-            <div className="glass-card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", fontWeight: "600" }}>
-                    HỌC PHÍ ĐÃ THU
-                  </p>
-                  <h3 style={{ fontSize: "1.5rem", fontWeight: "800", margin: "0.3rem 0", color: "var(--success)" }}>
-                    {loading ? "..." : formatCurrency(stats.totalCollected)}
-                  </h3>
-                  <span className="badge badge-success">Đã thu ngân</span>
+            {userRole === "ADMIN" && (
+              <>
+                <div className="glass-card">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", fontWeight: "600" }}>
+                        HỌC PHÍ ĐÃ THU
+                      </p>
+                      <h3 style={{ fontSize: "1.5rem", fontWeight: "800", margin: "0.3rem 0", color: "var(--success)" }}>
+                        {loading ? "..." : formatCurrency(stats.totalCollected)}
+                      </h3>
+                      <span className="badge badge-success">Đã thu ngân</span>
+                    </div>
+                    <div
+                      style={{
+                        width: "48px",
+                        height: "48px",
+                        borderRadius: "14px",
+                        backgroundColor: "rgba(16, 185, 129, 0.15)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <CreditCard size={26} color="var(--success)" />
+                    </div>
+                  </div>
                 </div>
-                <div
-                  style={{
-                    width: "48px",
-                    height: "48px",
-                    borderRadius: "14px",
-                    backgroundColor: "rgba(16, 185, 129, 0.15)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <CreditCard size={26} color="var(--success)" />
-                </div>
-              </div>
-            </div>
 
-            <div className="glass-card">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", fontWeight: "600" }}>
-                    CÒN NỢ HỌC PHÍ
-                  </p>
-                  <h3 style={{ fontSize: "1.5rem", fontWeight: "800", margin: "0.3rem 0", color: "var(--danger)" }}>
-                    {loading ? "..." : formatCurrency(stats.totalDebt)}
-                  </h3>
-                  <span className="badge badge-warning">
-                    <AlertCircle size={12} /> Cần nhắc nợ
-                  </span>
+                <div className="glass-card">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", fontWeight: "600" }}>
+                        CÒN NỢ HỌC PHÍ
+                      </p>
+                      <h3 style={{ fontSize: "1.5rem", fontWeight: "800", margin: "0.3rem 0", color: "var(--danger)" }}>
+                        {loading ? "..." : formatCurrency(stats.totalDebt)}
+                      </h3>
+                      <span className="badge badge-warning">
+                        <AlertCircle size={12} /> Cần nhắc nợ
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        width: "48px",
+                        height: "48px",
+                        borderRadius: "14px",
+                        backgroundColor: "rgba(239, 68, 68, 0.15)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <AlertCircle size={26} color="var(--danger)" />
+                    </div>
+                  </div>
                 </div>
-                <div
-                  style={{
-                    width: "48px",
-                    height: "48px",
-                    borderRadius: "14px",
-                    backgroundColor: "rgba(239, 68, 68, 0.15)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <AlertCircle size={26} color="var(--danger)" />
-                </div>
-              </div>
-            </div>
+              </>
+            )}
           </div>
 
           {/* Analytics & Today Schedule Grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: "1.5rem", marginBottom: "1.5rem" }}>
-            {/* Revenue Doughnut Chart */}
-            <div className="glass-panel" style={{ padding: "1.5rem" }}>
-              <h3 style={{ fontSize: "1.1rem", fontWeight: "700", marginBottom: "1rem" }}>
-                Tỷ Lệ Thu Học Phí
-              </h3>
-              <div style={{ maxHeight: "260px", display: "flex", justifyContent: "center" }}>
-                <Doughnut data={chartData} options={{ maintainAspectRatio: false }} />
+            {/* Revenue Doughnut Chart - Only for Admin */}
+            {userRole === "ADMIN" && (
+              <div className="glass-panel" style={{ padding: "1.5rem" }}>
+                <h3 style={{ fontSize: "1.1rem", fontWeight: "700", marginBottom: "1rem" }}>
+                  Tỷ Lệ Thu Học Phí
+                </h3>
+                <div style={{ maxHeight: "260px", display: "flex", justifyContent: "center" }}>
+                  <Doughnut data={chartData} options={{ maintainAspectRatio: false }} />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Grade Bar Chart */}
             <div className="glass-panel" style={{ padding: "1.5rem" }}>
