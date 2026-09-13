@@ -107,7 +107,12 @@ export default function CaiDatPage() {
     const unsubBank = onValue(bankRef, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        setBankConfig(val);
+        setBankConfig({
+          ten_ngan_hang: val.ten_ngan_hang || val.bank_name || "Sacombank",
+          ma_bin: val.ma_bin || val.bank_id || val.bin || "970403",
+          so_tai_khoan: val.so_tai_khoan || val.account_no || "0905073175",
+          ten_chu_tai_khoan: val.ten_chu_tai_khoan || val.account_name || "LE TRIEU BA VUONG",
+        });
       }
     });
 
@@ -180,7 +185,13 @@ export default function CaiDatPage() {
         ...systemSettings,
         updated_at: new Date().toISOString(),
       });
-      await set(ref(db, "cai_dat/bank"), bankConfig);
+      await set(ref(db, "cai_dat/bank"), {
+        ...bankConfig,
+        bank_id: bankConfig.ma_bin || bankConfig.ten_ngan_hang,
+        account_no: bankConfig.so_tai_khoan,
+        account_name: bankConfig.ten_chu_tai_khoan,
+        updated_at: new Date().toISOString(),
+      });
 
       showNotification("Đã lưu thành công cấu hình thông tin quản lý & VietQR!");
     } catch (err) {

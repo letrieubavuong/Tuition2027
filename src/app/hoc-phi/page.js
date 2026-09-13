@@ -13,6 +13,12 @@ export default function HocPhiPage() {
   const [selectedMonth, setSelectedMonth] = useState("all");
   const [availableMonths, setAvailableMonths] = useState([]);
   const [selectedQr, setSelectedQr] = useState(null);
+  const [bankConfig, setBankConfig] = useState({
+    ten_ngan_hang: "Sacombank",
+    ma_bin: "970403",
+    so_tai_khoan: "0905073175",
+    ten_chu_tai_khoan: "LE TRIEU BA VUONG",
+  });
 
   useEffect(() => {
     // 1. Lắng nghe danh sách học sinh để map ID -> Tên học sinh
@@ -65,9 +71,24 @@ export default function HocPhiPage() {
       setLoading(false);
     });
 
+    // 3. Lắng nghe cấu hình tài khoản VietQR từ cài đặt
+    const bankRef = ref(db, "cai_dat/bank");
+    const unsubBank = onValue(bankRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        setBankConfig({
+          ten_ngan_hang: val.ten_ngan_hang || val.bank_name || "Sacombank",
+          ma_bin: val.ma_bin || val.bank_id || val.bin || "970403",
+          so_tai_khoan: val.so_tai_khoan || val.account_no || "0905073175",
+          ten_chu_tai_khoan: val.ten_chu_tai_khoan || val.account_name || "LE TRIEU BA VUONG",
+        });
+      }
+    });
+
     return () => {
       unsubHs();
       unsubPay();
+      unsubBank();
     };
   }, []);
 
@@ -380,48 +401,68 @@ export default function HocPhiPage() {
       </div>
 
       {/* VietQR Modal */}
-      {selectedQr && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-            padding: "1rem",
-          }}
-        >
-          <div className="glass-panel" style={{ width: "100%", maxWidth: "420px", padding: "1.75rem", backgroundColor: "var(--bg-secondary)", textAlign: "center" }}>
-            <h3 style={{ fontSize: "1.2rem", fontWeight: "700", marginBottom: "0.5rem" }}>
-              Mã VietQR Nhắc Đóng Học Phí
-            </h3>
-            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "1.25rem" }}>
-              Phụ huynh quét mã bên dưới để chuyển khoản chính xác số tiền nợ
-            </p>
+      {selectedQr && (() => {
+        const bin = bankConfig.ma_bin || "970403";
+        const stk = bankConfig.so_tai_khoan || "0905073175";
+        const ctk = bankConfig.ten_chu_tai_khoan || "LE TRIEU BA VUONG";
+        const bankName = bankConfig.ten_ngan_hang || "Sacombank";
 
-            <div style={{ background: "#ffffff", padding: "1rem", borderRadius: "16px", display: "inline-block", marginBottom: "1rem" }}>
-              <img
-                src={`https://img.vietqr.io/image/970422-0123456789-compact2.png?amount=${selectedQr.sotien}&addInfo=${encodeURIComponent(selectedQr.noidung)}&accountName=TUITION2026`}
-                alt="VietQR"
-                style={{ width: "240px", height: "240px" }}
-              />
+        return (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.6)",
+              backdropFilter: "blur(4px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 100,
+              padding: "1rem",
+            }}
+          >
+            <div
+              className="glass-panel"
+              style={{
+                width: "100%",
+                maxWidth: "440px",
+                padding: "1.75rem",
+                backgroundColor: "var(--bg-secondary)",
+                textAlign: "center",
+              }}
+            >
+              <h3 style={{ fontSize: "1.2rem", fontWeight: "700", marginBottom: "0.5rem" }}>
+                Mã VietQR Nhắc Đóng Học Phí
+              </h3>
+              <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "1.25rem" }}>
+                Phụ huynh quét mã bên dưới để chuyển khoản chính xác số tiền nợ
+              </p>
+
+              <div style={{ background: "#ffffff", padding: "1rem", borderRadius: "16px", display: "inline-block", marginBottom: "1rem" }}>
+                <img
+                  src={`https://img.vietqr.io/image/${bin}-${stk}-compact2.png?amount=${selectedQr.sotien}&addInfo=${encodeURIComponent(selectedQr.noidung)}&accountName=${encodeURIComponent(ctk)}`}
+                  alt="VietQR"
+                  style={{ width: "250px", height: "250px", display: "block" }}
+                />
+              </div>
+
+              <div style={{ textAlign: "left", backgroundColor: "var(--bg-primary)", padding: "0.85rem", borderRadius: "8px", fontSize: "0.85rem", marginBottom: "1.25rem", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                <div><strong>Ngân hàng:</strong> {bankName} (Mã BIN: {bin})</div>
+                <div><strong>Số tài khoản:</strong> <span style={{ color: "var(--accent-primary)", fontWeight: "700" }}>{stk}</span></div>
+                <div><strong>Chủ tài khoản:</strong> <strong>{ctk}</strong></div>
+                <hr style={{ borderColor: "var(--border-color)", margin: "0.25rem 0" }} />
+                <div><strong>Học sinh:</strong> {selectedQr.ten}</div>
+                <div><strong>Số tiền nợ:</strong> <span style={{ color: "var(--danger)", fontWeight: "700" }}>{formatCurrency(selectedQr.sotien)}</span></div>
+                <div><strong>Nội dung CK:</strong> <span style={{ fontFamily: "monospace", color: "var(--warning)" }}>{selectedQr.noidung}</span></div>
+              </div>
+
+              <button onClick={() => setSelectedQr(null)} className="btn-primary" style={{ width: "100%", justifyContent: "center" }}>
+                Đóng
+              </button>
             </div>
-
-            <div style={{ textAlign: "left", backgroundColor: "var(--bg-primary)", padding: "0.85rem", borderRadius: "8px", fontSize: "0.85rem", marginBottom: "1.25rem" }}>
-              <div><strong>Học sinh:</strong> {selectedQr.ten}</div>
-              <div><strong>Số tiền nợ:</strong> <span style={{ color: "var(--danger)", fontWeight: "700" }}>{formatCurrency(selectedQr.sotien)}</span></div>
-              <div><strong>Nội dung CK:</strong> {selectedQr.noidung}</div>
-            </div>
-
-            <button onClick={() => setSelectedQr(null)} className="btn-primary" style={{ width: "100%", justifyContent: "center" }}>
-              Đóng
-            </button>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
