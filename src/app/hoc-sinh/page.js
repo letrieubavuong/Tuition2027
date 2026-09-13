@@ -2,13 +2,27 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { db, ref, onValue, set, remove, push } from "@/lib/firebase";
-import { Users, Search, Plus, Trash2, Edit, CheckCircle, Phone, Mail, Filter, Eye } from "lucide-react";
+import { db, ref, onValue, set, remove } from "@/lib/firebase";
+import {
+  Users,
+  Search,
+  Plus,
+  Trash2,
+  Edit,
+  Phone,
+  Filter,
+  Eye,
+  GraduationCap,
+  Grid,
+  List,
+  MessageCircle,
+} from "lucide-react";
 
 export default function HocSinhPage() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState("grid"); // 'grid' | 'table'
   const [showModal, setShowModal] = useState(false);
   const [editingHs, setEditingHs] = useState(null);
 
@@ -111,6 +125,7 @@ export default function HocSinhPage() {
     (s) =>
       (s.ten && s.ten.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (s.sdt_phu_huynh && s.sdt_phu_huynh.includes(searchQuery)) ||
+      (s.sdt && s.sdt.includes(searchQuery)) ||
       (s.truong && s.truong.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
@@ -130,7 +145,7 @@ export default function HocSinhPage() {
         <div>
           <h2 style={{ fontSize: "1.75rem", fontWeight: "700" }}>Quản Lý Học Sinh</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-            Danh sách và thông tin liên lạc phụ huynh học sinh
+            Danh sách học sinh theo dạng Card nhiều cột hiện đại & tiện lợi
           </p>
         </div>
         <button onClick={() => handleOpenModal()} className="btn-primary">
@@ -138,10 +153,18 @@ export default function HocSinhPage() {
         </button>
       </div>
 
-      {/* Filter & Search Bar */}
+      {/* Filter & View Mode Controls */}
       <div className="glass-panel" style={{ padding: "1rem 1.25rem", marginBottom: "1.5rem" }}>
-        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <div style={{ position: "relative", flex: 1 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "1rem",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ position: "relative", flex: 1, minWidth: "260px" }}>
             <Search
               size={18}
               color="var(--text-muted)"
@@ -156,24 +179,350 @@ export default function HocSinhPage() {
               style={{ width: "100%", paddingLeft: "2.75rem" }}
             />
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--text-secondary)" }}>
-            <Filter size={18} />
-            <span style={{ fontSize: "0.9rem", fontWeight: "500" }}>{filteredStudents.length} Học sinh</span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "var(--text-secondary)" }}>
+              <Filter size={18} />
+              <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>{filteredStudents.length} Học sinh</span>
+            </div>
+
+            {/* View Mode Toggle Buttons */}
+            <div
+              style={{
+                display: "flex",
+                backgroundColor: "rgba(255, 255, 255, 0.05)",
+                padding: "3px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setViewMode("grid")}
+                style={{
+                  backgroundColor: viewMode === "grid" ? "var(--accent-primary)" : "transparent",
+                  color: viewMode === "grid" ? "#ffffff" : "var(--text-muted)",
+                  border: "none",
+                  borderRadius: "6px",
+                  padding: "0.35rem 0.65rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  fontSize: "0.85rem",
+                  fontWeight: "600",
+                  transition: "all 0.2s ease",
+                }}
+                title="Hiển thị dạng Card nhiều cột"
+              >
+                <Grid size={16} /> Grid Card
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                style={{
+                  backgroundColor: viewMode === "table" ? "var(--accent-primary)" : "transparent",
+                  color: viewMode === "table" ? "#ffffff" : "var(--text-muted)",
+                  border: "none",
+                  borderRadius: "6px",
+                  padding: "0.35rem 0.65rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  fontSize: "0.85rem",
+                  fontWeight: "600",
+                  transition: "all 0.2s ease",
+                }}
+                title="Hiển thị dạng Bảng"
+              >
+                <List size={16} /> Bảng
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Student List Table */}
-      <div className="glass-panel" style={{ overflow: "hidden" }}>
-        {loading ? (
-          <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
-            Đang nạp danh sách học sinh từ Realtime Cloud...
-          </div>
-        ) : filteredStudents.length === 0 ? (
-          <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
-            Không tìm thấy học sinh nào phù hợp.
-          </div>
-        ) : (
+      {/* Main Student Content */}
+      {loading ? (
+        <div className="glass-panel" style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
+          Đang nạp danh sách học sinh từ Realtime Cloud...
+        </div>
+      ) : filteredStudents.length === 0 ? (
+        <div className="glass-panel" style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
+          Không tìm thấy học sinh nào phù hợp.
+        </div>
+      ) : viewMode === "grid" ? (
+        /* Multi-column Grid Cards View */
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))",
+            gap: "1.25rem",
+          }}
+        >
+          {filteredStudents.map((hs) => {
+            const isInactive = hs.trang_thai === "DA_NGHI" || hs.trang_thai === "NGHI_HOC";
+            const phone = hs.sdt_phu_huynh || hs.sdt || "";
+
+            return (
+              <div
+                key={hs._key}
+                className="glass-panel"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  padding: "1.25rem",
+                  borderRadius: "14px",
+                  transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                  position: "relative",
+                }}
+              >
+                <div>
+                  {/* Card Top Header */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: "0.75rem",
+                      marginBottom: "1rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+                      <div
+                        style={{
+                          width: "48px",
+                          height: "48px",
+                          borderRadius: "14px",
+                          background: "linear-gradient(135deg, rgba(13, 148, 136, 0.25), rgba(99, 102, 241, 0.25))",
+                          color: "var(--accent-primary)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: "700",
+                          fontSize: "1.2rem",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                          border: "1px solid rgba(13, 148, 136, 0.3)",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {hs.ten ? hs.ten.charAt(0).toUpperCase() : "H"}
+                      </div>
+                      <div>
+                        <Link
+                          href={`/hoc-sinh/${hs.id || hs._key}`}
+                          style={{
+                            color: "var(--text-primary)",
+                            fontWeight: "700",
+                            fontSize: "1.05rem",
+                            textDecoration: "none",
+                            display: "block",
+                          }}
+                          className="hover-underline"
+                        >
+                          {hs.ten || "Chưa nhập tên"}
+                        </Link>
+                        <span
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "var(--text-muted)",
+                            backgroundColor: "rgba(255, 255, 255, 0.05)",
+                            padding: "0.15rem 0.45rem",
+                            borderRadius: "6px",
+                            display: "inline-block",
+                            marginTop: "0.2rem",
+                          }}
+                        >
+                          ID: #{hs.id || hs._key}
+                        </span>
+                      </div>
+                    </div>
+
+                    <span
+                      style={{
+                        fontSize: "0.72rem",
+                        fontWeight: "600",
+                        padding: "0.25rem 0.65rem",
+                        borderRadius: "20px",
+                        backgroundColor: isInactive ? "rgba(239, 68, 68, 0.15)" : "rgba(34, 197, 94, 0.15)",
+                        color: isInactive ? "#ef4444" : "#22c55e",
+                        border: isInactive
+                          ? "1px solid rgba(239, 68, 68, 0.3)"
+                          : "1px solid rgba(34, 197, 94, 0.3)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {isInactive ? "Đã nghỉ" : "Đang học"}
+                    </span>
+                  </div>
+
+                  {/* Information Details */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.65rem",
+                      fontSize: "0.88rem",
+                      marginBottom: "1.25rem",
+                      color: "var(--text-secondary)",
+                    }}
+                  >
+                    {/* School */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+                      <GraduationCap size={16} style={{ color: "var(--accent-primary)", flexShrink: 0 }} />
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          color: hs.truong ? "var(--text-primary)" : "var(--text-muted)",
+                        }}
+                      >
+                        {hs.truong || "Chưa cập nhật trường"}
+                      </span>
+                    </div>
+
+                    {/* Parent Phone & Zalo Trigger */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        flexWrap: "wrap",
+                        gap: "0.5rem",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+                        <Phone size={16} style={{ color: "#3b82f6", flexShrink: 0 }} />
+                        {phone ? (
+                          <a
+                            href={`tel:${phone}`}
+                            style={{ color: "var(--text-primary)", fontWeight: "600", textDecoration: "none" }}
+                          >
+                            {phone}
+                          </a>
+                        ) : (
+                          <span style={{ color: "var(--text-muted)" }}>--</span>
+                        )}
+                      </div>
+
+                      {phone && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const clean = phone.replace(/[^0-9]/g, "");
+                            if (clean) {
+                              window.location.href = `zalo://chat?phone=${clean}`;
+                              setTimeout(() => {
+                                window.open(`https://zalo.me/${clean}`, "_blank");
+                              }, 600);
+                            }
+                          }}
+                          style={{
+                            backgroundColor: "#0068ff",
+                            color: "#ffffff",
+                            border: "none",
+                            borderRadius: "6px",
+                            padding: "0.25rem 0.6rem",
+                            fontSize: "0.75rem",
+                            fontWeight: "600",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.3rem",
+                            boxShadow: "0 2px 6px rgba(0,104,255,0.25)",
+                          }}
+                          title="Mở ứng dụng Zalo PC"
+                        >
+                          <MessageCircle size={12} /> Zalo PC
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Note Snippet */}
+                    {hs.ghi_chu && (
+                      <div
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "var(--text-muted)",
+                          backgroundColor: "rgba(255, 255, 255, 0.03)",
+                          padding: "0.5rem 0.75rem",
+                          borderRadius: "8px",
+                          borderLeft: "3px solid var(--accent-primary)",
+                          marginTop: "0.2rem",
+                        }}
+                      >
+                        {hs.ghi_chu}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card Action Buttons */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    paddingTop: "0.85rem",
+                    borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                  }}
+                >
+                  <Link
+                    href={`/hoc-sinh/${hs.id || hs._key}`}
+                    className="btn-secondary"
+                    style={{
+                      flex: 1,
+                      justifyContent: "center",
+                      fontSize: "0.82rem",
+                      padding: "0.45rem 0.6rem",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Eye size={14} /> Hồ sơ
+                  </Link>
+                  <button
+                    onClick={() => handleOpenModal(hs)}
+                    className="btn-secondary"
+                    style={{
+                      fontSize: "0.82rem",
+                      padding: "0.45rem 0.65rem",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                    }}
+                    title="Chỉnh sửa thông tin"
+                  >
+                    <Edit size={14} /> Sửa
+                  </button>
+                  <button
+                    onClick={() => handleDelete(hs._key)}
+                    className="btn-secondary"
+                    style={{
+                      fontSize: "0.82rem",
+                      padding: "0.45rem 0.65rem",
+                      color: "var(--danger)",
+                      borderColor: "rgba(239, 68, 68, 0.3)",
+                      display: "inline-flex",
+                      alignItems: "center",
+                    }}
+                    title="Xóa học sinh"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Fallback Table View */
+        <div className="glass-panel" style={{ overflow: "hidden" }}>
           <div className="data-table-container">
             <table className="data-table">
               <thead>
@@ -214,7 +563,9 @@ export default function HocSinhPage() {
                           >
                             {hs.ten || "Chưa nhập tên"}
                           </Link>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>ID: #{hs.id || hs._key}</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                            ID: #{hs.id || hs._key}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -223,7 +574,13 @@ export default function HocSinhPage() {
                         <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
                           <a
                             href={`tel:${hs.sdt_phu_huynh || hs.sdt}`}
-                            style={{ color: "var(--accent-primary)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}
+                            style={{
+                              color: "var(--accent-primary)",
+                              textDecoration: "none",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "0.25rem",
+                            }}
                           >
                             <Phone size={14} /> {hs.sdt_phu_huynh || hs.sdt}
                           </a>
@@ -263,7 +620,12 @@ export default function HocSinhPage() {
                       <Link
                         href={`/hoc-sinh/${hs.id || hs._key}`}
                         className="btn-secondary"
-                        style={{ padding: "0.4rem 0.65rem", marginRight: "0.5rem", display: "inline-flex", alignItems: "center" }}
+                        style={{
+                          padding: "0.4rem 0.65rem",
+                          marginRight: "0.5rem",
+                          display: "inline-flex",
+                          alignItems: "center",
+                        }}
                         title="Xem chi tiết hồ sơ"
                       >
                         <Eye size={14} />
@@ -279,7 +641,11 @@ export default function HocSinhPage() {
                       <button
                         onClick={() => handleDelete(hs._key)}
                         className="btn-secondary"
-                        style={{ padding: "0.4rem 0.65rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.3)" }}
+                        style={{
+                          padding: "0.4rem 0.65rem",
+                          color: "var(--danger)",
+                          borderColor: "rgba(239, 68, 68, 0.3)",
+                        }}
                         title="Xóa"
                       >
                         <Trash2 size={14} />
@@ -290,8 +656,8 @@ export default function HocSinhPage() {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Modal Dialog Add / Edit Student */}
       {showModal && (
@@ -308,7 +674,10 @@ export default function HocSinhPage() {
             padding: "1rem",
           }}
         >
-          <div className="glass-panel" style={{ width: "100%", maxWidth: "500px", padding: "1.75rem", backgroundColor: "var(--bg-secondary)" }}>
+          <div
+            className="glass-panel"
+            style={{ width: "100%", maxWidth: "500px", padding: "1.75rem", backgroundColor: "var(--bg-secondary)" }}
+          >
             <h3 style={{ fontSize: "1.25rem", fontWeight: "700", marginBottom: "1.25rem" }}>
               {editingHs ? "Chỉnh Sửa Thông Tin Học Sinh" : "Thêm Học Sinh Mới"}
             </h3>
