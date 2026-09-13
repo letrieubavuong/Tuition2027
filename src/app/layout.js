@@ -18,7 +18,8 @@ import {
   Sun,
   Menu,
   X,
-  Radio
+  Radio,
+  FileText
 } from "lucide-react";
 
 export default function RootLayout({ children }) {
@@ -39,6 +40,7 @@ export default function RootLayout({ children }) {
     { name: "Lớp Học", href: "/lop-hoc", icon: GraduationCap },
     { name: "Học Sinh", href: "/hoc-sinh", icon: Users },
     { name: "Điểm Danh", href: "/diem-danh", icon: CalendarCheck },
+    { name: "Đề Thi & BTVN", href: "/de-thi", icon: FileText },
     { name: "Học Phí & VietQR", href: "/hoc-phi", icon: CreditCard },
     { name: "Lịch Dạy", href: "/lich-day", icon: Calendar },
     { name: "Thống Kê", href: "/thong-ke", icon: BarChart3 },
