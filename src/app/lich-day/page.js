@@ -34,7 +34,7 @@ export default function LichDayPage() {
 
   // Form State
   const [formData, setFormData] = useState({
-    lop_id: "",
+    id_lop: "",
     thu: "Thu2",
     gio_bat_dau: "17:30",
     gio_ket_thuc: "19:00",
@@ -43,42 +43,92 @@ export default function LichDayPage() {
   });
 
   useEffect(() => {
-    // Load Classes
-    const classRef = ref(db, "lop_hoc");
-    const unsubClasses = onValue(classRef, (snapshot) => {
+    // 1. Load Classes from both 'lop' and 'lop_hoc' nodes
+    let listLop1 = [];
+    let listLop2 = [];
+
+    const mergeClasses = () => {
+      const combined = [...listLop1, ...listLop2];
+      const map = new Map();
+      combined.forEach((c) => {
+        const key = String(c.id || c._key);
+        if (!map.has(key)) map.set(key, c);
+      });
+      setClasses(Array.from(map.values()));
+    };
+
+    const lopRef1 = ref(db, "lop");
+    const unsubLop1 = onValue(lopRef1, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        let list = [];
-        if (Array.isArray(val)) {
-          list = val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean);
-        } else {
-          list = Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
-        }
-        setClasses(list);
+        listLop1 = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+      } else {
+        listLop1 = [];
       }
+      mergeClasses();
     });
 
-    // Load Schedules
-    const schedRef = ref(db, "lich_hoc_chung");
-    const unsubSched = onValue(schedRef, (snapshot) => {
+    const lopRef2 = ref(db, "lop_hoc");
+    const unsubLop2 = onValue(lopRef2, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        let list = [];
-        if (Array.isArray(val)) {
-          list = val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean);
-        } else {
-          list = Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
-        }
-        setSchedules(list);
+        listLop2 = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
       } else {
-        setSchedules([]);
+        listLop2 = [];
       }
+      mergeClasses();
+    });
+
+    // 2. Load Schedules from both 'lich_hoc_chung' and 'lich_hoc' nodes
+    let listSched1 = [];
+    let listSched2 = [];
+
+    const mergeSchedules = () => {
+      const combined = [...listSched1, ...listSched2];
+      const map = new Map();
+      combined.forEach((sc) => {
+        const key = String(sc.id || sc._key);
+        if (!map.has(key)) map.set(key, sc);
+      });
+      setSchedules(Array.from(map.values()));
       setLoading(false);
+    };
+
+    const schedRef1 = ref(db, "lich_hoc_chung");
+    const unsubSched1 = onValue(schedRef1, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        listSched1 = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+      } else {
+        listSched1 = [];
+      }
+      mergeSchedules();
+    });
+
+    const schedRef2 = ref(db, "lich_hoc");
+    const unsubSched2 = onValue(schedRef2, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        listSched2 = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+      } else {
+        listSched2 = [];
+      }
+      mergeSchedules();
     });
 
     return () => {
-      unsubClasses();
-      unsubSched();
+      unsubLop1();
+      unsubLop2();
+      unsubSched1();
+      unsubSched2();
     };
   }, []);
 
@@ -86,17 +136,17 @@ export default function LichDayPage() {
     if (sched) {
       setEditingSchedule(sched);
       setFormData({
-        lop_id: sched.lop_id || "",
-        thu: sched.thu || "Thu2",
-        gio_bat_dau: sched.gio_bat_dau || "17:30",
-        gio_ket_thuc: sched.gio_ket_thuc || "19:00",
-        phong_hoc: sched.phong_hoc || "Phòng A1",
+        id_lop: String(sched.id_lop || sched.lop_id || sched.idLop || ""),
+        thu: normalizeDayKey(sched),
+        gio_bat_dau: sched.gio_bat_dau || sched.gioBatDau || "17:30",
+        gio_ket_thuc: sched.gio_ket_thuc || sched.gioKetThuc || "19:00",
+        phong_hoc: sched.phong_hoc || "Phòng học chính",
         ghi_chu: sched.ghi_chu || "",
       });
     } else {
       setEditingSchedule(null);
       setFormData({
-        lop_id: classes[0]?._key || "",
+        id_lop: classes[0] ? String(classes[0].id || classes[0]._key) : "",
         thu: "Thu2",
         gio_bat_dau: "17:30",
         gio_ket_thuc: "19:00",
@@ -109,52 +159,95 @@ export default function LichDayPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.lop_id) {
+    if (!formData.id_lop) {
       alert("Vui lòng chọn lớp học!");
       return;
     }
 
     try {
-      if (editingSchedule) {
-        const itemRef = ref(db, `lich_hoc_chung/${editingSchedule._key}`);
-        await set(itemRef, {
-          ...editingSchedule,
-          ...formData,
-          updated_at: new Date().toISOString(),
-        });
-      } else {
-        const newId = Date.now();
-        const itemRef = ref(db, `lich_hoc_chung/${newId}`);
-        await set(itemRef, {
-          id: newId,
-          ...formData,
-          created_at: new Date().toISOString(),
-        });
-      }
+      const newId = editingSchedule ? (editingSchedule.id || editingSchedule._key) : Date.now();
+      const payload = {
+        id: Number(newId) || newId,
+        id_lop: Number(formData.id_lop) || formData.id_lop,
+        lop_id: Number(formData.id_lop) || formData.id_lop,
+        idLop: Number(formData.id_lop) || formData.id_lop,
+        thu: formData.thu,
+        thuTrongTuan: getDayNumber(formData.thu),
+        gio_bat_dau: formData.gio_bat_dau,
+        gioBatDau: formData.gio_bat_dau,
+        gio_ket_thuc: formData.gio_ket_thuc,
+        gioKetThuc: formData.gio_ket_thuc,
+        phong_hoc: formData.phong_hoc,
+        ghi_chu: formData.ghi_chu,
+        updated_at: new Date().toISOString(),
+      };
+
+      await set(ref(db, `lich_hoc_chung/${newId}`), payload);
+      await set(ref(db, `lich_hoc/${newId}`), payload);
+
       setShowModal(false);
     } catch (err) {
       alert("Lỗi lưu ca học: " + err.message);
     }
   };
 
-  const handleDelete = async (key) => {
+  const handleDelete = async (sc) => {
+    const key = sc._key || sc.id;
     if (confirm("Bạn có chắc chắn muốn xóa ca học này khỏi thời khóa biểu?")) {
       try {
         await remove(ref(db, `lich_hoc_chung/${key}`));
+        await remove(ref(db, `lich_hoc/${key}`));
       } catch (err) {
         alert("Lỗi xóa ca học: " + err.message);
       }
     }
   };
 
-  const getClassName = (lopId) => {
-    const cls = classes.find((c) => String(c._key) === String(lopId) || String(c.id) === String(lopId));
-    return cls ? `${cls.ten_lop || cls.ten} (${cls.mon || "Môn học"})` : "Lớp #" + lopId;
+  // Helper function to extract class name safely
+  const getClassName = (sc) => {
+    const targetId = sc.id_lop ?? sc.lop_id ?? sc.idLop;
+    if (targetId === undefined || targetId === null) return "Lớp Học";
+    const cls = classes.find(
+      (c) => String(c.id) === String(targetId) || String(c._key) === String(targetId)
+    );
+    if (cls) {
+      const name = cls.ten || cls.ten_lop || `Lớp #${targetId}`;
+      return cls.khoi ? `${name} (Khối ${cls.khoi})` : name;
+    }
+    return `Lớp #${targetId}`;
+  };
+
+  // Helper function to normalize day of week
+  const normalizeDayKey = (sc) => {
+    const val = sc.thu ?? sc.thuTrongTuan ?? sc.ngay_trong_tuan ?? sc.thu_trong_tuan;
+    if (val === undefined || val === null) return "Thu2";
+    const str = String(val).toLowerCase();
+    if (str === "2" || str.includes("thu2") || str.includes("thứ hai") || str.includes("thứ 2") || str.includes("monday")) return "Thu2";
+    if (str === "3" || str.includes("thu3") || str.includes("thứ ba") || str.includes("thứ 3") || str.includes("tuesday")) return "Thu3";
+    if (str === "4" || str.includes("thu4") || str.includes("thứ tư") || str.includes("thứ 4") || str.includes("wednesday")) return "Thu4";
+    if (str === "5" || str.includes("thu5") || str.includes("thứ năm") || str.includes("thứ 5") || str.includes("thursday")) return "Thu5";
+    if (str === "6" || str.includes("thu6") || str.includes("thứ sáu") || str.includes("thứ 6") || str.includes("friday")) return "Thu6";
+    if (str === "7" || str.includes("thu7") || str.includes("thứ bảy") || str.includes("thứ 7") || str.includes("saturday")) return "Thu7";
+    if (str === "8" || str === "1" || str.includes("cn") || str.includes("chủ nhật") || str.includes("sunday")) return "CN";
+    return "Thu2";
+  };
+
+  const getDayNumber = (thuKey) => {
+    switch (thuKey) {
+      case "Thu2": return 2;
+      case "Thu3": return 3;
+      case "Thu4": return 4;
+      case "Thu5": return 5;
+      case "Thu6": return 6;
+      case "Thu7": return 7;
+      case "CN": return 8;
+      default: return 2;
+    }
   };
 
   const filteredSchedules = selectedDay === "ALL"
     ? schedules
-    : schedules.filter((s) => s.thu === selectedDay);
+    : schedules.filter((s) => normalizeDayKey(s) === selectedDay);
 
   return (
     <div>
@@ -247,10 +340,14 @@ export default function LichDayPage() {
           }}
         >
           {filteredSchedules.map((sc) => {
-            const dayObj = DAYS_OF_WEEK.find((d) => d.key === sc.thu);
+            const dayKey = normalizeDayKey(sc);
+            const dayObj = DAYS_OF_WEEK.find((d) => d.key === dayKey);
+            const startTime = sc.gio_bat_dau || sc.gioBatDau || "17:30";
+            const endTime = sc.gio_ket_thuc || sc.gioKetThuc || "19:00";
+
             return (
               <div
-                key={sc._key}
+                key={sc._key || sc.id}
                 className="glass-panel hover-card"
                 style={{ padding: "1.25rem", display: "flex", flexDirection: "column", gap: "1rem" }}
               >
@@ -268,9 +365,9 @@ export default function LichDayPage() {
                         marginBottom: "0.5rem",
                       }}
                     >
-                      {dayObj ? dayObj.label : sc.thu}
+                      {dayObj ? dayObj.label : dayKey}
                     </span>
-                    <h4 style={{ fontSize: "1.1rem", fontWeight: "700" }}>{getClassName(sc.lop_id)}</h4>
+                    <h4 style={{ fontSize: "1.1rem", fontWeight: "700" }}>{getClassName(sc)}</h4>
                   </div>
 
                   <div style={{ display: "flex", gap: "0.35rem" }}>
@@ -283,7 +380,7 @@ export default function LichDayPage() {
                       <Edit size={14} />
                     </button>
                     <button
-                      onClick={() => handleDelete(sc._key)}
+                      onClick={() => handleDelete(sc)}
                       className="btn-secondary"
                       style={{ padding: "0.35rem 0.5rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.3)" }}
                       title="Xóa"
@@ -296,7 +393,7 @@ export default function LichDayPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.9rem", color: "var(--text-secondary)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     <Clock size={16} color="var(--accent-primary)" />
-                    <span>Giờ học: <strong>{sc.gio_bat_dau || "17:30"} - {sc.gio_ket_thuc || "19:00"}</strong></span>
+                    <span>Giờ học: <strong>{startTime} - {endTime}</strong></span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     <MapPin size={16} color="var(--accent-primary)" />
@@ -340,16 +437,16 @@ export default function LichDayPage() {
                   Lớp Học *
                 </label>
                 <select
-                  value={formData.lop_id}
-                  onChange={(e) => setFormData({ ...formData, lop_id: e.target.value })}
+                  value={formData.id_lop}
+                  onChange={(e) => setFormData({ ...formData, id_lop: e.target.value })}
                   className="input-control"
                   style={{ width: "100%" }}
                   required
                 >
                   <option value="">-- Chọn Lớp Học --</option>
                   {classes.map((c) => (
-                    <option key={c._key} value={c._key}>
-                      {c.ten_lop || c.ten} {c.mon ? `(${c.mon})` : ""}
+                    <option key={c.id || c._key} value={c.id || c._key}>
+                      {c.ten || c.ten_lop} {c.mon ? `(${c.mon})` : ""} {c.khoi ? `- Khối ${c.khoi}` : ""}
                     </option>
                   ))}
                 </select>
