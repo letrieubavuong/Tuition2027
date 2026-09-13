@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { db, ref, onValue, set, remove } from "@/lib/firebase";
+import StudentQRModal from "@/components/StudentQRModal";
 import {
   Users,
   Search,
@@ -16,6 +17,7 @@ import {
   Grid,
   List,
   MessageCircle,
+  QrCode
 } from "lucide-react";
 
 export default function HocSinhPage() {
@@ -25,6 +27,7 @@ export default function HocSinhPage() {
   const [viewMode, setViewMode] = useState("grid"); // 'grid' | 'table'
   const [showModal, setShowModal] = useState(false);
   const [editingHs, setEditingHs] = useState(null);
+  const [qrStudent, setQrStudent] = useState(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -486,6 +489,24 @@ export default function HocSinhPage() {
                   >
                     <Eye size={14} /> Hồ sơ
                   </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => setQrStudent(hs)}
+                    className="btn-secondary"
+                    style={{
+                      fontSize: "0.82rem",
+                      padding: "0.45rem 0.65rem",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      color: "var(--accent-primary)",
+                      borderColor: "rgba(13, 148, 136, 0.3)",
+                    }}
+                    title="Xem mã QR Thẻ học sinh"
+                  >
+                    <QrCode size={14} /> Mã QR
+                  </button>
                   <button
                     onClick={() => handleOpenModal(hs)}
                     className="btn-secondary"
@@ -751,6 +772,11 @@ export default function HocSinhPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* STUDENT QR CODE MODAL */}
+      {qrStudent && (
+        <StudentQRModal student={qrStudent} onClose={() => setQrStudent(null)} />
       )}
     </div>
   );

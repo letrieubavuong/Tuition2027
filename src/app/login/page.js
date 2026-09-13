@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, DEFAULT_USERS } from "@/context/AuthContext";
 import { db, ref, set, get } from "@/lib/firebase";
+import QRScannerModal from "@/components/QRScannerModal";
 import {
   GraduationCap,
   Lock,
@@ -15,7 +16,9 @@ import {
   ArrowRight,
   Sparkles,
   LogIn,
-  UserPlus
+  UserPlus,
+  QrCode,
+  Camera
 } from "lucide-react";
 
 export default function LoginPage() {
@@ -32,6 +35,67 @@ export default function LoginPage() {
   const [subject, setSubject] = useState("TOAN");
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // QR Scanner Modal State
+  const [showScannerModal, setShowScannerModal] = useState(false);
+
+  // Check URL query parameters for QR Auto-Login
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const qrUser = urlParams.get("qr_user");
+    const name = urlParams.get("name");
+
+    if (qrUser) {
+      const studentSession = {
+        username: `student_${qrUser}`,
+        name: name || `Học sinh #${qrUser}`,
+        role: "STUDENT",
+      };
+      login(studentSession);
+      setSuccessMsg(`🎉 Đã nhận diện thẻ học sinh: ${studentSession.name}! Đang chuyển vào trang làm bài thi...`);
+      setTimeout(() => router.push("/de-thi"), 600);
+    }
+  }, []);
+
+  // Handle QR Camera Scan Success
+  const handleQRScanSuccess = (decodedText) => {
+    setShowScannerModal(false);
+
+    let studentData = {
+      username: "student_qr",
+      name: "Học sinh",
+      role: "STUDENT",
+    };
+
+    try {
+      const parsed = JSON.parse(decodedText);
+      if (parsed.type === "TUITION_STUDENT_QR") {
+        studentData = {
+          username: `student_${parsed.id}`,
+          name: parsed.name || "Học sinh",
+          role: "STUDENT",
+          classId: parsed.classId,
+        };
+      } else {
+        studentData = {
+          username: `student_${decodedText}`,
+          name: `Học sinh #${decodedText}`,
+          role: "STUDENT",
+        };
+      }
+    } catch (e) {
+      studentData = {
+        username: `student_${decodedText}`,
+        name: `Học sinh #${decodedText}`,
+        role: "STUDENT",
+      };
+    }
+
+    login(studentData);
+    setSuccessMsg(`🎉 Quét mã thành công! Đã đăng nhập tự động học sinh: ${studentData.name}`);
+    setTimeout(() => router.push("/de-thi"), 600);
+  };
 
   // Handle Login Form Submit
   const handleLoginSubmit = async (e) => {
@@ -163,7 +227,7 @@ export default function LoginPage() {
         }}
       >
         {/* Logo & Header Title */}
-        <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+        <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
           <div
             style={{
               width: "56px",
@@ -186,6 +250,32 @@ export default function LoginPage() {
             CƠ SỞ DẠY THÊM - HỌC THÊM 141 NGUYỄN THIỆN KẾ
           </p>
         </div>
+
+        {/* PROMINENT QR CODE LOGIN BUTTON FOR STUDENTS */}
+        <button
+          type="button"
+          onClick={() => setShowScannerModal(true)}
+          style={{
+            width: "100%",
+            padding: "0.85rem 1rem",
+            borderRadius: "14px",
+            border: "2px solid var(--accent-primary)",
+            backgroundColor: "rgba(13, 148, 136, 0.15)",
+            color: "var(--accent-primary)",
+            fontWeight: "800",
+            fontSize: "0.95rem",
+            cursor: "pointer",
+            marginBottom: "1.5rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.6rem",
+            boxShadow: "0 4px 15px var(--accent-glow)",
+          }}
+        >
+          <Camera size={22} />
+          <span>📷 QUÉT MÃ QR THẺ HỌC SINH (ĐĂNG NHẬP NHANH)</span>
+        </button>
 
         {/* Tab Switcher: Login / Register */}
         <div
@@ -630,6 +720,14 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* CAMERA QR SCANNER MODAL */}
+      {showScannerModal && (
+        <QRScannerModal
+          onClose={() => setShowScannerModal(false)}
+          onScanSuccess={handleQRScanSuccess}
+        />
+      )}
     </div>
   );
 }
