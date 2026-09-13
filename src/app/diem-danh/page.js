@@ -15,7 +15,9 @@ import {
   ChevronRight,
   Calendar as CalendarIcon,
   Sparkles,
-  BookOpen
+  BookOpen,
+  Filter,
+  Layers,
 } from "lucide-react";
 
 export default function DiemDanhPage() {
@@ -24,6 +26,7 @@ export default function DiemDanhPage() {
   const [classStudents, setClassStudents] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState("");
+  const [showAllClassesTabs, setShowAllClassesTabs] = useState(false);
 
   // Date State - Default to Today YYYY-MM-DD
   const todayStr = new Date().toISOString().split("T")[0];
@@ -55,8 +58,8 @@ export default function DiemDanhPage() {
         }
         setClasses(list);
         if (list.length > 0 && !selectedClassId) {
-          setSelectedClassId(list[0]._key);
-          setBuClassId(list[0]._key);
+          setSelectedClassId(String(list[0]._key || list[0].id));
+          setBuClassId(String(list[0]._key || list[0].id));
         }
       }
     });
@@ -148,17 +151,32 @@ export default function DiemDanhPage() {
   const currentDayKey = getDayOfWeekKey(attendanceDate);
   const currentDayNum = getDayNumber(currentDayKey);
 
-  // Auto select first class that has schedule on selected attendanceDate
+  // Find classes scheduled for current selected date
+  const scheduledItems = schedules.filter((sc) => {
+    if (!sc) return false;
+    const thuKey = sc.thu || sc.thu_trong_tuan_str;
+    const thuNum = Number(sc.thu_trong_tuan || sc.thuTrongTuan || sc.day_of_week);
+    return thuKey === currentDayKey || thuNum === currentDayNum;
+  });
+
+  const scheduledClasses = classes.filter((c) => {
+    const cid = String(c._key || c.id);
+    return scheduledItems.some((sc) => String(sc.lop_id || sc.id_lop || sc.idLop) === cid);
+  });
+
+  // Determine active tabs to display (either scheduled classes, or all classes if toggle enabled / no schedule)
+  const displayTabClasses = (scheduledClasses.length > 0 && !showAllClassesTabs)
+    ? scheduledClasses
+    : classes;
+
+  // Auto select first scheduled class when attendanceDate changes
   useEffect(() => {
-    if (classes.length === 0 || schedules.length === 0) return;
-    const scheduledCls = classes.find((c) => {
-      const cid = String(c._key || c.id);
-      return schedules.some(
-        (sc) => String(sc.lop_id || sc.id_lop) === cid && (sc.thu === currentDayKey || Number(sc.thuTrongTuan) === currentDayNum)
-      );
-    });
-    if (scheduledCls) {
-      setSelectedClassId(String(scheduledCls._key || scheduledCls.id));
+    if (scheduledClasses.length > 0) {
+      const firstId = String(scheduledClasses[0]._key || scheduledClasses[0].id);
+      setSelectedClassId(firstId);
+    } else if (classes.length > 0) {
+      const firstId = String(classes[0]._key || classes[0].id);
+      setSelectedClassId(firstId);
     }
   }, [attendanceDate, schedules, classes]);
 
@@ -279,14 +297,17 @@ export default function DiemDanhPage() {
 
   const applyDiemDanhBu = () => {
     if (!buClassId || !buDate) return;
-    setSelectedClassId(buClassId);
     setAttendanceDate(buDate);
+    setSelectedClassId(buClassId);
     setShowBuModal(false);
-    setSuccessMsg(`Đã chuyển tới ngày ${buDate} để điểm danh bù cho lớp! Vui lòng kiểm tra danh sách bên dưới & nhấn 'Lưu Điểm Danh'.`);
+    setSuccessMsg(`Đã chuyển tới ngày ${buDate} để điểm danh bù cho lớp! Vui lòng điểm danh & nhấn 'Lưu Điểm Danh'.`);
     setTimeout(() => setSuccessMsg(""), 6000);
   };
 
-  const currentClass = classes.find((c) => String(c._key) === String(selectedClassId));
+  const currentClass = classes.find((c) => String(c._key || c.id) === String(selectedClassId));
+  const currentSched = schedules.find(
+    (sc) => String(sc.lop_id || sc.id_lop) === String(selectedClassId) && (sc.thu === currentDayKey || Number(sc.thu_trong_tuan) === currentDayNum)
+  );
 
   const stats = {
     total: filteredStudents.length,
@@ -312,7 +333,7 @@ export default function DiemDanhPage() {
         <div>
           <h2 style={{ fontSize: "1.75rem", fontWeight: "700" }}>Điểm Danh Buổi Học</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>
-            Công cụ PickDate thông minh & Điểm danh bù cho bất kỳ ngày nào trong quá khứ
+            Hiển thị các Lớp học có Lịch dạy trong ngày theo dạng Tab trực quan & tiện lợi
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
@@ -367,243 +388,290 @@ export default function DiemDanhPage() {
 
       {/* 1. PICKDATE CONTROL BAR */}
       <div className="glass-panel" style={{ padding: "1.25rem", marginBottom: "1.5rem" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: "1rem",
-            }}
-          >
-            {/* PickDate Widget with Arrows & Presets */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  backgroundColor: "var(--bg-secondary)",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border-color)",
-                  padding: "0.25rem",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => adjustDate(-1)}
-                  className="btn-secondary"
-                  style={{ border: "none", padding: "0.5rem", borderRadius: "6px" }}
-                  title="Ngày trước"
-                >
-                  <ChevronLeft size={18} />
-                </button>
-
-                <div style={{ padding: "0 0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <CalendarIcon size={18} color="var(--accent-primary)" />
-                  <input
-                    type="date"
-                    value={attendanceDate}
-                    onChange={(e) => setAttendanceDate(e.target.value)}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "var(--text-primary)",
-                      fontWeight: "700",
-                      fontSize: "1rem",
-                      cursor: "pointer",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => adjustDate(1)}
-                  className="btn-secondary"
-                  style={{ border: "none", padding: "0.5rem", borderRadius: "6px" }}
-                  title="Ngày sau"
-                >
-                  <ChevronRight size={18} />
-                </button>
-              </div>
-
-              {/* Preset Buttons */}
-              <button
-                type="button"
-                onClick={() => setAttendanceDate(todayStr)}
-                style={{
-                  padding: "0.55rem 0.9rem",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border-color)",
-                  backgroundColor: attendanceDate === todayStr ? "var(--accent-primary)" : "var(--bg-secondary)",
-                  color: attendanceDate === todayStr ? "#ffffff" : "var(--text-secondary)",
-                  fontSize: "0.85rem",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  transition: "var(--transition)",
-                }}
-              >
-                Hôm nay
-              </button>
-
-              <button
-                type="button"
-                onClick={() => adjustDate(-1)}
-                style={{
-                  padding: "0.55rem 0.9rem",
-                  borderRadius: "var(--radius-md)",
-                  border: "1px solid var(--border-color)",
-                  backgroundColor: "var(--bg-secondary)",
-                  color: "var(--text-secondary)",
-                  fontSize: "0.85rem",
-                  fontWeight: "500",
-                  cursor: "pointer",
-                }}
-              >
-                Hôm qua
-              </button>
-            </div>
-
-            {/* Date Display Badge */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "1rem",
+          }}
+        >
+          {/* PickDate Widget with Arrows & Presets */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "0.5rem",
-                fontSize: "0.95rem",
-                fontWeight: "700",
-                color: "var(--accent-primary)",
-                backgroundColor: "rgba(13, 148, 136, 0.12)",
-                padding: "0.5rem 1rem",
+                backgroundColor: "var(--bg-secondary)",
                 borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-color)",
+                padding: "0.25rem",
               }}
             >
-              <Sparkles size={16} />
-              <span>{getDayOfWeekName(attendanceDate)} ({attendanceDate.split("-").reverse().join("/")})</span>
+              <button
+                type="button"
+                onClick={() => adjustDate(-1)}
+                className="btn-secondary"
+                style={{ border: "none", padding: "0.5rem", borderRadius: "6px" }}
+                title="Ngày trước"
+              >
+                <ChevronLeft size={18} />
+              </button>
+
+              <div style={{ padding: "0 0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <CalendarIcon size={18} color="var(--accent-primary)" />
+                <input
+                  type="date"
+                  value={attendanceDate}
+                  onChange={(e) => setAttendanceDate(e.target.value)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--text-primary)",
+                    fontWeight: "700",
+                    fontSize: "1rem",
+                    cursor: "pointer",
+                    outline: "none",
+                  }}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => adjustDate(1)}
+                className="btn-secondary"
+                style={{ border: "none", padding: "0.5rem", borderRadius: "6px" }}
+                title="Ngày sau"
+              >
+                <ChevronRight size={18} />
+              </button>
             </div>
+
+            {/* Preset Buttons */}
+            <button
+              type="button"
+              onClick={() => setAttendanceDate(todayStr)}
+              style={{
+                padding: "0.55rem 0.9rem",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-color)",
+                backgroundColor: attendanceDate === todayStr ? "var(--accent-primary)" : "var(--bg-secondary)",
+                color: attendanceDate === todayStr ? "#ffffff" : "var(--text-secondary)",
+                fontSize: "0.85rem",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              Hôm nay
+            </button>
+
+            <button
+              type="button"
+              onClick={() => adjustDate(-1)}
+              style={{
+                padding: "0.55rem 0.9rem",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-color)",
+                backgroundColor: "var(--bg-secondary)",
+                color: "var(--text-secondary)",
+                fontSize: "0.85rem",
+                fontWeight: "500",
+                cursor: "pointer",
+              }}
+            >
+              Hôm qua
+            </button>
           </div>
 
-          {/* 2. SMART CLASS SELECTOR CHIPS SORTED BY TIMETABLE SCHEDULE */}
-          <div style={{ paddingTop: "0.75rem", borderTop: "1px dashed var(--border-color)" }}>
-            <p style={{ fontSize: "0.8rem", fontWeight: "600", color: "var(--text-muted)", marginBottom: "0.6rem" }}>
-              CHỌN LỚP ĐIỂM DANH (XẮP XẾP THEO LỊCH DẠY {getDayOfWeekName(attendanceDate).toUpperCase()}):
-            </p>
-            <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-              {[...classes]
-                .sort((a, b) => {
-                  const aCid = String(a._key || a.id);
-                  const bCid = String(b._key || b.id);
-                  const aHas = schedules.some(
-                    (sc) => String(sc.lop_id || sc.id_lop) === aCid && (sc.thu === currentDayKey || Number(sc.thuTrongTuan) === currentDayNum)
-                  );
-                  const bHas = schedules.some(
-                    (sc) => String(sc.lop_id || sc.id_lop) === bCid && (sc.thu === currentDayKey || Number(sc.thuTrongTuan) === currentDayNum)
-                  );
-                  if (aHas && !bHas) return -1;
-                  if (!aHas && bHas) return 1;
-                  return 0;
-                })
-                .map((c) => {
-                  const cid = String(c._key || c.id);
-                  const isSelected = String(cid) === String(selectedClassId);
-                  const matchedSched = schedules.find(
-                    (sc) => String(sc.lop_id || sc.id_lop) === cid && (sc.thu === currentDayKey || Number(sc.thuTrongTuan) === currentDayNum)
-                  );
-
-                  return (
-                    <button
-                      key={cid}
-                      type="button"
-                      onClick={() => setSelectedClassId(cid)}
-                      style={{
-                        padding: "0.6rem 1rem",
-                        borderRadius: "var(--radius-md)",
-                        border: isSelected ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
-                        backgroundColor: isSelected ? "var(--accent-primary)" : "var(--bg-secondary)",
-                        color: isSelected ? "#ffffff" : "var(--text-primary)",
-                        fontWeight: isSelected ? "700" : "500",
-                        fontSize: "0.88rem",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        boxShadow: isSelected ? "0 4px 12px var(--accent-glow)" : "none",
-                        transition: "all 0.2s ease",
-                        position: "relative",
-                      }}
-                    >
-                      <span>{c.ten_lop || c.ten} {c.mon ? `(${c.mon})` : ""}</span>
-                      {matchedSched && (
-                        <span
-                          style={{
-                            fontSize: "0.68rem",
-                            backgroundColor: isSelected ? "rgba(255,255,255,0.25)" : "var(--success)",
-                            color: "#ffffff",
-                            padding: "0.15rem 0.4rem",
-                            borderRadius: "10px",
-                            fontWeight: "700",
-                          }}
-                        >
-                          ⏰ {matchedSched.gio_bat_dau || matchedSched.gioBatDau || "Ca dạy"}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-            </div>
+          {/* Date Display Badge */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              fontSize: "0.95rem",
+              fontWeight: "700",
+              color: "var(--accent-primary)",
+              backgroundColor: "rgba(13, 148, 136, 0.12)",
+              padding: "0.5rem 1rem",
+              borderRadius: "var(--radius-md)",
+            }}
+          >
+            <Sparkles size={16} />
+            <span>{getDayOfWeekName(attendanceDate)} ({attendanceDate.split("-").reverse().join("/")})</span>
           </div>
         </div>
       </div>
 
-      {/* Stats Summary Bar */}
+      {/* 2. SCHEDULED CLASSES TABS BAR */}
+      <div className="glass-panel" style={{ padding: "1.25rem", marginBottom: "1.5rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Layers size={18} color="var(--accent-primary)" />
+            <span style={{ fontWeight: "700", fontSize: "0.95rem" }}>
+              LỊCH DẠY NỔI BẬT NÀY: {getDayOfWeekName(attendanceDate).toUpperCase()} ({scheduledClasses.length} lớp ca dạy)
+            </span>
+          </div>
+
+          {classes.length > scheduledClasses.length && (
+            <button
+              type="button"
+              onClick={() => setShowAllClassesTabs(!showAllClassesTabs)}
+              style={{
+                backgroundColor: "transparent",
+                color: "var(--accent-primary)",
+                border: "none",
+                fontSize: "0.82rem",
+                fontWeight: "600",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              {showAllClassesTabs ? "Thu gọn (Chỉ xem lịch hôm nay)" : `+ Xem tất cả ${classes.length} lớp học`}
+            </button>
+          )}
+        </div>
+
+        {/* Tab Headers */}
+        {displayTabClasses.length === 0 ? (
+          <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.9rem" }}>
+            Không có ca dạy nào được xếp vào ngày {getDayOfWeekName(attendanceDate)}. Bấm nút bên trên để xem tất cả các lớp.
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              gap: "0.6rem",
+              overflowX: "auto",
+              paddingBottom: "0.4rem",
+              scrollbarWidth: "thin",
+            }}
+          >
+            {displayTabClasses.map((c) => {
+              const cid = String(c._key || c.id);
+              const isActive = String(cid) === String(selectedClassId);
+              const matchedSched = schedules.find(
+                (sc) => String(sc.lop_id || sc.id_lop) === cid && (sc.thu === currentDayKey || Number(sc.thu_trong_tuan) === currentDayNum)
+              );
+
+              return (
+                <button
+                  key={cid}
+                  type="button"
+                  onClick={() => setSelectedClassId(cid)}
+                  style={{
+                    padding: "0.75rem 1.25rem",
+                    borderRadius: "12px",
+                    border: isActive ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
+                    backgroundColor: isActive ? "var(--accent-primary)" : "var(--bg-secondary)",
+                    color: isActive ? "#ffffff" : "var(--text-primary)",
+                    fontWeight: isActive ? "700" : "600",
+                    fontSize: "0.9rem",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.55rem",
+                    whiteSpace: "nowrap",
+                    boxShadow: isActive ? "0 4px 14px var(--accent-glow)" : "none",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <span>{c.ten_lop || c.ten} {c.mon ? `(${c.mon})` : ""}</span>
+                  {matchedSched ? (
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        backgroundColor: isActive ? "rgba(255,255,255,0.25)" : "rgba(16, 185, 129, 0.2)",
+                        color: isActive ? "#ffffff" : "#10b981",
+                        padding: "0.2rem 0.5rem",
+                        borderRadius: "10px",
+                        fontWeight: "700",
+                      }}
+                    >
+                      ⏰ {matchedSched.gio_bat_dau || matchedSched.gioBatDau || "Ca dạy"} - {matchedSched.gio_ket_thuc || matchedSched.gioKetThuc || ""}
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: "0.68rem",
+                        backgroundColor: isActive ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.05)",
+                        color: isActive ? "#ffffff" : "var(--text-muted)",
+                        padding: "0.15rem 0.4rem",
+                        borderRadius: "8px",
+                      }}
+                    >
+                      Khác lịch
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Stats Summary Bar for Active Class */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
           gap: "1rem",
           marginBottom: "1.5rem",
         }}
       >
         <div className="glass-panel" style={{ padding: "1rem", textAlign: "center" }}>
-          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.25rem" }}>Sỉ số lớp</div>
-          <div style={{ fontSize: "1.5rem", fontWeight: "700" }}>{stats.total} HS</div>
+          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.25rem" }}>Sỉ số lớp này</div>
+          <div style={{ fontSize: "1.4rem", fontWeight: "700" }}>{stats.total} Học sinh</div>
         </div>
         <div className="glass-panel" style={{ padding: "1rem", textAlign: "center", borderColor: "rgba(16, 185, 129, 0.3)" }}>
           <div style={{ fontSize: "0.8rem", color: "var(--success)", marginBottom: "0.25rem" }}>Có mặt</div>
-          <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "var(--success)" }}>{stats.coMat}</div>
+          <div style={{ fontSize: "1.4rem", fontWeight: "700", color: "var(--success)" }}>{stats.coMat}</div>
         </div>
         <div className="glass-panel" style={{ padding: "1rem", textAlign: "center", borderColor: "rgba(245, 158, 11, 0.3)" }}>
           <div style={{ fontSize: "0.8rem", color: "var(--warning)", marginBottom: "0.25rem" }}>Vắng phép</div>
-          <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "var(--warning)" }}>{stats.vangPhep}</div>
+          <div style={{ fontSize: "1.4rem", fontWeight: "700", color: "var(--warning)" }}>{stats.vangPhep}</div>
         </div>
         <div className="glass-panel" style={{ padding: "1rem", textAlign: "center", borderColor: "rgba(239, 68, 68, 0.3)" }}>
           <div style={{ fontSize: "0.8rem", color: "var(--danger)", marginBottom: "0.25rem" }}>Vắng không phép</div>
-          <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "var(--danger)" }}>{stats.vangKhongPhep}</div>
+          <div style={{ fontSize: "1.4rem", fontWeight: "700", color: "var(--danger)" }}>{stats.vangKhongPhep}</div>
         </div>
         <div className="glass-panel" style={{ padding: "1rem", textAlign: "center", borderColor: "rgba(249, 115, 22, 0.3)" }}>
           <div style={{ fontSize: "0.8rem", color: "#f97316", marginBottom: "0.25rem" }}>Đi muộn</div>
-          <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "#f97316" }}>{stats.muon}</div>
+          <div style={{ fontSize: "1.4rem", fontWeight: "700", color: "#f97316" }}>{stats.muon}</div>
         </div>
       </div>
 
-      {/* Student Attendance marking list */}
+      {/* Tab Content: Active Class Student Roster Attendance */}
       <div className="glass-panel" style={{ padding: "1.5rem" }}>
-        <h3 style={{ fontSize: "1.1rem", fontWeight: "700", marginBottom: "1.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <Users size={20} color="var(--accent-primary)" />
-          Danh Sách Điểm Danh & Nhận Xét ({currentClass?.ten_lop || currentClass?.ten || "Lớp"})
-        </h3>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "0.75rem" }}>
+          <div>
+            <h3 style={{ fontSize: "1.25rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <BookOpen size={22} color="var(--accent-primary)" />
+              Lớp: {currentClass?.ten_lop || currentClass?.ten || "Chọn Lớp"} {currentClass?.mon ? `(${currentClass.mon})` : ""}
+            </h3>
+            {currentSched && (
+              <p style={{ fontSize: "0.82rem", color: "var(--success)", marginTop: "0.25rem", fontWeight: "600" }}>
+                ⏰ Khung giờ dạy: {currentSched.gio_bat_dau || currentSched.gioBatDau} - {currentSched.gio_ket_thuc || currentSched.gioKetThuc} {currentSched.phong ? `| Phòng: ${currentSched.phong}` : ""}
+              </p>
+            )}
+          </div>
+
+          <div style={{ fontSize: "0.88rem", fontWeight: "600", color: "var(--text-secondary)" }}>
+            Danh sách sỉ số: {filteredStudents.length} học sinh
+          </div>
+        </div>
 
         {loading ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
-            Đang tải danh sách học sinh...
+          <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
+            Đang nạp danh sách học sinh từ Realtime Cloud...
           </div>
         ) : filteredStudents.length === 0 ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
-            Chưa có học sinh nào được phân vào lớp này.
+          <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
+            Chưa có học sinh nào được xếp vào lớp học này.
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
             {filteredStudents.map((s, idx) => {
               const sid = s.id || s._key;
               const status = attendanceMap[sid] || "CoMat";
@@ -614,12 +682,12 @@ export default function DiemDanhPage() {
                   key={sid}
                   style={{
                     padding: "1rem 1.25rem",
-                    borderRadius: "var(--radius-md)",
+                    borderRadius: "12px",
                     backgroundColor: "var(--bg-secondary)",
                     border: "1px solid var(--border-color)",
                     display: "flex",
                     flexDirection: "column",
-                    gap: "1rem",
+                    gap: "0.85rem",
                   }}
                 >
                   <div
@@ -631,39 +699,40 @@ export default function DiemDanhPage() {
                       gap: "1rem",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                    {/* Student Info */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
                       <span
                         style={{
-                          width: "28px",
-                          height: "28px",
+                          width: "32px",
+                          height: "32px",
                           borderRadius: "50%",
-                          backgroundColor: "var(--bg-card)",
+                          backgroundColor: "rgba(13, 148, 136, 0.15)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                           fontWeight: "700",
-                          fontSize: "0.8rem",
-                          color: "var(--text-secondary)",
+                          fontSize: "0.85rem",
+                          color: "var(--accent-primary)",
                         }}
                       >
                         {idx + 1}
                       </span>
                       <div>
-                        <div style={{ fontWeight: "700", fontSize: "1rem" }}>{s.ten}</div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                          SĐT: {s.sdt_phu_huynh || s.sdt || "--"}
+                        <div style={{ fontWeight: "700", fontSize: "1.05rem" }}>{s.ten}</div>
+                        <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                          SĐT Phụ Huynh: {s.sdt_phu_huynh || s.sdt || "--"} {s.truong ? `| Trường: ${s.truong}` : ""}
                         </div>
                       </div>
                     </div>
 
-                    {/* Status Toggle Buttons */}
+                    {/* Status Toggle Radio Buttons */}
                     <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
                       <button
                         type="button"
                         onClick={() => handleStatusChange(sid, "CoMat")}
                         style={{
-                          padding: "0.4rem 0.75rem",
-                          borderRadius: "var(--radius-md)",
+                          padding: "0.45rem 0.8rem",
+                          borderRadius: "8px",
                           fontSize: "0.85rem",
                           fontWeight: "600",
                           cursor: "pointer",
@@ -673,18 +742,18 @@ export default function DiemDanhPage() {
                           display: "flex",
                           alignItems: "center",
                           gap: "0.35rem",
-                          transition: "var(--transition)",
+                          transition: "all 0.2s ease",
                         }}
                       >
-                        <CheckCircle size={14} /> Có Mặt
+                        <CheckCircle size={15} /> Có Mặt
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleStatusChange(sid, "VangCoPhep")}
                         style={{
-                          padding: "0.4rem 0.75rem",
-                          borderRadius: "var(--radius-md)",
+                          padding: "0.45rem 0.8rem",
+                          borderRadius: "8px",
                           fontSize: "0.85rem",
                           fontWeight: "600",
                           cursor: "pointer",
@@ -694,18 +763,18 @@ export default function DiemDanhPage() {
                           display: "flex",
                           alignItems: "center",
                           gap: "0.35rem",
-                          transition: "var(--transition)",
+                          transition: "all 0.2s ease",
                         }}
                       >
-                        <Clock size={14} /> Vắng Có Phép
+                        <Clock size={15} /> Vắng Có Phép
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleStatusChange(sid, "VangKhongPhep")}
                         style={{
-                          padding: "0.4rem 0.75rem",
-                          borderRadius: "var(--radius-md)",
+                          padding: "0.45rem 0.8rem",
+                          borderRadius: "8px",
                           fontSize: "0.85rem",
                           fontWeight: "600",
                           cursor: "pointer",
@@ -715,18 +784,18 @@ export default function DiemDanhPage() {
                           display: "flex",
                           alignItems: "center",
                           gap: "0.35rem",
-                          transition: "var(--transition)",
+                          transition: "all 0.2s ease",
                         }}
                       >
-                        <XCircle size={14} /> Vắng KP
+                        <XCircle size={15} /> Vắng KP
                       </button>
 
                       <button
                         type="button"
                         onClick={() => handleStatusChange(sid, "Muon")}
                         style={{
-                          padding: "0.4rem 0.75rem",
-                          borderRadius: "var(--radius-md)",
+                          padding: "0.45rem 0.8rem",
+                          borderRadius: "8px",
                           fontSize: "0.85rem",
                           fontWeight: "600",
                           cursor: "pointer",
@@ -736,28 +805,28 @@ export default function DiemDanhPage() {
                           display: "flex",
                           alignItems: "center",
                           gap: "0.35rem",
-                          transition: "var(--transition)",
+                          transition: "all 0.2s ease",
                         }}
                       >
-                        <AlertCircle size={14} /> Đi Muộn
+                        <AlertCircle size={15} /> Đi Muộn
                       </button>
                     </div>
                   </div>
 
-                  {/* Optional Rating / Comments */}
+                  {/* Optional Comments & Scores Input */}
                   <div
                     style={{
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
                       gap: "0.75rem",
-                      paddingTop: "0.75rem",
+                      paddingTop: "0.65rem",
                       borderTop: "1px dashed var(--border-color)",
                     }}
                   >
                     <div>
                       <input
                         type="text"
-                        placeholder="Nhận xét bài tập / thái độ..."
+                        placeholder="Nhận xét bài tập / thái độ học tập..."
                         value={rating.nhan_xet || ""}
                         onChange={(e) => handleRatingChange(sid, "nhan_xet", e.target.value)}
                         className="input-control"
@@ -797,81 +866,50 @@ export default function DiemDanhPage() {
         <div
           style={{
             position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.6)",
             backdropFilter: "blur(4px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 9999,
+            zIndex: 100,
             padding: "1rem",
           }}
         >
           <div
             className="glass-panel"
-            style={{
-              width: "100%",
-              maxWidth: "500px",
-              padding: "1.75rem",
-              borderRadius: "var(--radius-lg)",
-              backgroundColor: "var(--bg-card)",
-              border: "1px solid var(--border-color)",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
-            }}
+            style={{ width: "100%", maxWidth: "480px", padding: "1.75rem", backgroundColor: "var(--bg-secondary)" }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
-              <h3 style={{ fontSize: "1.25rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--warning)" }}>
-                <Sparkles size={20} />
-                Điểm Danh Bù / Buổi Dạy Bù
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowBuModal(false)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--text-muted)",
-                  cursor: "pointer",
-                  fontSize: "1.25rem",
-                }}
-              >
-                ✕
-              </button>
-            </div>
+            <h3 style={{ fontSize: "1.25rem", fontWeight: "700", marginBottom: "1.25rem" }}>
+              ⚡ Điểm Danh Bù / Dạy Bù Ngày Quá Khứ
+            </h3>
 
-            <p style={{ fontSize: "0.88rem", color: "var(--text-secondary)", marginBottom: "1.25rem" }}>
-              Chọn ngày cần điểm danh bù trong quá khứ và lớp học tương ứng. Hệ thống sẽ mở dữ liệu ngày đó để bạn cập nhật điểm danh và đồng bộ Cloud lập tức.
-            </p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", color: "var(--text-muted)", marginBottom: "0.4rem" }}>
-                  1. CHỌN NGÀY HỌC BÙ / CẦN ĐIỂM DANH BÙ:
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
+                  Chọn ngày điểm danh bù *
                 </label>
                 <input
                   type="date"
                   value={buDate}
                   onChange={(e) => setBuDate(e.target.value)}
                   className="input-control"
-                  style={{ width: "100%", fontWeight: "600" }}
+                  style={{ width: "100%" }}
                 />
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", color: "var(--text-muted)", marginBottom: "0.4rem" }}>
-                  2. CHỌN LỚP HỌC:
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: "600", marginBottom: "0.4rem" }}>
+                  Chọn Lớp Học *
                 </label>
                 <select
                   value={buClassId}
                   onChange={(e) => setBuClassId(e.target.value)}
                   className="input-control"
-                  style={{ width: "100%", fontWeight: "600" }}
+                  style={{ width: "100%" }}
                 >
                   {classes.map((c) => (
-                    <option key={c._key} value={c._key}>
+                    <option key={c._key || c.id} value={c._key || c.id}>
                       {c.ten_lop || c.ten} {c.mon ? `(${c.mon})` : ""}
                     </option>
                   ))}
