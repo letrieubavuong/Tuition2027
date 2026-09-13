@@ -368,8 +368,9 @@ export default function CenterLandingPage() {
 
           <h1
             style={{
+              fontFamily: "'Be Vietnam Pro', sans-serif",
               fontSize: "2.1rem",
-              fontWeight: "900",
+              fontWeight: "700",
               color: "#ffffff",
               lineHeight: "1.3",
               marginBottom: "0.75rem",
@@ -459,7 +460,7 @@ export default function CenterLandingPage() {
           <div className="glass-panel" style={{ padding: "1.75rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1.25rem" }}>
               <Award size={24} color="var(--accent-primary)" />
-              <h3 style={{ fontSize: "1.35rem", fontWeight: "800" }}>
+              <h3 style={{ fontFamily: "'Be Vietnam Pro', sans-serif", fontSize: "1.35rem", fontWeight: "700" }}>
                 Giới Thiệu Về Cơ Sở Dạy Thêm 141 Nguyễn Thiện Kế
               </h3>
             </div>
@@ -516,7 +517,7 @@ export default function CenterLandingPage() {
           <div className="glass-panel" style={{ padding: "1.75rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1.25rem" }}>
               <Building2 size={24} color="var(--accent-primary)" />
-              <h3 style={{ fontSize: "1.35rem", fontWeight: "800" }}>
+              <h3 style={{ fontFamily: "'Be Vietnam Pro', sans-serif", fontSize: "1.35rem", fontWeight: "700" }}>
                 Hình Ảnh & Cơ Sở Vật Chất Đạt Chuẩn
               </h3>
             </div>
