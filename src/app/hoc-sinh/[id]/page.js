@@ -209,15 +209,19 @@ export default function StudentDetailContainer() {
   // Helper to generate monthly payment history from student join date to current month
   const getFullMonthlyPaymentHistory = () => {
     const dates = [];
-    if (student?.ngay_tham_gia) dates.push(student.ngay_tham_gia);
-    if (student?.created_at) dates.push(student.created_at);
-    enrolledRecords.forEach((lhs) => {
-      if (lhs.ngay_tham_gia) dates.push(lhs.ngay_tham_gia);
-    });
-    paymentLogs.forEach((p) => {
-      const m = p.thang || p.month || p.thang_nam;
-      if (m && String(m).length >= 7) dates.push(`${m}-01`);
-    });
+    if (student?.ngay_tham_gia && typeof student.ngay_tham_gia === "string") dates.push(student.ngay_tham_gia);
+    if (student?.created_at && typeof student.created_at === "string") dates.push(student.created_at);
+    if (Array.isArray(enrolledRecords)) {
+      enrolledRecords.forEach((lhs) => {
+        if (lhs && lhs.ngay_tham_gia && typeof lhs.ngay_tham_gia === "string") dates.push(lhs.ngay_tham_gia);
+      });
+    }
+    if (Array.isArray(paymentLogs)) {
+      paymentLogs.forEach((p) => {
+        const m = p?.thang || p?.month || p?.thang_nam;
+        if (m && typeof m === "string" && m.length >= 7) dates.push(`${m}-01`);
+      });
+    }
 
     const now = new Date();
     const curYear = now.getFullYear();
@@ -227,36 +231,50 @@ export default function StudentDetailContainer() {
     let startMonth = 1;
 
     if (dates.length > 0) {
-      dates.sort();
-      const earliest = dates[0];
-      const parts = String(earliest).split(/[-/]/);
-      if (parts.length >= 2) {
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        if (!isNaN(y) && !isNaN(m) && y > 2000 && y <= curYear) {
-          startYear = y;
-          startMonth = m;
+      const validDateStrs = dates
+        .map((d) => String(d).trim())
+        .filter((d) => /^\d{4}/.test(d));
+
+      if (validDateStrs.length > 0) {
+        validDateStrs.sort();
+        const earliest = validDateStrs[0];
+        const parts = earliest.split(/[-/]/);
+        if (parts.length >= 2) {
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10);
+          if (!isNaN(y) && !isNaN(m) && y >= 2020 && y <= curYear && m >= 1 && m <= 12) {
+            startYear = y;
+            startMonth = m;
+          }
         }
       }
+    }
+
+    // Safety guard: Limit history to at most 2 years (24 months) back
+    if (startYear < curYear - 2) {
+      startYear = curYear - 2;
     }
 
     const monthList = [];
     let y = startYear;
     let m = startMonth;
-    while (y < curYear || (y === curYear && m <= curMonth)) {
+    let guard = 0;
+
+    while ((y < curYear || (y === curYear && m <= curMonth)) && guard < 60) {
       monthList.push(`${y}-${String(m).padStart(2, '0')}`);
       m++;
       if (m > 12) {
         m = 1;
         y++;
       }
+      guard++;
     }
 
     const reversedMonths = monthList.reverse();
 
     return reversedMonths.map((mStr) => {
-      const existing = paymentLogs.find(
-        (p) => (p.thang || p.month || p.thang_nam) === mStr
+      const existing = (paymentLogs || []).find(
+        (p) => (p?.thang || p?.month || p?.thang_nam) === mStr
       );
       if (existing) {
         return existing;
