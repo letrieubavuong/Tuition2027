@@ -42,24 +42,70 @@ export default function StudentDetailContainer() {
   useEffect(() => {
     if (!studentId) return;
 
-    // 1. Fetch Student Info
-    const hsRef = ref(db, `hoc_sinh/${studentId}`);
+    // 1. Fetch Student Info (listen to hoc_sinh node to support array/map/key lookups)
+    const hsRef = ref(db, "hoc_sinh");
     const unsubHs = onValue(hsRef, (snapshot) => {
       const val = snapshot.val();
-      setStudent(val);
+      if (val) {
+        let found = null;
+        if (typeof val === "object") {
+          if (val[studentId]) {
+            found = { ...val[studentId], _key: studentId };
+          } else {
+            const list = Array.isArray(val)
+              ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+              : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+            found = list.find(
+              (s) => s && (String(s.id) === String(studentId) || String(s._key) === String(studentId))
+            );
+          }
+        }
+        setStudent(found);
+      } else {
+        setStudent(null);
+      }
       setLoading(false);
     });
 
-    // 2. Fetch All Classes
-    const lopRef = ref(db, "lop_hoc");
-    const unsubLop = onValue(lopRef, (snapshot) => {
+    // 2. Fetch All Classes (listen to both 'lop' and 'lop_hoc' nodes)
+    let listLop1 = [];
+    let listLop2 = [];
+    const mergeClasses = () => {
+      const combined = [...listLop1, ...listLop2];
+      const classMap = new Map();
+      combined.forEach((c) => {
+        const k = String(c.id ?? c._key ?? "");
+        if (k && !classMap.has(k)) {
+          classMap.set(k, { ...c, _key: k });
+        }
+      });
+      setAllClasses(Array.from(classMap.values()));
+    };
+
+    const lopRef1 = ref(db, "lop");
+    const unsubLop1 = onValue(lopRef1, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        let list = Array.isArray(val)
+        listLop1 = Array.isArray(val)
           ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
           : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
-        setAllClasses(list);
+      } else {
+        listLop1 = [];
       }
+      mergeClasses();
+    });
+
+    const lopRef2 = ref(db, "lop_hoc");
+    const unsubLop2 = onValue(lopRef2, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        listLop2 = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+      } else {
+        listLop2 = [];
+      }
+      mergeClasses();
     });
 
     // 3. Fetch Enrolled Class Connections (lop_hoc_sinh)
@@ -137,7 +183,8 @@ export default function StudentDetailContainer() {
 
     return () => {
       unsubHs();
-      unsubLop();
+      unsubLop1();
+      unsubLop2();
       unsubLhs();
       unsubDd();
       unsubTt();
@@ -145,7 +192,8 @@ export default function StudentDetailContainer() {
   }, [studentId]);
 
   // Clean phone number for Zalo (convert leading 0 to 84 for Zalo PC deep link)
-  const phone = student?.sdt_phu_huynh || student?.sdt || "";
+  const rawPhone = student?.sdt_phu_huynh || student?.sdt || student?.so_dien_thoai || "";
+  const phone = String(rawPhone || "").trim();
   let zaloPhone = phone.replace(/[^0-9]/g, "");
   if (zaloPhone.startsWith("0")) {
     zaloPhone = "84" + zaloPhone.slice(1);
@@ -235,20 +283,34 @@ export default function StudentDetailContainer() {
     let startMonth = 1;
 
     if (dates.length > 0) {
-      const validDateStrs = dates
-        .map((d) => String(d).trim())
-        .filter((d) => /^\d{4}/.test(d));
-
-      if (validDateStrs.length > 0) {
-        validDateStrs.sort();
-        const earliest = validDateStrs[0];
-        const parts = earliest.split(/[-/]/);
-        if (parts.length >= 2) {
+      for (const dStr of dates) {
+        const clean = String(dStr).trim().split("T")[0];
+        const parts = clean.split(/[-/]/);
+        if (parts.length === 3) {
+          if (parts[0].length === 4) {
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            if (y >= 2020 && y <= curYear && m >= 1 && m <= 12) {
+              startYear = y;
+              startMonth = m;
+              break;
+            }
+          } else if (parts[2].length === 4) {
+            const y = parseInt(parts[2], 10);
+            const m = parseInt(parts[1], 10);
+            if (y >= 2020 && y <= curYear && m >= 1 && m <= 12) {
+              startYear = y;
+              startMonth = m;
+              break;
+            }
+          }
+        } else if (parts.length === 2 && parts[0].length === 4) {
           const y = parseInt(parts[0], 10);
           const m = parseInt(parts[1], 10);
-          if (!isNaN(y) && !isNaN(m) && y >= 2020 && y <= curYear && m >= 1 && m <= 12) {
+          if (y >= 2020 && y <= curYear && m >= 1 && m <= 12) {
             startYear = y;
             startMonth = m;
+            break;
           }
         }
       }
