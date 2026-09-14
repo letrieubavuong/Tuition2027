@@ -64,6 +64,8 @@ export default function HocSinhPage() {
     return () => unsub();
   }, []);
 
+  const getSchoolName = (s) => s?.truong_dang_hoc || s?.truong || s?.ten_truong || s?.truong_hoc || "";
+
   const handleOpenModal = (hs = null) => {
     if (hs) {
       setEditingHs(hs);
@@ -71,7 +73,7 @@ export default function HocSinhPage() {
         ten: hs.ten || "",
         sdt_phu_huynh: hs.sdt_phu_huynh || hs.sdt || "",
         email: hs.email || "",
-        truong: hs.truong || "",
+        truong: getSchoolName(hs),
         ghi_chu: hs.ghi_chu || "",
       });
     } else {
@@ -97,6 +99,7 @@ export default function HocSinhPage() {
         await set(itemRef, {
           ...editingHs,
           ...formData,
+          truong_dang_hoc: formData.truong,
           updated_at: new Date().toISOString(),
         });
       } else {
@@ -105,6 +108,7 @@ export default function HocSinhPage() {
         await set(itemRef, {
           id: newId,
           ...formData,
+          truong_dang_hoc: formData.truong,
           created_at: new Date().toISOString(),
         });
       }
@@ -129,7 +133,7 @@ export default function HocSinhPage() {
       (s.ten && s.ten.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (s.sdt_phu_huynh && s.sdt_phu_huynh.includes(searchQuery)) ||
       (s.sdt && s.sdt.includes(searchQuery)) ||
-      (s.truong && s.truong.toLowerCase().includes(searchQuery.toLowerCase()))
+      (getSchoolName(s) && getSchoolName(s).toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -380,10 +384,10 @@ export default function HocSinhPage() {
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
-                          color: hs.truong ? "var(--text-primary)" : "var(--text-muted)",
+                          color: getSchoolName(hs) ? "var(--text-primary)" : "var(--text-muted)",
                         }}
                       >
-                        {hs.truong || "Chưa cập nhật trường"}
+                        {getSchoolName(hs) || "Chưa cập nhật trường"}
                       </span>
                     </div>
 
@@ -635,7 +639,7 @@ export default function HocSinhPage() {
                         <span style={{ color: "var(--text-muted)" }}>--</span>
                       )}
                     </td>
-                    <td>{hs.truong || "--"}</td>
+                    <td>{getSchoolName(hs) || "--"}</td>
                     <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{hs.ghi_chu || "--"}</td>
                     <td style={{ textAlign: "right" }}>
                       <Link

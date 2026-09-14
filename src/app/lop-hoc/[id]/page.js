@@ -371,7 +371,7 @@ export default function LopDetailContainer() {
                               "--"
                             )}
                           </td>
-                          <td>{student.truong || "--"}</td>
+                          <td>{student.truong_dang_hoc || student.truong || student.ten_truong || "--"}</td>
                           <td style={{ textAlign: "right" }}>
                             {status !== "TAM_NGHI" ? (
                               <button

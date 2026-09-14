@@ -203,8 +203,71 @@ export default function StudentDetailContainer() {
     }
   };
 
-  const formatCurrency = (num) => {
-    return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(num || 0);
+  // Get student school name safely
+  const schoolName = student?.truong_dang_hoc || student?.truong || student?.ten_truong || student?.truong_hoc || "";
+
+  // Helper to generate monthly payment history from student join date to current month
+  const getFullMonthlyPaymentHistory = () => {
+    const dates = [];
+    if (student?.ngay_tham_gia) dates.push(student.ngay_tham_gia);
+    if (student?.created_at) dates.push(student.created_at);
+    enrolledRecords.forEach((lhs) => {
+      if (lhs.ngay_tham_gia) dates.push(lhs.ngay_tham_gia);
+    });
+    paymentLogs.forEach((p) => {
+      const m = p.thang || p.month || p.thang_nam;
+      if (m && String(m).length >= 7) dates.push(`${m}-01`);
+    });
+
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = now.getMonth() + 1;
+
+    let startYear = curYear;
+    let startMonth = 1;
+
+    if (dates.length > 0) {
+      dates.sort();
+      const earliest = dates[0];
+      const parts = String(earliest).split(/[-/]/);
+      if (parts.length >= 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (!isNaN(y) && !isNaN(m) && y > 2000 && y <= curYear) {
+          startYear = y;
+          startMonth = m;
+        }
+      }
+    }
+
+    const monthList = [];
+    let y = startYear;
+    let m = startMonth;
+    while (y < curYear || (y === curYear && m <= curMonth)) {
+      monthList.push(`${y}-${String(m).padStart(2, '0')}`);
+      m++;
+      if (m > 12) {
+        m = 1;
+        y++;
+      }
+    }
+
+    const reversedMonths = monthList.reverse();
+
+    return reversedMonths.map((mStr) => {
+      const existing = paymentLogs.find(
+        (p) => (p.thang || p.month || p.thang_nam) === mStr
+      );
+      if (existing) {
+        return existing;
+      }
+      return {
+        thang: mStr,
+        so_tien_da_dong: 0,
+        tong_thanh_toan: 0,
+        isMissing: true,
+      };
+    });
   };
 
   if (loading) {
@@ -260,9 +323,9 @@ export default function StudentDetailContainer() {
                     <Phone size={15} color="var(--accent-primary)" /> SĐT: {phone}
                   </span>
                 )}
-                {student.truong && (
+                {schoolName && (
                   <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                    <School size={15} color="var(--info)" /> Trường: {student.truong}
+                    <School size={15} color="var(--info)" /> Trường: {schoolName}
                   </span>
                 )}
               </div>
@@ -425,34 +488,58 @@ export default function StudentDetailContainer() {
           <h3 style={{ fontSize: "1.1rem", fontWeight: "700", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <CreditCard size={18} color="var(--success)" /> Lịch Sử Đóng Học Phí
           </h3>
-          {paymentLogs.length === 0 ? (
-            <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Chưa có lịch sử học phí nào.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              {paymentLogs.map((p, idx) => {
-                const daDong = Number(p.so_tien_da_dong ?? p.so_tien ?? 0);
-                const tong = Number(p.tong_thanh_toan ?? 0);
-                const isPaid = (tong > 0 && daDong >= tong) || (tong === 0 && daDong > 0);
-                const conNo = Math.max(0, tong - daDong);
+          {(() => {
+            const historyList = getFullMonthlyPaymentHistory();
+            if (historyList.length === 0) {
+              return <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Chưa có lịch sử học phí nào.</p>;
+            }
 
-                return (
-                  <div key={idx} style={{ padding: "0.75rem 1rem", borderRadius: "var(--radius-md)", backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontWeight: "700" }}>Tháng {p.thang || p.thang_nam || "--"}</div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                        Đã đóng: <strong>{formatCurrency(daDong)}</strong> {tong > 0 ? `/ ${formatCurrency(tong)}` : ""}
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {historyList.map((p, idx) => {
+                  const daDong = Number(p.so_tien_da_dong ?? p.so_tien ?? 0);
+                  const tong = Number(p.tong_thanh_toan ?? 0);
+                  const isPaid = (tong > 0 && daDong >= tong) || (!p.isMissing && tong === 0 && daDong > 0);
+                  const conNo = Math.max(0, tong - daDong);
+
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: "0.75rem 1rem",
+                        borderRadius: "var(--radius-md)",
+                        backgroundColor: "var(--bg-secondary)",
+                        border: "1px solid var(--border-color)",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: "700" }}>Tháng {p.thang || p.thang_nam || "--"}</div>
+                        <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                          {p.isMissing ? (
+                            "Tháng học kể từ ngày tham gia"
+                          ) : (
+                            <>
+                              Đã đóng: <strong>{formatCurrency(daDong)}</strong> {tong > 0 ? `/ ${formatCurrency(tong)}` : ""}
+                            </>
+                          )}
+                        </div>
                       </div>
+                      {isPaid ? (
+                        <span className="badge badge-success">Đã hoàn tất</span>
+                      ) : p.isMissing ? (
+                        <span className="badge badge-danger">Chưa đóng học phí</span>
+                      ) : (
+                        <span className="badge badge-warning">Còn nợ {formatCurrency(conNo)}</span>
+                      )}
                     </div>
-                    {isPaid ? (
-                      <span className="badge badge-success">Đã hoàn tất</span>
-                    ) : (
-                      <span className="badge badge-warning">Còn nợ {formatCurrency(conNo)}</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Attendance History */}
