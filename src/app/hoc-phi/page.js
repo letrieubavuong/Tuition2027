@@ -116,28 +116,69 @@ export default function HocPhiPage() {
       }
     });
 
-    // 4. Lắng nghe danh sách lớp học để map ID -> Tên lớp
-    const lopRef = ref(db, "lop_hoc");
-    const unsubLop = onValue(lopRef, (snapshot) => {
+    // 4. Lắng nghe cả 2 node lớp học 'lop' và 'lop_hoc' từ Firebase Realtime Database
+    let listLop1 = [];
+    let listLop2 = [];
+
+    const mergeAllClasses = () => {
+      const combined = [...listLop1, ...listLop2];
+      const classMapById = new Map();
+      const cMap = {};
+
+      combined.forEach((c) => {
+        const key = String(c.id ?? c._key ?? "");
+        const name = c.ten_lop || c.ten || (key ? `Lớp #${key}` : "");
+        if (key && name) {
+          classMapById.set(key, { id: key, name });
+          cMap[key] = name;
+        }
+      });
+
+      // Bổ sung các lớp xuất hiện trong thanh toán (thanh_toan)
+      payments.forEach((p) => {
+        const cId = String(p.id_lop ?? p.lop_id ?? "");
+        const cName = p.ten_lop;
+        if (cId && cId !== "ALL" && !classMapById.has(cId)) {
+          const displayName = cName || `Lớp #${cId}`;
+          classMapById.set(cId, { id: cId, name: displayName });
+          cMap[cId] = displayName;
+        } else if (cName && cName.trim() !== "" && !classMapById.has(cName)) {
+          classMapById.set(cName, { id: cName, name: cName });
+          cMap[cName] = cName;
+        }
+      });
+
+      const resultList = Array.from(classMapById.values()).sort((a, b) =>
+        a.name.localeCompare(b.name, "vi")
+      );
+      setClassesList(resultList);
+      setClassesMap(cMap);
+    };
+
+    const lopRef1 = ref(db, "lop");
+    const unsubLop1 = onValue(lopRef1, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        let list = Array.isArray(val)
+        listLop1 = Array.isArray(val)
           ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
           : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
-        setClassesList(list);
-
-        const cMap = {};
-        list.forEach((c) => {
-          const keyStr = String(c.id ?? c._key ?? "");
-          const nameStr = c.ten_lop || c.ten || `Lớp #${keyStr}`;
-          if (keyStr) cMap[keyStr] = nameStr;
-          if (c.id !== undefined) cMap[c.id] = nameStr;
-        });
-        setClassesMap(cMap);
       } else {
-        setClassesList([]);
-        setClassesMap({});
+        listLop1 = [];
       }
+      mergeAllClasses();
+    });
+
+    const lopRef2 = ref(db, "lop_hoc");
+    const unsubLop2 = onValue(lopRef2, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        listLop2 = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+      } else {
+        listLop2 = [];
+      }
+      mergeAllClasses();
     });
 
     // 5. Lắng nghe quan hệ lớp - học sinh
@@ -158,10 +199,11 @@ export default function HocPhiPage() {
       unsubHs();
       unsubPay();
       unsubBank();
-      unsubLop();
+      unsubLop1();
+      unsubLop2();
       unsubLhs();
     };
-  }, []);
+  }, [payments]);
 
   const formatCurrency = (num) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -293,18 +335,27 @@ export default function HocPhiPage() {
   const isPaymentInSelectedClass = (p) => {
     if (selectedClass === "all") return true;
 
-    const payLopId = p.id_lop ?? p.lop_id;
-    if (payLopId !== undefined && payLopId !== "ALL" && String(payLopId) === String(selectedClass)) {
+    const selectedClassName = classesMap[selectedClass] || selectedClass;
+    const payLopId = String(p.id_lop ?? p.lop_id ?? "");
+    const payLopName = p.ten_lop || "";
+
+    if (payLopId && (payLopId === String(selectedClass) || classesMap[payLopId] === selectedClassName)) {
+      return true;
+    }
+    if (payLopName && (payLopName === String(selectedClass) || payLopName === selectedClassName)) {
       return true;
     }
 
     const hsId = p.id_hoc_sinh ?? p.hoc_sinh_id;
     if (hsId !== undefined) {
-      const isEnrolled = studentClasses.some(
-        (lhs) =>
-          String(lhs.id_hoc_sinh || lhs.hoc_sinh_id) === String(hsId) &&
-          String(lhs.id_lop || lhs.lop_id) === String(selectedClass)
-      );
+      const isEnrolled = studentClasses.some((lhs) => {
+        const lhsHsId = String(lhs.id_hoc_sinh || lhs.hoc_sinh_id || "");
+        const lhsLopId = String(lhs.id_lop || lhs.lop_id || "");
+        return (
+          lhsHsId === String(hsId) &&
+          (lhsLopId === String(selectedClass) || classesMap[lhsLopId] === selectedClassName)
+        );
+      });
       if (isEnrolled) return true;
     }
 
@@ -377,12 +428,12 @@ export default function HocPhiPage() {
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
               className="input-control"
-              style={{ padding: "0.6rem 1rem", fontSize: "0.9rem", fontWeight: "600", cursor: "pointer" }}
+              style={{ padding: "0.6rem 1rem", fontSize: "0.9rem", fontWeight: "600", cursor: "pointer", minWidth: "160px" }}
             >
-              <option value="all">🏫 Tất cả các lớp</option>
+              <option value="all">🏫 Tất cả các lớp ({classesList.length})</option>
               {classesList.map((c) => (
-                <option key={c.id || c._key} value={c.id || c._key}>
-                  📚 {c.ten_lop || c.ten || `Lớp #${c.id}`}
+                <option key={c.id} value={c.id}>
+                  📚 {c.name}
                 </option>
               ))}
             </select>
