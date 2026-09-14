@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { db, ref, onValue, set } from "@/lib/firebase";
-import { CreditCard, CheckCircle2, AlertTriangle, QrCode, Search, DollarSign, Calendar, Filter, Phone, Users, BookOpen } from "lucide-react";
+import { CreditCard, CheckCircle2, AlertTriangle, QrCode, Search, DollarSign, Calendar, Filter, Phone, Users, BookOpen, X, PlusCircle, FileText } from "lucide-react";
 
 export default function HocPhiPage() {
   const [payments, setPayments] = useState([]);
@@ -17,6 +17,7 @@ export default function HocPhiPage() {
   const [selectedClass, setSelectedClass] = useState("all");
   const [availableMonths, setAvailableMonths] = useState([]);
   const [selectedQr, setSelectedQr] = useState(null);
+  const [paymentModal, setPaymentModal] = useState(null);
   const [bankConfig, setBankConfig] = useState({
     ten_ngan_hang: "Sacombank",
     ma_bin: "970403",
@@ -208,6 +209,62 @@ export default function HocPhiPage() {
       });
     } catch (err) {
       alert("Lỗi cập nhật số tiền đóng: " + err.message);
+    }
+  };
+
+  const openPaymentModal = (p) => {
+    const studentName = getStudentName(p);
+    const className = getPaymentClassName(p);
+    const daDong = Number(p.so_tien_da_dong) || 0;
+    const tong = Number(p.tong_thanh_toan) || 0;
+    const conNo = Math.max(0, tong - daDong);
+    const initialCollect = conNo > 0 ? conNo : 0;
+
+    setPaymentModal({
+      payment: p,
+      studentName,
+      className,
+      month: p.thang,
+      tong,
+      daDong,
+      conNo,
+      collectAmount: initialCollect,
+      extraFee: 0,
+      extraReason: "",
+      note: p.ghi_chu || "",
+      paymentDate: new Date().toISOString().split("T")[0],
+    });
+  };
+
+  const handleConfirmPayment = async (modalData) => {
+    try {
+      const p = modalData.payment;
+      const currentPaid = Number(p.so_tien_da_dong) || 0;
+      const addPaid = Number(modalData.collectAmount) || 0;
+      const newPaid = currentPaid + addPaid;
+      const extraFee = Number(modalData.extraFee) || 0;
+
+      let finalNote = modalData.note ? modalData.note.trim() : "";
+      if (extraFee > 0) {
+        const extraDesc = modalData.extraReason.trim() ? modalData.extraReason.trim() : "Phát sinh";
+        finalNote = finalNote
+          ? `${finalNote} | +${extraFee.toLocaleString("vi-VN")}đ (${extraDesc})`
+          : `+${extraFee.toLocaleString("vi-VN")}đ (${extraDesc})`;
+      }
+
+      const pRef = ref(db, `thanh_toan/${p._key}`);
+      await set(pRef, {
+        ...p,
+        so_tien_da_dong: newPaid,
+        ngay_thanh_toan: modalData.paymentDate || new Date().toISOString().split("T")[0],
+        ghi_chu: finalNote || p.ghi_chu || "",
+        updated_at: new Date().toISOString(),
+      });
+
+      setPaymentModal(null);
+      alert(`Đã thu thành công ${addPaid.toLocaleString("vi-VN")} VNĐ của ${modalData.studentName}!`);
+    } catch (err) {
+      alert("Lỗi thanh toán: " + err.message);
     }
   };
 
@@ -564,16 +621,22 @@ export default function HocPhiPage() {
                           )}
 
                           <button
-                            onClick={() => {
-                              const val = prompt(`Cập nhật số tiền đã đóng cho ${studentName} (VND):`, daDong);
-                              if (val !== null && !isNaN(val)) {
-                                handleUpdatePaidAmount(p, val);
-                              }
+                            onClick={() => openPaymentModal(p)}
+                            className="btn-primary"
+                            style={{
+                              padding: "0.4rem 0.75rem",
+                              fontSize: "0.8rem",
+                              fontWeight: "700",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "0.3rem",
+                              backgroundColor: "#10b981",
+                              borderColor: "#10b981",
+                              boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
                             }}
-                            className="btn-secondary"
-                            style={{ padding: "0.4rem 0.65rem" }}
+                            title="Mở dialog thu tiền học phí"
                           >
-                            <DollarSign size={14} /> Cập nhật
+                            <DollarSign size={14} /> Thanh toán
                           </button>
                         </div>
                       </td>
@@ -649,6 +712,286 @@ export default function HocPhiPage() {
           </div>
         );
       })()}
+
+      {/* Payment Dialog Modal (ThuTienHocPhiDialog - Giống App) */}
+      {paymentModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.65)",
+            backdropFilter: "blur(5px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: "1rem",
+          }}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: "100%",
+              maxWidth: "480px",
+              padding: "1.75rem",
+              backgroundColor: "var(--bg-secondary)",
+              borderRadius: "16px",
+              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.4)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", borderBottom: "1px solid var(--border-color)", paddingBottom: "0.75rem" }}>
+              <div>
+                <h3 style={{ fontSize: "1.3rem", fontWeight: "800", color: "var(--text-primary)" }}>
+                  💳 Thu Tiền Học Phí
+                </h3>
+                <div style={{ fontSize: "0.85rem", color: "var(--accent-primary)", fontWeight: "600", marginTop: "0.15rem" }}>
+                  {paymentModal.studentName} {paymentModal.className ? `• ${paymentModal.className}` : ""}
+                </div>
+              </div>
+              <button
+                onClick={() => setPaymentModal(null)}
+                style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: "0.25rem" }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Summary Box */}
+            <div style={{ backgroundColor: "var(--bg-primary)", padding: "0.85rem 1rem", borderRadius: "10px", marginBottom: "1.25rem", border: "1px solid var(--border-color)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.88rem", marginBottom: "0.4rem" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Tháng đóng:</span>
+                <span className="badge badge-info">Tháng {formatMonthYear(paymentModal.month)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.88rem", marginBottom: "0.4rem" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Học phí cần nộp:</span>
+                <span style={{ fontWeight: "700" }}>{formatCurrency(paymentModal.tong)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.88rem", marginBottom: "0.4rem" }}>
+                <span style={{ color: "var(--text-secondary)" }}>Đã đóng trước đó:</span>
+                <span style={{ color: "var(--success)", fontWeight: "700" }}>{formatCurrency(paymentModal.daDong)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.95rem", paddingTop: "0.4rem", borderTop: "1px dashed var(--border-color)" }}>
+                <span style={{ fontWeight: "700", color: "var(--text-primary)" }}>Còn nợ thực tế:</span>
+                <span style={{ color: paymentModal.conNo > 0 ? "var(--danger)" : "var(--success)", fontWeight: "800" }}>{formatCurrency(paymentModal.conNo)}</span>
+              </div>
+            </div>
+
+            {/* Quick Amount Presets (Đóng đủ 100% / 50%) */}
+            {paymentModal.conNo > 0 && (
+              <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPaymentModal({
+                      ...paymentModal,
+                      collectAmount: paymentModal.conNo,
+                    })
+                  }
+                  style={{
+                    flex: 1,
+                    padding: "0.5rem",
+                    borderRadius: "8px",
+                    border: "1px solid var(--accent-primary)",
+                    backgroundColor: "rgba(13, 148, 136, 0.12)",
+                    color: "var(--accent-primary)",
+                    fontWeight: "700",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  ✅ Đóng đủ (100%): {formatCurrency(paymentModal.conNo)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPaymentModal({
+                      ...paymentModal,
+                      collectAmount: Math.round(paymentModal.conNo / 2),
+                    })
+                  }
+                  style={{
+                    flex: 1,
+                    padding: "0.5rem",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border-color)",
+                    backgroundColor: "rgba(255, 255, 255, 0.05)",
+                    color: "var(--text-primary)",
+                    fontWeight: "600",
+                    fontSize: "0.8rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  🌗 Nửa tháng (50%): {formatCurrency(Math.round(paymentModal.conNo / 2))}
+                </button>
+              </div>
+            )}
+
+            {/* Form Controls */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleConfirmPayment(paymentModal);
+              }}
+              style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}
+            >
+              {/* Số tiền thu thêm */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.82rem", fontWeight: "700", marginBottom: "0.3rem", color: "var(--text-primary)" }}>
+                  💵 Số tiền thu lần này (VNĐ):
+                </label>
+                <input
+                  type="number"
+                  value={paymentModal.collectAmount}
+                  onChange={(e) =>
+                    setPaymentModal({
+                      ...paymentModal,
+                      collectAmount: e.target.value,
+                    })
+                  }
+                  className="input-control"
+                  style={{ width: "100%", fontSize: "1.1rem", fontWeight: "800", color: "#10b981" }}
+                  min="0"
+                  required
+                />
+                <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                  Tổng đã đóng sau khi thu: <strong style={{ color: "#10b981" }}>{formatCurrency(paymentModal.daDong + (Number(paymentModal.collectAmount) || 0))}</strong>
+                </div>
+              </div>
+
+              {/* Thu thêm phát sinh khác */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: "600", marginBottom: "0.3rem", color: "var(--text-secondary)" }}>
+                    ➕ Thu thêm (Sách, TL...):
+                  </label>
+                  <input
+                    type="number"
+                    value={paymentModal.extraFee}
+                    onChange={(e) =>
+                      setPaymentModal({
+                        ...paymentModal,
+                        extraFee: e.target.value,
+                      })
+                    }
+                    className="input-control"
+                    style={{ width: "100%", fontSize: "0.9rem" }}
+                    placeholder="0"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: "600", marginBottom: "0.3rem", color: "var(--text-secondary)" }}>
+                    Lý do thu thêm:
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentModal.extraReason}
+                    onChange={(e) =>
+                      setPaymentModal({
+                        ...paymentModal,
+                        extraReason: e.target.value,
+                      })
+                    }
+                    className="input-control"
+                    style={{ width: "100%", fontSize: "0.9rem" }}
+                    placeholder="Ví dụ: Tiền giáo trình"
+                  />
+                </div>
+              </div>
+
+              {/* Ngày thanh toán */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: "600", marginBottom: "0.3rem", color: "var(--text-secondary)" }}>
+                  📅 Ngày thu tiền:
+                </label>
+                <input
+                  type="date"
+                  value={paymentModal.paymentDate}
+                  onChange={(e) =>
+                    setPaymentModal({
+                      ...paymentModal,
+                      paymentDate: e.target.value,
+                    })
+                  }
+                  className="input-control"
+                  style={{ width: "100%", fontSize: "0.9rem" }}
+                  required
+                />
+              </div>
+
+              {/* Ghi chú */}
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: "600", marginBottom: "0.3rem", color: "var(--text-secondary)" }}>
+                  📝 Ghi chú:
+                </label>
+                <input
+                  type="text"
+                  value={paymentModal.note}
+                  onChange={(e) =>
+                    setPaymentModal({
+                      ...paymentModal,
+                      note: e.target.value,
+                    })
+                  }
+                  className="input-control"
+                  style={{ width: "100%", fontSize: "0.9rem" }}
+                  placeholder="Nhập ghi chú thanh toán (nếu có)..."
+                />
+              </div>
+
+              {/* Modal Action Buttons */}
+              <div style={{ display: "flex", gap: "0.6rem", marginTop: "0.5rem" }}>
+                {paymentModal.conNo > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p = paymentModal.payment;
+                      const studentName = paymentModal.studentName;
+                      const conNo = paymentModal.conNo;
+                      setSelectedQr({
+                        ten: studentName,
+                        sotien: Number(paymentModal.collectAmount) > 0 ? Number(paymentModal.collectAmount) : conNo,
+                        noidung: `HOCPHI THANG ${formatMonthYear(p.thang)} ${studentName}`,
+                      });
+                    }}
+                    className="btn-secondary"
+                    style={{ padding: "0.65rem 0.85rem", fontSize: "0.85rem", color: "var(--accent-primary)" }}
+                  >
+                    <QrCode size={16} /> VietQR
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentModal(null)}
+                  className="btn-secondary"
+                  style={{ flex: 1, justifyContent: "center" }}
+                >
+                  Hủy
+                </button>
+
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{
+                    flex: 1.5,
+                    justifyContent: "center",
+                    backgroundColor: "#10b981",
+                    borderColor: "#10b981",
+                    fontWeight: "700",
+                    boxShadow: "0 4px 12px rgba(16, 185, 129, 0.35)",
+                  }}
+                >
+                  <CheckCircle2 size={16} /> Xác nhận Thu tiền
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
