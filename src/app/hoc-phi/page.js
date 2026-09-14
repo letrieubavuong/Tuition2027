@@ -5,6 +5,7 @@ import { db, ref, onValue, set } from "@/lib/firebase";
 import { CreditCard, CheckCircle2, AlertTriangle, QrCode, Search, DollarSign, Calendar, Filter, Phone, Users, BookOpen, X, PlusCircle, FileText } from "lucide-react";
 
 export default function HocPhiPage() {
+  const [rawPayments, setRawPayments] = useState([]);
   const [payments, setPayments] = useState([]);
   const [studentsMap, setStudentsMap] = useState({});
   const [classesList, setClassesList] = useState([]);
@@ -60,44 +61,9 @@ export default function HocPhiPage() {
             _key: key,
           }));
         }
-
-        // Deduplicate payment records by unique key: id_hoc_sinh + id_lop + thang
-        const payMap = new Map();
-        rawList.forEach((p) => {
-          const hsId = p.id_hoc_sinh ?? p.hoc_sinh_id;
-          const lopId = p.id_lop ?? p.lop_id ?? p.ten_lop ?? "ALL";
-          const monthKey = p.thang ?? p.month ?? "UNKNOWN";
-          const uniqueKey = (hsId !== undefined && monthKey)
-            ? `${hsId}_${lopId}_${monthKey}`
-            : String(p.id || p._key);
-
-          if (!payMap.has(uniqueKey)) {
-            payMap.set(uniqueKey, p);
-          } else {
-            const existing = payMap.get(uniqueKey);
-            const newTime = p.updated_at ? new Date(p.updated_at).getTime() : 0;
-            const existingTime = existing.updated_at ? new Date(existing.updated_at).getTime() : 0;
-            if (newTime >= existingTime) {
-              payMap.set(uniqueKey, p);
-            }
-          }
-        });
-
-        const list = Array.from(payMap.values());
-        setPayments(list);
-
-        // Thu thập danh sách các tháng có dữ liệu
-        const months = Array.from(
-          new Set(list.map((p) => p.thang).filter(Boolean))
-        ).sort((a, b) => b.localeCompare(a));
-        setAvailableMonths(months);
-
-        // Mặc định chọn tháng mới nhất nếu có
-        if (months.length > 0 && selectedMonth === "all") {
-          setSelectedMonth(months[0]);
-        }
+        setRawPayments(rawList);
       } else {
-        setPayments([]);
+        setRawPayments([]);
       }
       setLoading(false);
     });
@@ -203,7 +169,57 @@ export default function HocPhiPage() {
       unsubLop2();
       unsubLhs();
     };
-  }, [payments]);
+  }, []);
+
+  // Deduplicate payment records whenever rawPayments or classesMap changes
+  useEffect(() => {
+    if (!rawPayments || rawPayments.length === 0) {
+      setPayments([]);
+      setAvailableMonths([]);
+      return;
+    }
+
+    const payMap = new Map();
+    rawPayments.forEach((p) => {
+      const hsId = p.id_hoc_sinh ?? p.hoc_sinh_id;
+      const monthKey = p.thang ?? p.month ?? "UNKNOWN";
+
+      // Normalize class identifier to canonical class name if mapped in classesMap
+      let lopIdKey = "ALL";
+      const rawLopId = p.id_lop ?? p.lop_id;
+      const rawTenLop = (p.ten_lop || "").trim();
+
+      if (rawLopId !== undefined && rawLopId !== null && rawLopId !== "ALL" && String(rawLopId).trim() !== "") {
+        lopIdKey = classesMap[rawLopId] || classesMap[String(rawLopId)] || rawTenLop || String(rawLopId);
+      } else if (rawTenLop) {
+        lopIdKey = rawTenLop;
+      }
+
+      const uniqueKey = (hsId !== undefined && monthKey)
+        ? `${hsId}_${lopIdKey}_${monthKey}`
+        : String(p.id || p._key);
+
+      if (!payMap.has(uniqueKey)) {
+        payMap.set(uniqueKey, p);
+      } else {
+        const existing = payMap.get(uniqueKey);
+        const newTime = p.updated_at ? new Date(p.updated_at).getTime() : 0;
+        const existingTime = existing.updated_at ? new Date(existing.updated_at).getTime() : 0;
+        if (newTime >= existingTime) {
+          payMap.set(uniqueKey, p);
+        }
+      }
+    });
+
+    const list = Array.from(payMap.values());
+    setPayments(list);
+
+    // Thu thập danh sách các tháng có dữ liệu
+    const months = Array.from(
+      new Set(list.map((p) => p.thang).filter(Boolean))
+    ).sort((a, b) => b.localeCompare(a));
+    setAvailableMonths(months);
+  }, [rawPayments, classesMap]);
 
   const formatCurrency = (num) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -399,7 +415,11 @@ export default function HocPhiPage() {
   // Calculate monthly stats
   const totalMonthAmount = filteredPayments.reduce((sum, p) => sum + (Number(p.tong_thanh_toan) || 0), 0);
   const totalMonthPaid = filteredPayments.reduce((sum, p) => sum + (Number(p.so_tien_da_dong) || 0), 0);
-  const totalMonthDebt = Math.max(0, totalMonthAmount - totalMonthPaid);
+  const totalMonthDebt = filteredPayments.reduce((sum, p) => {
+    const tong = Number(p.tong_thanh_toan) || 0;
+    const daDong = Number(p.so_tien_da_dong) || 0;
+    return sum + (tong > daDong ? tong - daDong : 0);
+  }, 0);
   const completionRate = totalMonthAmount > 0 ? Math.min(100, (totalMonthPaid / totalMonthAmount) * 100) : 100;
 
   return (
