@@ -112,9 +112,26 @@ export default function StudentDetailContainer() {
       if (val) {
         let list = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
         const myLogs = list.filter(
-          (tt) => String(tt.id_hoc_sinh || tt.hoc_sinh_id) === String(studentId)
+          (tt) => String(tt.id_hoc_sinh ?? tt.hoc_sinh_id) === String(studentId)
         );
-        setPaymentLogs(myLogs);
+
+        // Deduplicate payment records by unique month + class
+        const payMap = new Map();
+        myLogs.forEach((p) => {
+          const monthKey = p.thang ?? p.month ?? p.thang_nam ?? "UNKNOWN";
+          const classKey = p.id_lop ?? p.lop_id ?? "ALL";
+          const uniqueKey = `${monthKey}_${classKey}`;
+          if (!payMap.has(uniqueKey)) {
+            payMap.set(uniqueKey, p);
+          } else {
+            const existing = payMap.get(uniqueKey);
+            const newTime = p.updated_at ? new Date(p.updated_at).getTime() : 0;
+            const existingTime = existing.updated_at ? new Date(existing.updated_at).getTime() : 0;
+            if (newTime >= existingTime) payMap.set(uniqueKey, p);
+          }
+        });
+
+        setPaymentLogs(Array.from(payMap.values()));
       }
     });
 
@@ -412,15 +429,28 @@ export default function StudentDetailContainer() {
             <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Chưa có lịch sử học phí nào.</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              {paymentLogs.map((p, idx) => (
-                <div key={idx} style={{ padding: "0.75rem 1rem", borderRadius: "var(--radius-md)", backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontWeight: "700" }}>Tháng {p.thang || p.thang_nam}</div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Đã đóng: {formatCurrency(p.so_tien || p.so_tien_da_dong)}</div>
+              {paymentLogs.map((p, idx) => {
+                const daDong = Number(p.so_tien_da_dong ?? p.so_tien ?? 0);
+                const tong = Number(p.tong_thanh_toan ?? 0);
+                const isPaid = (tong > 0 && daDong >= tong) || (tong === 0 && daDong > 0);
+                const conNo = Math.max(0, tong - daDong);
+
+                return (
+                  <div key={idx} style={{ padding: "0.75rem 1rem", borderRadius: "var(--radius-md)", backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-color)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontWeight: "700" }}>Tháng {p.thang || p.thang_nam || "--"}</div>
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                        Đã đóng: <strong>{formatCurrency(daDong)}</strong> {tong > 0 ? `/ ${formatCurrency(tong)}` : ""}
+                      </div>
+                    </div>
+                    {isPaid ? (
+                      <span className="badge badge-success">Đã hoàn tất</span>
+                    ) : (
+                      <span className="badge badge-warning">Còn nợ {formatCurrency(conNo)}</span>
+                    )}
                   </div>
-                  <span className="badge badge-success">Đã thanh toán</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -29,8 +29,10 @@ export default function HocPhiPage() {
         const sMap = {};
         const list = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
         list.forEach((s) => {
-          if (s && s.id !== undefined) {
-            sMap[s.id] = s;
+          if (s) {
+            const keyStr = String(s.id ?? s._key ?? "");
+            if (keyStr) sMap[keyStr] = s;
+            if (s.id !== undefined) sMap[s.id] = s;
           }
         });
         setStudentsMap(sMap);
@@ -42,17 +44,41 @@ export default function HocPhiPage() {
     const unsubPay = onValue(thanhToanRef, (snapshot) => {
       const val = snapshot.val();
       if (val) {
-        let list = [];
+        let rawList = [];
         if (Array.isArray(val)) {
-          list = val
+          rawList = val
             .map((item, idx) => (item ? { ...item, _key: item.id || idx } : null))
             .filter(Boolean);
         } else if (typeof val === "object") {
-          list = Object.entries(val).map(([key, item]) => ({
+          rawList = Object.entries(val).map(([key, item]) => ({
             ...item,
             _key: key,
           }));
         }
+
+        // Deduplicate payment records by unique key: id_hoc_sinh + id_lop + thang
+        const payMap = new Map();
+        rawList.forEach((p) => {
+          const hsId = p.id_hoc_sinh ?? p.hoc_sinh_id;
+          const lopId = p.id_lop ?? p.lop_id ?? "ALL";
+          const monthKey = p.thang ?? p.month ?? "UNKNOWN";
+          const uniqueKey = (hsId !== undefined && monthKey)
+            ? `${hsId}_${lopId}_${monthKey}`
+            : String(p.id || p._key);
+
+          if (!payMap.has(uniqueKey)) {
+            payMap.set(uniqueKey, p);
+          } else {
+            const existing = payMap.get(uniqueKey);
+            const newTime = p.updated_at ? new Date(p.updated_at).getTime() : 0;
+            const existingTime = existing.updated_at ? new Date(existing.updated_at).getTime() : 0;
+            if (newTime >= existingTime) {
+              payMap.set(uniqueKey, p);
+            }
+          }
+        });
+
+        const list = Array.from(payMap.values());
         setPayments(list);
 
         // Thu thập danh sách các tháng có dữ liệu
@@ -114,16 +140,18 @@ export default function HocPhiPage() {
     if (p.ten_hoc_sinh && p.ten_hoc_sinh.trim() !== "") {
       return p.ten_hoc_sinh;
     }
-    const s = studentsMap[p.id_hoc_sinh];
-    if (s && s.ten) {
-      return s.ten;
+    const hsId = p.id_hoc_sinh ?? p.hoc_sinh_id;
+    const s = studentsMap[hsId] || studentsMap[String(hsId)];
+    if (s && (s.ten || s.ho_ten)) {
+      return s.ten || s.ho_ten;
     }
-    return `Học sinh #${p.id_hoc_sinh}`;
+    return `Học sinh #${hsId}`;
   };
 
   const getStudentPhone = (p) => {
-    const s = studentsMap[p.id_hoc_sinh];
-    return s ? (s.sdt_phu_huynh || s.sdt || "") : "";
+    const hsId = p.id_hoc_sinh ?? p.hoc_sinh_id;
+    const s = studentsMap[hsId] || studentsMap[String(hsId)];
+    return s ? (s.sdt_phu_huynh || s.sdt || s.so_dien_thoai || "") : "";
   };
 
   const handleUpdatePaidAmount = async (payment, newAmount) => {

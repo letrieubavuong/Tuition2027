@@ -96,7 +96,7 @@ export default function ThongKePage() {
 
   // Compute Revenue Stats
   const totalRevenueCollected = payments.reduce(
-    (acc, cur) => acc + (Number(cur.so_tien) || Number(cur.soTien) || 0),
+    (acc, cur) => acc + (Number(cur.so_tien_da_dong) || Number(cur.so_tien) || Number(cur.soTien) || 0),
     0
   );
 
