@@ -24,9 +24,10 @@ import {
   Clock
 } from "lucide-react";
 
-export default function StudentDetailContainer() {
-  const params = useParams();
-  const studentId = params.id;
+export default function StudentDetailContainer({ params: routeParams }) {
+  const routerParams = useParams();
+  const rawId = routeParams?.id || routerParams?.id;
+  const studentId = rawId ? decodeURIComponent(String(rawId)) : "";
 
   const [student, setStudent] = useState(null);
   const [allClasses, setAllClasses] = useState([]);
@@ -40,7 +41,10 @@ export default function StudentDetailContainer() {
   const [selectedClassToAssign, setSelectedClassToAssign] = useState("");
 
   useEffect(() => {
-    if (!studentId) return;
+    if (!studentId) {
+      setLoading(false);
+      return;
+    }
 
     // 1. Fetch Student Info (listen to hoc_sinh node to support array/map/key lookups)
     const hsRef = ref(db, "hoc_sinh");
@@ -48,18 +52,29 @@ export default function StudentDetailContainer() {
       const val = snapshot.val();
       if (val) {
         let found = null;
-        if (typeof val === "object") {
-          if (val[studentId]) {
-            found = { ...val[studentId], _key: studentId };
-          } else {
-            const list = Array.isArray(val)
-              ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
-              : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
-            found = list.find(
-              (s) => s && (String(s.id) === String(studentId) || String(s._key) === String(studentId))
-            );
-          }
+        let candidateList = [];
+
+        if (Array.isArray(val)) {
+          candidateList = val
+            .map((item, idx) => (item ? { ...item, _key: String(item.id || idx) } : null))
+            .filter(Boolean);
+        } else if (typeof val === "object") {
+          candidateList = Object.entries(val).map(([k, v]) => ({
+            ...v,
+            _key: k,
+          }));
         }
+
+        // Match by _key, id, id_hoc_sinh, or hoc_sinh_id
+        found = candidateList.find(
+          (s) =>
+            s &&
+            (String(s._key) === String(studentId) ||
+              String(s.id) === String(studentId) ||
+              String(s.id_hoc_sinh) === String(studentId) ||
+              String(s.hoc_sinh_id) === String(studentId))
+        );
+
         setStudent(found);
       } else {
         setStudent(null);
@@ -108,22 +123,37 @@ export default function StudentDetailContainer() {
       mergeClasses();
     });
 
+    return () => {
+      unsubHs();
+      unsubLop1();
+      unsubLop2();
+    };
+  }, [studentId]);
+
+  // Fetch student-related records whenever student or studentId updates
+  useEffect(() => {
+    if (!studentId) return;
+
+    const validIds = new Set(
+      [
+        String(studentId),
+        student?.id !== undefined ? String(student.id) : null,
+        student?._key !== undefined ? String(student._key) : null,
+        student?.id_hoc_sinh !== undefined ? String(student.id_hoc_sinh) : null,
+      ].filter(Boolean)
+    );
+
     // 3. Fetch Enrolled Class Connections (lop_hoc_sinh)
     const lhsRef = ref(db, "lop_hoc_sinh");
     const unsubLhs = onValue(lhsRef, (snapshotLhs) => {
       const lhsVal = snapshotLhs.val();
       if (lhsVal) {
-        let lhsList = [];
-        if (Array.isArray(lhsVal)) {
-          lhsList = lhsVal
-            .map((item, idx) => (item ? { ...item, _key: item.id || idx } : null))
-            .filter(Boolean);
-        } else {
-          lhsList = Object.entries(lhsVal).map(([k, v]) => ({ ...v, _key: k }));
-        }
+        let lhsList = Array.isArray(lhsVal)
+          ? lhsVal.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(lhsVal).map(([k, v]) => ({ ...v, _key: k }));
 
-        const myRecords = lhsList.filter(
-          (lhs) => String(lhs.id_hoc_sinh || lhs.hoc_sinh_id) === String(studentId)
+        const myRecords = lhsList.filter((lhs) =>
+          validIds.has(String(lhs.id_hoc_sinh || lhs.hoc_sinh_id))
         );
         setEnrolledRecords(myRecords);
       } else {
@@ -139,15 +169,20 @@ export default function StudentDetailContainer() {
         let list = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
         const myLogs = [];
         list.forEach((dd) => {
-          if (dd.danh_sach && dd.danh_sach[studentId]) {
-            myLogs.push({
-              ngay: dd.ngay,
-              lop_id: dd.lop_id,
-              trang_thai: dd.danh_sach[studentId],
-            });
+          if (dd.danh_sach) {
+            const foundId = Array.from(validIds).find((id) => dd.danh_sach[id]);
+            if (foundId) {
+              myLogs.push({
+                ngay: dd.ngay,
+                lop_id: dd.lop_id,
+                trang_thai: dd.danh_sach[foundId],
+              });
+            }
           }
         });
         setAttendanceLogs(myLogs);
+      } else {
+        setAttendanceLogs([]);
       }
     });
 
@@ -157,8 +192,8 @@ export default function StudentDetailContainer() {
       const val = snapshot.val();
       if (val) {
         let list = Array.isArray(val) ? val.filter(Boolean) : Object.values(val);
-        const myLogs = list.filter(
-          (tt) => String(tt.id_hoc_sinh ?? tt.hoc_sinh_id) === String(studentId)
+        const myLogs = list.filter((tt) =>
+          validIds.has(String(tt.id_hoc_sinh ?? tt.hoc_sinh_id))
         );
 
         // Deduplicate payment records by unique month + class
@@ -178,18 +213,17 @@ export default function StudentDetailContainer() {
         });
 
         setPaymentLogs(Array.from(payMap.values()));
+      } else {
+        setPaymentLogs([]);
       }
     });
 
     return () => {
-      unsubHs();
-      unsubLop1();
-      unsubLop2();
       unsubLhs();
       unsubDd();
       unsubTt();
     };
-  }, [studentId]);
+  }, [studentId, student]);
 
   // Clean phone number for Zalo (convert leading 0 to 84 for Zalo PC deep link)
   const rawPhone = student?.sdt_phu_huynh || student?.sdt || student?.so_dien_thoai || "";
@@ -205,7 +239,6 @@ export default function StudentDetailContainer() {
       alert("Học sinh này chưa có số điện thoại phụ huynh!");
       return;
     }
-    // Mở trực tiếp phần mềm Zalo PC trên máy tính (zalo.exe)
     window.location.href = `zalo://chat?phone=${zaloPhone}`;
     setTimeout(() => {
       window.open(`https://zalo.me/${zaloPhone}`, "_blank");
@@ -219,10 +252,11 @@ export default function StudentDetailContainer() {
 
     try {
       const newId = Date.now();
+      const targetHsId = student?.id !== undefined ? student.id : studentId;
       const itemRef = ref(db, `lop_hoc_sinh/${newId}`);
       await set(itemRef, {
         id: newId,
-        id_hoc_sinh: Number(studentId) || studentId,
+        id_hoc_sinh: Number(targetHsId) || targetHsId,
         id_lop: Number(selectedClassToAssign) || selectedClassToAssign,
         ngay_tham_gia: new Date().toISOString().split("T")[0],
         trang_thai: "DANG_HOC",
@@ -260,29 +294,29 @@ export default function StudentDetailContainer() {
 
   // Helper to generate monthly payment history from student join date to current month
   const getFullMonthlyPaymentHistory = () => {
-    const dates = [];
-    if (student?.ngay_tham_gia && typeof student.ngay_tham_gia === "string") dates.push(student.ngay_tham_gia);
-    if (student?.created_at && typeof student.created_at === "string") dates.push(student.created_at);
-    if (Array.isArray(enrolledRecords)) {
-      enrolledRecords.forEach((lhs) => {
-        if (lhs && lhs.ngay_tham_gia && typeof lhs.ngay_tham_gia === "string") dates.push(lhs.ngay_tham_gia);
-      });
-    }
-    if (Array.isArray(paymentLogs)) {
-      paymentLogs.forEach((p) => {
-        const m = p?.thang || p?.month || p?.thang_nam;
-        if (m && typeof m === "string" && m.length >= 7) dates.push(`${m}-01`);
-      });
-    }
+    try {
+      const dates = [];
+      if (student?.ngay_tham_gia) dates.push(String(student.ngay_tham_gia));
+      if (student?.created_at) dates.push(String(student.created_at));
+      if (Array.isArray(enrolledRecords)) {
+        enrolledRecords.forEach((lhs) => {
+          if (lhs?.ngay_tham_gia) dates.push(String(lhs.ngay_tham_gia));
+        });
+      }
+      if (Array.isArray(paymentLogs)) {
+        paymentLogs.forEach((p) => {
+          const m = p?.thang || p?.month || p?.thang_nam;
+          if (m) dates.push(`${String(m)}-01`);
+        });
+      }
 
-    const now = new Date();
-    const curYear = now.getFullYear();
-    const curMonth = now.getMonth() + 1;
+      const now = new Date();
+      const curYear = now.getFullYear();
+      const curMonth = now.getMonth() + 1;
 
-    let startYear = curYear;
-    let startMonth = 1;
+      let startYear = curYear;
+      let startMonth = 1;
 
-    if (dates.length > 0) {
       for (const dStr of dates) {
         const clean = String(dStr).trim().split("T")[0];
         const parts = clean.split(/[-/]/);
@@ -314,44 +348,46 @@ export default function StudentDetailContainer() {
           }
         }
       }
-    }
 
-    // Safety guard: Limit history to at most 2 years (24 months) back
-    if (startYear < curYear - 2) {
-      startYear = curYear - 2;
-    }
-
-    const monthList = [];
-    let y = startYear;
-    let m = startMonth;
-    let guard = 0;
-
-    while ((y < curYear || (y === curYear && m <= curMonth)) && guard < 60) {
-      monthList.push(`${y}-${String(m).padStart(2, '0')}`);
-      m++;
-      if (m > 12) {
-        m = 1;
-        y++;
+      if (startYear < curYear - 2) {
+        startYear = curYear - 2;
       }
-      guard++;
-    }
 
-    const reversedMonths = monthList.reverse();
+      const monthList = [];
+      let y = startYear;
+      let m = startMonth;
+      let guard = 0;
 
-    return reversedMonths.map((mStr) => {
-      const existing = (paymentLogs || []).find(
-        (p) => (p?.thang || p?.month || p?.thang_nam) === mStr
-      );
-      if (existing) {
-        return existing;
+      while ((y < curYear || (y === curYear && m <= curMonth)) && guard < 60) {
+        monthList.push(`${y}-${String(m).padStart(2, "0")}`);
+        m++;
+        if (m > 12) {
+          m = 1;
+          y++;
+        }
+        guard++;
       }
-      return {
-        thang: mStr,
-        so_tien_da_dong: 0,
-        tong_thanh_toan: 0,
-        isMissing: true,
-      };
-    });
+
+      const reversedMonths = monthList.reverse();
+
+      return reversedMonths.map((mStr) => {
+        const existing = (paymentLogs || []).find(
+          (p) => String(p?.thang || p?.month || p?.thang_nam || "") === mStr
+        );
+        if (existing) {
+          return existing;
+        }
+        return {
+          thang: mStr,
+          so_tien_da_dong: 0,
+          tong_thanh_toan: 0,
+          isMissing: true,
+        };
+      });
+    } catch (err) {
+      console.error("Error generating payment history:", err);
+      return [];
+    }
   };
 
   if (loading) {
