@@ -315,7 +315,10 @@ export default function LopDetailContainer() {
                     {classStudents.map((lhs) => {
                       const student = allStudents.find((s) => String(s.id) === String(lhs.id_hoc_sinh) || String(s._key) === String(lhs.id_hoc_sinh)) || {};
                       const phone = student.sdt_phu_huynh || student.sdt || "";
-                      const cleanPhone = phone.replace(/[^0-9]/g, "");
+                      let cleanPhone = phone.replace(/[^0-9]/g, "");
+                      if (cleanPhone.startsWith("0")) {
+                        cleanPhone = "84" + cleanPhone.slice(1);
+                      }
                       const status = lhs.trang_thai || "DANG_HOC";
 
                       return (

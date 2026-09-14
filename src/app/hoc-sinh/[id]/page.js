@@ -144,19 +144,22 @@ export default function StudentDetailContainer() {
     };
   }, [studentId]);
 
-  // Clean phone number for Zalo
+  // Clean phone number for Zalo (convert leading 0 to 84 for Zalo PC deep link)
   const phone = student?.sdt_phu_huynh || student?.sdt || "";
-  const cleanPhone = phone.replace(/[^0-9]/g, "");
+  let zaloPhone = phone.replace(/[^0-9]/g, "");
+  if (zaloPhone.startsWith("0")) {
+    zaloPhone = "84" + zaloPhone.slice(1);
+  }
 
   const handleOpenZalo = () => {
-    if (!cleanPhone) {
+    if (!zaloPhone) {
       alert("Học sinh này chưa có số điện thoại phụ huynh!");
       return;
     }
     // Mở trực tiếp phần mềm Zalo PC trên máy tính (zalo.exe)
-    window.location.href = `zalo://chat?phone=${cleanPhone}`;
+    window.location.href = `zalo://chat?phone=${zaloPhone}`;
     setTimeout(() => {
-      window.open(`https://zalo.me/${cleanPhone}`, "_blank");
+      window.open(`https://zalo.me/${zaloPhone}`, "_blank");
     }, 600);
   };
 

@@ -20,6 +20,15 @@ import {
   QrCode
 } from "lucide-react";
 
+const getZaloPhone = (rawPhone) => {
+  if (!rawPhone) return "";
+  let clean = String(rawPhone).replace(/[^0-9]/g, "");
+  if (clean.startsWith("0")) {
+    clean = "84" + clean.slice(1);
+  }
+  return clean;
+};
+
 export default function HocSinhPage() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -421,7 +430,7 @@ export default function HocSinhPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            const clean = phone.replace(/[^0-9]/g, "");
+                            const clean = getZaloPhone(phone);
                             if (clean) {
                               window.location.href = `zalo://chat?phone=${clean}`;
                               setTimeout(() => {
@@ -614,7 +623,7 @@ export default function HocSinhPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              const clean = (hs.sdt_phu_huynh || hs.sdt || "").replace(/[^0-9]/g, "");
+                              const clean = getZaloPhone(hs.sdt_phu_huynh || hs.sdt);
                               if (clean) {
                                 window.location.href = `zalo://chat?phone=${clean}`;
                                 setTimeout(() => {

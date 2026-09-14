@@ -361,7 +361,10 @@ export default function HocPhiPage() {
                           {studentPhone && (
                             <button
                               onClick={() => {
-                                const clean = studentPhone.replace(/[^0-9]/g, "");
+                                let clean = studentPhone.replace(/[^0-9]/g, "");
+                                if (clean.startsWith("0")) {
+                                  clean = "84" + clean.slice(1);
+                                }
                                 if (clean) {
                                   window.location.href = `zalo://chat?phone=${clean}`;
                                   setTimeout(() => {

@@ -695,7 +695,10 @@ class HocPhiPageState extends State<HocPhiPage> {
 
   void _moZaloPhuHuynh(String sdt) async {
     if (sdt.isEmpty) return;
-    final cleanSdt = sdt.replaceAll(RegExp(r'[^\d]'), '');
+    var cleanSdt = sdt.replaceAll(RegExp(r'[^\d]'), '');
+    if (cleanSdt.startsWith('0')) {
+      cleanSdt = '84${cleanSdt.substring(1)}';
+    }
     final url = Uri.parse('https://zalo.me/$cleanSdt');
     try {
       if (await canLaunchUrl(url)) {

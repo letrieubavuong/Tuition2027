@@ -276,7 +276,10 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
       }
       return;
     }
-    final cleanSdt = sdt.replaceAll(RegExp(r'[^\d]'), '');
+    var cleanSdt = sdt.replaceAll(RegExp(r'[^\d]'), '');
+    if (cleanSdt.startsWith('0')) {
+      cleanSdt = '84${cleanSdt.substring(1)}';
+    }
     if (cleanSdt.isEmpty) {
       if (mounted) {
         ToastHelper.showWarning(context, 'Số điện thoại phụ huynh không hợp lệ!');
