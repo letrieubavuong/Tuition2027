@@ -260,11 +260,11 @@ export default function HocSinhPage() {
           Không tìm thấy học sinh nào phù hợp.
         </div>
       ) : viewMode === "grid" ? (
-        /* Multi-column Grid Cards View */
+        /* Multi-column Grid Cards View (Max 5 columns per row) */
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(max(260px, calc((100% - 4 * 1.25rem) / 5)), 1fr))",
             gap: "1.25rem",
           }}
         >
