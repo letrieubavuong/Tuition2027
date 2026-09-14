@@ -17,7 +17,9 @@ import {
   Grid,
   List,
   MessageCircle,
-  QrCode
+  QrCode,
+  Calendar,
+  BookOpen
 } from "lucide-react";
 
 const getZaloPhone = (rawPhone) => {
@@ -31,6 +33,8 @@ const getZaloPhone = (rawPhone) => {
 
 export default function HocSinhPage() {
   const [students, setStudents] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [studentClasses, setStudentClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState("grid"); // 'grid' | 'table'
@@ -48,8 +52,9 @@ export default function HocSinhPage() {
   });
 
   useEffect(() => {
+    // 1. Fetch Students
     const hsRef = ref(db, "hoc_sinh");
-    const unsub = onValue(hsRef, (snapshot) => {
+    const unsubHs = onValue(hsRef, (snapshot) => {
       const val = snapshot.val();
       if (val) {
         let list = [];
@@ -70,10 +75,85 @@ export default function HocSinhPage() {
       setLoading(false);
     });
 
-    return () => unsub();
+    // 2. Fetch Classes
+    const lopRef = ref(db, "lop_hoc");
+    const unsubLop = onValue(lopRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        let list = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+        setClasses(list);
+      } else {
+        setClasses([]);
+      }
+    });
+
+    // 3. Fetch LopHocSinh Relations
+    const lhsRef = ref(db, "lop_hoc_sinh");
+    const unsubLhs = onValue(lhsRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        let list = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+        setStudentClasses(list);
+      } else {
+        setStudentClasses([]);
+      }
+    });
+
+    return () => {
+      unsubHs();
+      unsubLop();
+      unsubLhs();
+    };
   }, []);
 
   const getSchoolName = (s) => s?.truong_dang_hoc || s?.truong || s?.ten_truong || s?.truong_hoc || "";
+
+  const formatDateStr = (dStr) => {
+    if (!dStr || dStr === "--") return "--";
+    const clean = String(dStr).split("T")[0];
+    const parts = clean.split(/[-/]/);
+    if (parts.length === 3 && parts[0].length === 4) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return clean;
+  };
+
+  const getStudentEnrolledClasses = (hs) => {
+    const hsId = hs?.id || hs?._key;
+    const records = studentClasses.filter(
+      (lhs) => String(lhs.id_hoc_sinh || lhs.hoc_sinh_id) === String(hsId) && (lhs.trang_thai || "DANG_HOC") === "DANG_HOC"
+    );
+    const names = records
+      .map((lhs) => {
+        const c = classes.find((cl) => String(cl.id || cl._key) === String(lhs.id_lop || lhs.lop_id));
+        return c ? (c.ten_lop || c.ten || `Lớp #${lhs.id_lop}`) : null;
+      })
+      .filter(Boolean);
+    return names;
+  };
+
+  const getStudentJoinDate = (hs) => {
+    if (hs?.ngay_tham_gia && typeof hs.ngay_tham_gia === "string" && hs.ngay_tham_gia.trim()) return formatDateStr(hs.ngay_tham_gia);
+    if (hs?.created_at && typeof hs.created_at === "string" && hs.created_at.trim()) return formatDateStr(hs.created_at);
+
+    // Fallback to earliest class join date in lop_hoc_sinh
+    const hsId = hs?.id || hs?._key;
+    const records = studentClasses.filter(
+      (lhs) => String(lhs.id_hoc_sinh || lhs.hoc_sinh_id) === String(hsId)
+    );
+    const dates = records
+      .map((r) => r.ngay_tham_gia)
+      .filter((d) => d && typeof d === "string");
+    if (dates.length > 0) {
+      dates.sort();
+      return formatDateStr(dates[0]);
+    }
+    return "--";
+  };
 
   const handleOpenModal = (hs = null) => {
     if (hs) {
@@ -402,6 +482,41 @@ export default function HocSinhPage() {
                       </span>
                     </div>
 
+                    {/* Enrolled Classes */}
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: "0.55rem" }}>
+                      <BookOpen size={16} style={{ color: "#8b5cf6", flexShrink: 0, marginTop: "0.15rem" }} />
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem", alignItems: "center" }}>
+                        {getStudentEnrolledClasses(hs).length > 0 ? (
+                          getStudentEnrolledClasses(hs).map((cName, idx) => (
+                            <span
+                              key={idx}
+                              style={{
+                                fontSize: "0.75rem",
+                                fontWeight: "600",
+                                padding: "0.15rem 0.5rem",
+                                borderRadius: "4px",
+                                backgroundColor: "rgba(139, 92, 246, 0.15)",
+                                color: "#a78bfa",
+                                border: "1px solid rgba(139, 92, 246, 0.3)",
+                              }}
+                            >
+                              {cName}
+                            </span>
+                          ))
+                        ) : (
+                          <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>Chưa xếp lớp</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Join Date */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
+                      <Calendar size={16} style={{ color: "#f59e0b", flexShrink: 0 }} />
+                      <span style={{ color: getStudentJoinDate(hs) !== "--" ? "var(--text-primary)" : "var(--text-muted)", fontSize: "0.85rem" }}>
+                        Ngày tham gia: <strong style={{ color: "var(--text-primary)" }}>{getStudentJoinDate(hs)}</strong>
+                      </span>
+                    </div>
+
                     {/* Parent Phone & Zalo Trigger */}
                     <div
                       style={{
@@ -564,6 +679,8 @@ export default function HocSinhPage() {
               <thead>
                 <tr>
                   <th>Họ & Tên Học Sinh</th>
+                  <th>Lớp Học</th>
+                  <th>Ngày Tham Gia</th>
                   <th>SĐT Phụ Huynh</th>
                   <th>Trường Học</th>
                   <th>Ghi Chú</th>
@@ -604,6 +721,33 @@ export default function HocSinhPage() {
                           </div>
                         </div>
                       </div>
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+                        {getStudentEnrolledClasses(hs).length > 0 ? (
+                          getStudentEnrolledClasses(hs).map((cName, idx) => (
+                            <span
+                              key={idx}
+                              style={{
+                                fontSize: "0.75rem",
+                                fontWeight: "600",
+                                padding: "0.15rem 0.45rem",
+                                borderRadius: "4px",
+                                backgroundColor: "rgba(139, 92, 246, 0.15)",
+                                color: "#a78bfa",
+                                border: "1px solid rgba(139, 92, 246, 0.3)",
+                              }}
+                            >
+                              {cName}
+                            </span>
+                          ))
+                        ) : (
+                          <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>--</span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                      {getStudentJoinDate(hs)}
                     </td>
                     <td>
                       {hs.sdt_phu_huynh || hs.sdt ? (
