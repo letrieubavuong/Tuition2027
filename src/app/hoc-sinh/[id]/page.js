@@ -150,6 +150,7 @@ export default function StudentDetailContainer() {
   if (zaloPhone.startsWith("0")) {
     zaloPhone = "84" + zaloPhone.slice(1);
   }
+  const cleanPhone = zaloPhone;
 
   const handleOpenZalo = () => {
     if (!zaloPhone) {
