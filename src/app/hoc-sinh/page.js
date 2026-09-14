@@ -260,11 +260,11 @@ export default function HocSinhPage() {
           Không tìm thấy học sinh nào phù hợp.
         </div>
       ) : viewMode === "grid" ? (
-        /* Multi-column Grid Cards View (Max 5 columns per row) */
+        /* Multi-column Grid Cards View (Max 4 columns per row) */
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(max(260px, calc((100% - 4 * 1.25rem) / 5)), 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(max(280px, calc((100% - 3 * 1.25rem) / 4)), 1fr))",
             gap: "1.25rem",
           }}
         >
@@ -297,7 +297,7 @@ export default function HocSinhPage() {
                       marginBottom: "1rem",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.85rem", flex: 1, minWidth: 0 }}>
                       <div
                         style={{
                           width: "48px",
@@ -317,7 +317,7 @@ export default function HocSinhPage() {
                       >
                         {hs.ten ? hs.ten.charAt(0).toUpperCase() : "H"}
                       </div>
-                      <div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <Link
                           href={`/hoc-sinh/${hs.id || hs._key}`}
                           style={{
@@ -326,6 +326,8 @@ export default function HocSinhPage() {
                             fontSize: "1.05rem",
                             textDecoration: "none",
                             display: "block",
+                            wordBreak: "break-word",
+                            lineHeight: "1.35",
                           }}
                           className="hover-underline"
                         >
