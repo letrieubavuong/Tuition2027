@@ -2,15 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { db, ref, onValue, set } from "@/lib/firebase";
-import { CreditCard, CheckCircle2, AlertTriangle, QrCode, Search, DollarSign, Calendar, Filter, Phone } from "lucide-react";
+import { CreditCard, CheckCircle2, AlertTriangle, QrCode, Search, DollarSign, Calendar, Filter, Phone, Users, BookOpen } from "lucide-react";
 
 export default function HocPhiPage() {
   const [payments, setPayments] = useState([]);
   const [studentsMap, setStudentsMap] = useState({});
+  const [classesList, setClassesList] = useState([]);
+  const [classesMap, setClassesMap] = useState({});
+  const [studentClasses, setStudentClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"); // all, paid, debt
   const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedClass, setSelectedClass] = useState("all");
   const [availableMonths, setAvailableMonths] = useState([]);
   const [selectedQr, setSelectedQr] = useState(null);
   const [bankConfig, setBankConfig] = useState({
@@ -111,10 +115,50 @@ export default function HocPhiPage() {
       }
     });
 
+    // 4. Lắng nghe danh sách lớp học để map ID -> Tên lớp
+    const lopRef = ref(db, "lop_hoc");
+    const unsubLop = onValue(lopRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        let list = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+        setClassesList(list);
+
+        const cMap = {};
+        list.forEach((c) => {
+          const keyStr = String(c.id ?? c._key ?? "");
+          const nameStr = c.ten_lop || c.ten || `Lớp #${keyStr}`;
+          if (keyStr) cMap[keyStr] = nameStr;
+          if (c.id !== undefined) cMap[c.id] = nameStr;
+        });
+        setClassesMap(cMap);
+      } else {
+        setClassesList([]);
+        setClassesMap({});
+      }
+    });
+
+    // 5. Lắng nghe quan hệ lớp - học sinh
+    const lhsRef = ref(db, "lop_hoc_sinh");
+    const unsubLhs = onValue(lhsRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        let list = Array.isArray(val)
+          ? val.map((item, idx) => (item ? { ...item, _key: item.id || idx } : null)).filter(Boolean)
+          : Object.entries(val).map(([k, v]) => ({ ...v, _key: k }));
+        setStudentClasses(list);
+      } else {
+        setStudentClasses([]);
+      }
+    });
+
     return () => {
       unsubHs();
       unsubPay();
       unsubBank();
+      unsubLop();
+      unsubLhs();
     };
   }, []);
 
@@ -167,19 +211,65 @@ export default function HocPhiPage() {
     }
   };
 
+  const getPaymentClassName = (p) => {
+    if (p.ten_lop && p.ten_lop.trim() !== "") return p.ten_lop;
+    const lopId = p.id_lop ?? p.lop_id;
+    if (lopId && classesMap[lopId]) return classesMap[lopId];
+    if (lopId && classesMap[String(lopId)]) return classesMap[String(lopId)];
+
+    const hsId = p.id_hoc_sinh ?? p.hoc_sinh_id;
+    if (hsId !== undefined) {
+      const enrolled = studentClasses.filter(
+        (lhs) => String(lhs.id_hoc_sinh || lhs.hoc_sinh_id) === String(hsId) && (lhs.trang_thai || "DANG_HOC") === "DANG_HOC"
+      );
+      const names = enrolled
+        .map((lhs) => {
+          const cId = lhs.id_lop || lhs.lop_id;
+          return classesMap[cId] || classesMap[String(cId)];
+        })
+        .filter(Boolean);
+      if (names.length > 0) return names.join(", ");
+    }
+    return "";
+  };
+
+  const isPaymentInSelectedClass = (p) => {
+    if (selectedClass === "all") return true;
+
+    const payLopId = p.id_lop ?? p.lop_id;
+    if (payLopId !== undefined && payLopId !== "ALL" && String(payLopId) === String(selectedClass)) {
+      return true;
+    }
+
+    const hsId = p.id_hoc_sinh ?? p.hoc_sinh_id;
+    if (hsId !== undefined) {
+      const isEnrolled = studentClasses.some(
+        (lhs) =>
+          String(lhs.id_hoc_sinh || lhs.hoc_sinh_id) === String(hsId) &&
+          String(lhs.id_lop || lhs.lop_id) === String(selectedClass)
+      );
+      if (isEnrolled) return true;
+    }
+
+    return false;
+  };
+
   const filteredPayments = payments.filter((p) => {
     const sName = getStudentName(p);
+    const cName = getPaymentClassName(p);
     const matchesSearch =
       (sName && sName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (cName && cName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (p.thang && p.thang.includes(searchQuery));
 
     const matchesMonth = selectedMonth === "all" || p.thang === selectedMonth;
+    const matchesClass = isPaymentInSelectedClass(p);
 
     const daDong = Number(p.so_tien_da_dong) || 0;
     const tong = Number(p.tong_thanh_toan) || 0;
     const isPaid = daDong >= tong && tong > 0;
 
-    if (!matchesMonth || !matchesSearch) return false;
+    if (!matchesMonth || !matchesClass || !matchesSearch) return false;
 
     if (statusFilter === "paid") return isPaid;
     if (statusFilter === "debt") return !isPaid;
@@ -190,6 +280,7 @@ export default function HocPhiPage() {
   const totalMonthAmount = filteredPayments.reduce((sum, p) => sum + (Number(p.tong_thanh_toan) || 0), 0);
   const totalMonthPaid = filteredPayments.reduce((sum, p) => sum + (Number(p.so_tien_da_dong) || 0), 0);
   const totalMonthDebt = Math.max(0, totalMonthAmount - totalMonthPaid);
+  const completionRate = totalMonthAmount > 0 ? Math.min(100, (totalMonthPaid / totalMonthAmount) * 100) : 100;
 
   return (
     <div>
@@ -221,10 +312,29 @@ export default function HocPhiPage() {
             />
           </div>
 
+          {/* Class Dropdown Selector */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Users size={18} color="#8b5cf6" />
+            <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>Lớp:</span>
+            <select
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="input-control"
+              style={{ padding: "0.6rem 1rem", fontSize: "0.9rem", fontWeight: "600", cursor: "pointer" }}
+            >
+              <option value="all">🏫 Tất cả các lớp</option>
+              {classesList.map((c) => (
+                <option key={c.id || c._key} value={c.id || c._key}>
+                  📚 {c.ten_lop || c.ten || `Lớp #${c.id}`}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Month Dropdown Selector */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <Calendar size={18} color="var(--accent-primary)" />
-            <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>Chọn Tháng:</span>
+            <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>Tháng:</span>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
@@ -266,28 +376,53 @@ export default function HocPhiPage() {
           </div>
         </div>
 
-        {/* Monthly Summary Bar */}
+        {/* Monthly Summary Bar & Progress Bar */}
         <div
           style={{
             marginTop: "1.25rem",
-            paddingTop: "1rem",
+            paddingTop: "1.25rem",
             borderTop: "1px solid var(--border-color)",
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: "1rem",
           }}
         >
-          <div>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: "600" }}>TỔNG CẦN THU:</span>
-            <div style={{ fontSize: "1.2rem", fontWeight: "800" }}>{formatCurrency(totalMonthAmount)}</div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: "1rem",
+              marginBottom: "1rem",
+            }}
+          >
+            <div style={{ backgroundColor: "rgba(255,255,255,0.03)", padding: "0.85rem 1rem", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.06)" }}>
+              <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>PHẢI THU (TỔNG CẦN THU)</span>
+              <div style={{ fontSize: "1.35rem", fontWeight: "800", marginTop: "0.2rem", color: "var(--text-primary)" }}>{formatCurrency(totalMonthAmount)}</div>
+            </div>
+            <div style={{ backgroundColor: "rgba(16, 185, 129, 0.08)", padding: "0.85rem 1rem", borderRadius: "10px", border: "1px solid rgba(16, 185, 129, 0.2)" }}>
+              <span style={{ fontSize: "0.78rem", color: "#10b981", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>ĐÃ THU</span>
+              <div style={{ fontSize: "1.35rem", fontWeight: "800", marginTop: "0.2rem", color: "#10b981" }}>{formatCurrency(totalMonthPaid)}</div>
+            </div>
+            <div style={{ backgroundColor: totalMonthDebt > 0 ? "rgba(239, 68, 68, 0.08)" : "rgba(255,255,255,0.03)", padding: "0.85rem 1rem", borderRadius: "10px", border: totalMonthDebt > 0 ? "1px solid rgba(239, 68, 68, 0.25)" : "1px solid rgba(255,255,255,0.06)" }}>
+              <span style={{ fontSize: "0.78rem", color: totalMonthDebt > 0 ? "#ef4444" : "var(--text-muted)", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" }}>CÒN NỢ</span>
+              <div style={{ fontSize: "1.35rem", fontWeight: "800", marginTop: "0.2rem", color: totalMonthDebt > 0 ? "#ef4444" : "var(--text-muted)" }}>{formatCurrency(totalMonthDebt)}</div>
+            </div>
           </div>
+
+          {/* Completion Progress Bar */}
           <div>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: "600" }}>ĐÃ THU:</span>
-            <div style={{ fontSize: "1.2rem", fontWeight: "800", color: "var(--success)" }}>{formatCurrency(totalMonthPaid)}</div>
-          </div>
-          <div>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: "600" }}>CÒN NỢ:</span>
-            <div style={{ fontSize: "1.2rem", fontWeight: "800", color: "var(--danger)" }}>{formatCurrency(totalMonthDebt)}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem", fontSize: "0.82rem" }}>
+              <span style={{ color: "var(--text-secondary)", fontWeight: "600" }}>Tỷ lệ hoàn thành thu học phí</span>
+              <span style={{ fontWeight: "700", color: completionRate === 100 ? "#10b981" : "var(--accent-primary)" }}>{completionRate.toFixed(1)}%</span>
+            </div>
+            <div style={{ width: "100%", height: "8px", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: "4px", overflow: "hidden" }}>
+              <div
+                style={{
+                  width: `${completionRate}%`,
+                  height: "100%",
+                  background: completionRate === 100 ? "#10b981" : "linear-gradient(90deg, var(--accent-primary), #10b981)",
+                  borderRadius: "4px",
+                  transition: "width 0.4s ease",
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -308,6 +443,7 @@ export default function HocPhiPage() {
               <thead>
                 <tr>
                   <th>Họ & Tên Học Sinh</th>
+                  <th>Lớp Học</th>
                   <th>Tháng</th>
                   <th>Tổng Tiền</th>
                   <th>Đã Đóng</th>
@@ -335,6 +471,25 @@ export default function HocPhiPage() {
                           <div style={{ fontSize: "0.78rem", color: "var(--accent-primary)", marginTop: "0.15rem", display: "flex", alignItems: "center", gap: "0.25rem" }}>
                             <Phone size={12} /> {studentPhone}
                           </div>
+                        )}
+                      </td>
+                      <td>
+                        {getPaymentClassName(p) ? (
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              fontWeight: "600",
+                              padding: "0.2rem 0.55rem",
+                              borderRadius: "4px",
+                              backgroundColor: "rgba(139, 92, 246, 0.15)",
+                              color: "#a78bfa",
+                              border: "1px solid rgba(139, 92, 246, 0.3)",
+                            }}
+                          >
+                            {getPaymentClassName(p)}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>--</span>
                         )}
                       </td>
                       <td>
