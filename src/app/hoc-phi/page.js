@@ -65,7 +65,7 @@ export default function HocPhiPage() {
         const payMap = new Map();
         rawList.forEach((p) => {
           const hsId = p.id_hoc_sinh ?? p.hoc_sinh_id;
-          const lopId = p.id_lop ?? p.lop_id ?? "ALL";
+          const lopId = p.id_lop ?? p.lop_id ?? p.ten_lop ?? "ALL";
           const monthKey = p.thang ?? p.month ?? "UNKNOWN";
           const uniqueKey = (hsId !== undefined && monthKey)
             ? `${hsId}_${lopId}_${monthKey}`
@@ -335,28 +335,40 @@ export default function HocPhiPage() {
   const isPaymentInSelectedClass = (p) => {
     if (selectedClass === "all") return true;
 
-    const selectedClassName = classesMap[selectedClass] || selectedClass;
+    const selectedClassName = classesMap[selectedClass] || String(selectedClass);
     const payLopId = String(p.id_lop ?? p.lop_id ?? "");
-    const payLopName = p.ten_lop || "";
+    const payLopName = (p.ten_lop || "").trim();
 
-    if (payLopId && (payLopId === String(selectedClass) || classesMap[payLopId] === selectedClassName)) {
-      return true;
-    }
-    if (payLopName && (payLopName === String(selectedClass) || payLopName === selectedClassName)) {
-      return true;
+    // 1. If the payment record itself specifies a class:
+    if (payLopId && payLopId !== "ALL") {
+      const pClassName = classesMap[payLopId] || payLopId;
+      return (
+        payLopId === String(selectedClass) ||
+        pClassName === selectedClassName ||
+        pClassName === String(selectedClass)
+      );
     }
 
+    if (payLopName) {
+      return (
+        payLopName === String(selectedClass) ||
+        payLopName === selectedClassName
+      );
+    }
+
+    // 2. Only if payment record does NOT specify a class (generic record), fallback to checking student enrollment:
     const hsId = p.id_hoc_sinh ?? p.hoc_sinh_id;
     if (hsId !== undefined) {
       const isEnrolled = studentClasses.some((lhs) => {
         const lhsHsId = String(lhs.id_hoc_sinh || lhs.hoc_sinh_id || "");
         const lhsLopId = String(lhs.id_lop || lhs.lop_id || "");
+        const lhsLopName = classesMap[lhsLopId] || lhsLopId;
         return (
           lhsHsId === String(hsId) &&
-          (lhsLopId === String(selectedClass) || classesMap[lhsLopId] === selectedClassName)
+          (lhsLopId === String(selectedClass) || lhsLopName === selectedClassName)
         );
       });
-      if (isEnrolled) return true;
+      return isEnrolled;
     }
 
     return false;
