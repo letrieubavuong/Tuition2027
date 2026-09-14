@@ -91,8 +91,16 @@ export default function LichDayPage() {
       const combined = [...listSched1, ...listSched2];
       const map = new Map();
       combined.forEach((sc) => {
-        const key = String(sc.id || sc._key);
-        if (!map.has(key)) map.set(key, sc);
+        const dayKey = normalizeDayKey(sc);
+        const startKey = sc.gio_bat_dau || sc.gioBatDau || "00:00";
+        const classKey = sc.id_lop ?? sc.lop_id ?? sc.idLop;
+
+        // Unique fingerprint key: id_lop + normalized_day + gio_bat_dau to prevent duplicate schedules on web
+        const fingerprint = (classKey !== undefined && dayKey)
+          ? `${classKey}_${dayKey}_${startKey}`
+          : String(sc.id || sc._key);
+
+        if (!map.has(fingerprint)) map.set(fingerprint, sc);
       });
       setSchedules(Array.from(map.values()));
       setLoading(false);

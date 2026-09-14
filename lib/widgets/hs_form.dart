@@ -47,6 +47,7 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
   late final TextEditingController _sdtController;
   late final TextEditingController _diaChiController;
   late final TextEditingController _ghiChuController;
+  late final TextEditingController _facebookController;
   late final TextEditingController _mienGiamController;
   late final TextEditingController _lichCanController;
   String? _selectedTruong;
@@ -62,6 +63,7 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
     _sdtController = TextEditingController(text: widget.hocSinh?.sdt);
     _diaChiController = TextEditingController(text: widget.hocSinh?.diaChi);
     _ghiChuController = TextEditingController(text: widget.hocSinh?.ghiChu);
+    _facebookController = TextEditingController(text: widget.hocSinh?.facebook);
     _mienGiamController = TextEditingController(
       text: (widget.hocSinh?.mienGiam ?? 0).toString(),
     );
@@ -79,6 +81,7 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
     _sdtController.dispose();
     _diaChiController.dispose();
     _ghiChuController.dispose();
+    _facebookController.dispose();
     _mienGiamController.dispose();
     _lichCanController.dispose();
     super.dispose();
@@ -91,6 +94,7 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
       final sdt = _sdtController.text.trim();
       final diaChi = _diaChiController.text.trim();
       final ghiChu = _ghiChuController.text.trim();
+      final facebook = _facebookController.text.trim();
       final mienGiam = int.tryParse(_mienGiamController.text.trim()) ?? 0;
       final lichCan = _lichCanController.text.trim();
 
@@ -110,6 +114,7 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
           newOrUpdatedHs.truongDangHoc = _selectedTruong;
           newOrUpdatedHs.diaChi = diaChi.isEmpty ? null : diaChi;
           newOrUpdatedHs.ghiChu = ghiChu.isEmpty ? null : ghiChu;
+          newOrUpdatedHs.facebook = facebook.isEmpty ? null : facebook;
           newOrUpdatedHs.mienGiam = mienGiam;
           newOrUpdatedHs.caHocTruong = _selectedCaHocTruong;
           newOrUpdatedHs.lichCanMonKhac = lichCan.isEmpty ? null : lichCan;
@@ -123,6 +128,7 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
             truongDangHoc: _selectedTruong,
             diaChi: diaChi.isEmpty ? null : diaChi,
             ghiChu: ghiChu.isEmpty ? null : ghiChu,
+            facebook: facebook.isEmpty ? null : facebook,
             mienGiam: mienGiam,
             caHocTruong: _selectedCaHocTruong,
             lichCanMonKhac: lichCan.isEmpty ? null : lichCan,
@@ -221,6 +227,14 @@ class _HocSinhFormDialogState extends State<HocSinhFormDialog> {
 
               // --- Địa Chỉ ---
               _buildTextField(_diaChiController, 'Địa Chỉ', Icons.home),
+              const SizedBox(height: 15),
+
+              // --- Link/Địa chỉ Facebook ---
+              _buildTextField(
+                _facebookController,
+                'Link / Địa chỉ Facebook',
+                Icons.facebook,
+              ),
               const SizedBox(height: 15),
 
               // --- Ca Học Ở Trường ---

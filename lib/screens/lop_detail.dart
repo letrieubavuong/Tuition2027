@@ -28,8 +28,11 @@ import 'su_kien_buoi_hoc_page.dart';
 import 'package:share_plus/share_plus.dart';
 import '../widgets/danh_gia_dialog.dart';
 import '../widgets/gui_thong_bao_hang_loat_dialog.dart';
+import '../widgets/dang_ky_nghi_le_dialog.dart';
 import '../services/pdf_export_service.dart';
+import '../services/report_service.dart';
 import '../services/calendar_sync_service.dart';
+import '../services/tuition_event_service.dart';
 import '../utils/toast_helper.dart';
 import '../utils/db.dart';
 
@@ -78,12 +81,21 @@ class _LopDetailState extends ConsumerState<LopDetail>
     _currentLop = widget.lop;
     _tabController = TabController(length: 4, vsync: this); // SỬA: Tăng số tab
     _taiNhiemVu();
+    TuitionEventService().addListener(_onTuitionEventChanged);
   }
 
   @override
   void dispose() {
+    TuitionEventService().removeListener(_onTuitionEventChanged);
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _onTuitionEventChanged() {
+    if (mounted) {
+      ref.invalidate(lopDetailControllerProvider(_currentLop));
+      setState(() {});
+    }
   }
 
   // ===================================================
@@ -96,6 +108,19 @@ class _LopDetailState extends ConsumerState<LopDetail>
       setState(() {
         _danhSachNhiemVu = ds;
       });
+    }
+  }
+
+  void _moDialogDangKyNghiLe(List<HSLopViewModel> danhSachHocSinh) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => DangKyNghiLeDialog(
+        lop: _currentLop,
+        danhSachHocSinh: danhSachHocSinh,
+      ),
+    );
+    if (result == true) {
+      ref.invalidate(lopDetailControllerProvider(_currentLop));
     }
   }
 
@@ -558,7 +583,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
       padding: const EdgeInsets.all(4.0),
       child: Column(
         children: [
-          // Header với nút thêm
+          // Header với nút thêm & đăng ký nghỉ lễ
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -570,12 +595,23 @@ class _LopDetailState extends ConsumerState<LopDetail>
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              IconButton(
-                icon: Icon(Icons.person_add_alt_1, color: accentColor),
-                onPressed: _moDialogThemHS,
-                tooltip: isVi
-                    ? 'Thêm học sinh vào lớp'
-                    : 'Add student to class',
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.beach_access_rounded, color: Colors.orangeAccent),
+                    onPressed: () => _moDialogDangKyNghiLe(dsHS),
+                    tooltip: isVi
+                        ? 'Đăng ký nghỉ lễ / nghỉ hè cả lớp'
+                        : 'Batch holiday leave',
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.person_add_alt_1, color: accentColor),
+                    onPressed: _moDialogThemHS,
+                    tooltip: isVi
+                        ? 'Thêm học sinh vào lớp'
+                        : 'Add student to class',
+                  ),
+                ],
               ),
             ],
           ),
@@ -620,7 +656,11 @@ class _LopDetailState extends ConsumerState<LopDetail>
 
   Widget _buildHocSinhCard(HSLopViewModel hsViewModel) {
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
-    final isPaused = hsViewModel.trangThai == 'TAM_NGUNG';
+    final stUpper = hsViewModel.trangThai.toUpperCase().trim();
+    final isPaused = stUpper == 'TAM_NGUNG' ||
+        stUpper == 'TAM_NGHI' ||
+        stUpper == 'TẠM NGỪNG' ||
+        stUpper == 'TẠM NGHỈ';
     final isFormer = !_lhsService.hoatDongTrongNgay(
       hsViewModel,
       DateTime.now(),
@@ -689,8 +729,8 @@ class _LopDetailState extends ConsumerState<LopDetail>
                     const SizedBox(height: 4),
                     Text(
                       isVi
-                          ? 'Ngày tham gia: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(hsViewModel.ngayThamGia))}'
-                          : 'Joined: ${DateFormat('dd/MM/yyyy').format(DateTime.parse(hsViewModel.ngayThamGia))}',
+                          ? 'Ngày tham gia: ${_formatOptionalDate(hsViewModel.ngayThamGia)}'
+                          : 'Joined: ${_formatOptionalDate(hsViewModel.ngayThamGia)}',
                       style: TextStyle(color: secondaryText, fontSize: 12),
                     ),
                   ],
@@ -883,6 +923,15 @@ class _LopDetailState extends ConsumerState<LopDetail>
               '$tongNghi buổi ($nghiCoPhep có phép, $nghiKhongPhep không phép)',
               valueColor: tongNghi > 0 ? Colors.orangeAccent : lightText,
             ),
+            if (hsViewModel.facebook != null && hsViewModel.facebook!.trim().isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _buildDialogInfoRow(
+                Icons.facebook,
+                'Facebook:',
+                hsViewModel.facebook!,
+                valueColor: Colors.blueAccent,
+              ),
+            ],
             const SizedBox(height: 14),
             _buildDialogInfoRow(
               Icons.payment_outlined,
@@ -936,7 +985,8 @@ class _LopDetailState extends ConsumerState<LopDetail>
   }
 
   String _formatOptionalDate(String? value) {
-    final date = value == null ? null : DateTime.tryParse(value);
+    if (value == null || value.trim().isEmpty) return '--';
+    final date = ReportService.parseFlexibleDate(value);
     return date == null ? '--' : DateFormat('dd/MM/yyyy').format(date);
   }
 
@@ -2010,7 +2060,7 @@ class _LopDetailState extends ConsumerState<LopDetail>
         ),
         subtitle: Text(
           (isVi ? 'Hạn nộp: ' : 'Due date: ') +
-              DateFormat('dd/MM/yyyy').format(DateTime.parse(nhiemVu.ngayNop)),
+              _formatOptionalDate(nhiemVu.ngayNop),
           style: TextStyle(color: secondaryText, fontSize: 12),
         ),
         children: [

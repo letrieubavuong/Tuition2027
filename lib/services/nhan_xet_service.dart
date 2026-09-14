@@ -6,6 +6,7 @@ import '../models/nhan_xet_thang.dart';
 import '../utils/db.dart';
 import 'diem_danh_service.dart';
 import 'danh_gia_buoi_hoc_service.dart';
+import 'firebase_sync_service.dart';
 
 class NhanXetService {
   final String _tenBang = DBHelper.tenBangNhanXetThang;
@@ -52,7 +53,11 @@ class NhanXetService {
         nhanXetMoi.toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
-      return nhanXetMoi.copyWith(id: id);
+      final created = nhanXetMoi.copyWith(id: id);
+      FirebaseSyncService.instance
+          .pushRecordToCloud(_tenBang, id.toString(), created.toMap())
+          .catchError((e) => null);
+      return created;
     }
   }
 
@@ -61,12 +66,18 @@ class NhanXetService {
     final db = await _database;
     // Tính lại xếp hạng trước khi lưu
     nhanXet.xepHang = _tinhToanXepHang(nhanXet.diemTrungBinh);
-    return await db.update(
+    final result = await db.update(
       _tenBang,
       nhanXet.toMap(),
       where: 'id = ?',
       whereArgs: [nhanXet.id],
     );
+    if (result > 0 && nhanXet.id != null) {
+      FirebaseSyncService.instance
+          .pushRecordToCloud(_tenBang, nhanXet.id.toString(), nhanXet.toMap())
+          .catchError((e) => null);
+    }
+    return result;
   }
 
   // Lấy tất cả nhận xét của một lớp trong một tháng
@@ -148,13 +159,23 @@ class NhanXetService {
                 0.0,
                 0.0,
               );
-              await db.insert(_tenBangDGBH, {
+              final evalId = await db.insert(_tenBangDGBH, {
                 'id_diem_danh': idDiemDanh,
                 'diem_thai_do': 0.0,
                 'diem_hieu_bai': 0.0,
                 'diem_bai_tap': 0.0,
                 'nhan_xet': autoComment,
               });
+              if (evalId > 0) {
+                FirebaseSyncService.instance.pushRecordToCloud(_tenBangDGBH, evalId.toString(), {
+                  'id': evalId,
+                  'id_diem_danh': idDiemDanh,
+                  'diem_thai_do': 0.0,
+                  'diem_hieu_bai': 0.0,
+                  'diem_bai_tap': 0.0,
+                  'nhan_xet': autoComment,
+                }).catchError((e) => null);
+              }
             }
           }
         }
@@ -226,6 +247,11 @@ class NhanXetService {
         where: 'id = ?',
         whereArgs: [nhanXetThang.id],
       );
+      if (nhanXetThang.id != null) {
+        FirebaseSyncService.instance
+            .pushRecordToCloud(_tenBang, nhanXetThang.id.toString(), nhanXetThang.toMap())
+            .catchError((e) => null);
+      }
     }
   }
 

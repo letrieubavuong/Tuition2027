@@ -10,6 +10,7 @@ import '../l10n/app_localizations.dart';
 import 'lop_detail.dart';
 import '../widgets/gui_thong_bao_hang_loat_dialog.dart';
 import '../utils/toast_helper.dart';
+import '../services/firebase_sync_service.dart';
 
 class DSLop extends StatefulWidget {
   final GlobalKey<MainScreenState> mainScreenKey;
@@ -52,7 +53,11 @@ class _DSLopState extends State<DSLop> {
   // Đọc/Tải Danh Sách Lớp (READ)
   Future<void> _taiDSLop() async {
     setState(() => _dangTai = true);
-    final ds = await _lopService.docTatCaLop();
+    var ds = await _lopService.docTatCaLop();
+    if (ds.isEmpty) {
+      await FirebaseSyncService.instance.pullAllCloudDataToLocal();
+      ds = await _lopService.docTatCaLop();
+    }
     setState(() {
       _danhSachLop = ds;
       _dangTai = false;

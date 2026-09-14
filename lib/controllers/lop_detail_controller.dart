@@ -1,6 +1,7 @@
 // File: lib/controllers/lop_detail_controller.dart
 
 import 'dart:async';
+import 'dart:developer' as developer;
 // Sửa: Thêm các import cần thiết cho Riverpod Generator
 import 'package:intl/intl.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -91,51 +92,64 @@ class LopDetailController extends _$LopDetailController {
 
     // Tải dữ liệu cơ bản
     final tatCaHocSinh = await _lhsService.docDSHSThuocLop(lopId);
-    final hocSinhs = tatCaHocSinh
+    final filteredActive = tatCaHocSinh
         .where((hs) => _lhsService.hoatDongTrongNgay(hs, DateTime.now()))
         .toList();
     final hocSinhsDaNghi = tatCaHocSinh
         .where((hs) => !_lhsService.hoatDongTrongNgay(hs, DateTime.now()))
         .toList();
+
+    final hocSinhs = filteredActive;
+
     final lichHocs = await _lichHocService.layLichHocTheoLop(lopId);
 
-    // Tải báo cáo học phí
-    final hocPhiReport = await _reportService.layBaoCaoHocPhiThang(
-      lopId,
-      thangHienTai,
-    );
-
-    // Tính toán tỷ lệ chuyên cần tháng hiện tại
+    // Tải báo cáo học phí & chuyên cần an toàn
+    int tongHocPhiDuKien = 0;
+    int tongHocPhiDaThu = 0;
     double tyLeCC = 0;
-    int tongCoMat = 0;
-    int tongVang = 0;
 
-    for (var hs in hocSinhs) {
-      final coMat = await _diemDanhService.demSoBuoiTheoThang(
-        hs.id!,
+    try {
+      final hocPhiReport = await _reportService.layBaoCaoHocPhiThang(
         lopId,
         thangHienTai,
-        'Có mặt',
       );
-      final vangKP = await _diemDanhService.demSoBuoiTheoThang(
-        hs.id!,
-        lopId,
-        thangHienTai,
-        'Nghỉ không phép',
-      );
-      final vangCP = await _diemDanhService.demSoBuoiTheoThang(
-        hs.id!,
-        lopId,
-        thangHienTai,
-        'Nghỉ có phép',
-      );
+      tongHocPhiDuKien = (hocPhiReport.tongSoTienCanThu as num).toInt();
+      tongHocPhiDaThu = (hocPhiReport.tongSoTienDaThu as num).toInt();
 
-      tongCoMat += coMat;
-      tongVang += (vangKP + vangCP);
-    }
+      int tongCoMat = 0;
+      int tongVang = 0;
 
-    if ((tongCoMat + tongVang) > 0) {
-      tyLeCC = tongCoMat / (tongCoMat + tongVang);
+      for (var hs in hocSinhs) {
+        if (hs.id != null) {
+          final coMat = await _diemDanhService.demSoBuoiTheoThang(
+            hs.id!,
+            lopId,
+            thangHienTai,
+            'Có mặt',
+          );
+          final vangKP = await _diemDanhService.demSoBuoiTheoThang(
+            hs.id!,
+            lopId,
+            thangHienTai,
+            'Nghỉ không phép',
+          );
+          final vangCP = await _diemDanhService.demSoBuoiTheoThang(
+            hs.id!,
+            lopId,
+            thangHienTai,
+            'Nghỉ có phép',
+          );
+
+          tongCoMat += coMat;
+          tongVang += (vangKP + vangCP);
+        }
+      }
+
+      if ((tongCoMat + tongVang) > 0) {
+        tyLeCC = tongCoMat / (tongCoMat + tongVang);
+      }
+    } catch (e, st) {
+      developer.log('Lỗi tính summary lớp trong LopDetailController: $e', stackTrace: st);
     }
 
     return LopDetailState(
@@ -146,25 +160,19 @@ class LopDetailController extends _$LopDetailController {
       siSo: hocSinhs.length,
       summary: LopSummary(
         tyLeChuyenCan: tyLeCC,
-        tongSoBuoiHoc: lichHocs.length,
-        tongHocPhiDuKien: (hocPhiReport.tongSoTienCanThu as num).toInt(),
-        tongHocPhiDaThu: (hocPhiReport.tongSoTienDaThu as num).toInt(),
+        tongHocPhiDuKien: tongHocPhiDuKien,
+        tongHocPhiDaThu: tongHocPhiDaThu,
       ),
     );
   }
 
-  // Hàm private để tải lại toàn bộ dữ liệu và cập nhật state
   Future<void> _reloadData() async {
-    state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       return await _loadAllData(state.value!.lop);
     });
   }
 
-  // Các phương thức xử lý nghiệp vụ
   Future<void> themHocSinhVaoLop(int hsId) async {
-    // Logic thêm học sinh...
-    // Sau khi thành công, gọi _reloadData()
     await _reloadData();
   }
 

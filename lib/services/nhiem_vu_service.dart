@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/nhiem_vu.dart';
 import '../utils/db.dart';
+import 'firebase_sync_service.dart';
 
 class NhiemVuService {
   final String _tenBang = DBHelper.tenBangNhiemVu;
@@ -21,7 +22,11 @@ class NhiemVuService {
       nhiemVu.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-    return nhiemVu.copyWith(id: id);
+    final created = nhiemVu.copyWith(id: id);
+    FirebaseSyncService.instance
+        .pushRecordToCloud(_tenBang, id.toString(), created.toMap())
+        .catchError((e) => null);
+    return created;
   }
 
   // Lấy danh sách nhiệm vụ theo lớp
@@ -54,18 +59,30 @@ class NhiemVuService {
   // Cập nhật nhiệm vụ
   Future<int> capNhatNhiemVu(NhiemVu nhiemVu) async {
     final db = await _database;
-    return await db.update(
+    final result = await db.update(
       _tenBang,
       nhiemVu.toMap(),
       where: 'id = ?',
       whereArgs: [nhiemVu.id],
     );
+    if (result > 0 && nhiemVu.id != null) {
+      FirebaseSyncService.instance
+          .pushRecordToCloud(_tenBang, nhiemVu.id.toString(), nhiemVu.toMap())
+          .catchError((e) => null);
+    }
+    return result;
   }
 
   // Xóa nhiệm vụ
   Future<int> xoaNhiemVu(int id) async {
     final db = await _database;
-    return await db.delete(_tenBang, where: 'id = ?', whereArgs: [id]);
+    final result = await db.delete(_tenBang, where: 'id = ?', whereArgs: [id]);
+    if (result > 0) {
+      FirebaseSyncService.instance
+          .deleteRecordFromCloud(_tenBang, id.toString())
+          .catchError((e) => null);
+    }
+    return result;
   }
 
   // Cập nhật trạng thái nhiệm vụ
@@ -75,11 +92,22 @@ class NhiemVuService {
     String trangThai,
   ) async {
     final db = await _database;
-    return await db.insert(_tenBangNVHS, {
+    final data = {
       'id_nhiem_vu': idNhiemVu,
       'id_hoc_sinh': idHocSinh,
       'trang_thai': trangThai,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+    };
+    final result = await db.insert(
+      _tenBangNVHS,
+      data,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    if (result > 0) {
+      FirebaseSyncService.instance
+          .pushRecordToCloud(_tenBangNVHS, '${idNhiemVu}_$idHocSinh', data)
+          .catchError((e) => null);
+    }
+    return result;
   }
 
   // Lấy danh sách nhiệm vụ đã quá hạn của một lớp

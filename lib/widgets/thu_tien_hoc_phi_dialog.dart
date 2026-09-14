@@ -659,22 +659,105 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
                   '${formatCurrency.format(conNoConLai)}đ',
                   color: deleteColor,
                 ),
-                const Divider(height: 32),
+                const Divider(height: 24),
+                // Nút chọn nhanh số tiền thu
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          side: BorderSide(
+                            color: accentColor.withOpacity(0.5),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: conNoConLai > 0
+                            ? () {
+                                setState(() {
+                                  _soTienThuThem = conNoConLai;
+                                  _soTienDaDongMoi =
+                                      widget.soTienDaDongHienTai + _soTienThuThem;
+                                });
+                              }
+                            : null,
+                        child: Text(
+                          isVi ? 'Đóng đủ (100%)' : 'Full (100%)',
+                          style: TextStyle(
+                            color: accentColor,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          side: BorderSide(
+                            color: secondaryText.withOpacity(0.3),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: conNoConLai > 0
+                            ? () {
+                                setState(() {
+                                  _soTienThuThem = (conNoConLai / 2).round();
+                                  _soTienDaDongMoi =
+                                      widget.soTienDaDongHienTai + _soTienThuThem;
+                                });
+                              }
+                            : null,
+                        child: Text(
+                          isVi ? 'Nửa tháng (50%)' : 'Half (50%)',
+                          style: TextStyle(
+                            color: lightText,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 TextFormField(
-                  initialValue: formatCurrency.format(
-                    conNoConLai > 0 ? conNoConLai : 0,
-                  ),
+                  key: ValueKey(_soTienThuThem),
+                  initialValue: formatCurrency.format(_soTienThuThem),
                   keyboardType: TextInputType.number,
                   style: TextStyle(
                     color: lightText,
                     fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
                   decoration: InputDecoration(
                     labelText: isVi ? 'Số tiền thu' : 'Amount to collect',
+                    prefixIcon: Icon(
+                      Icons.payments_outlined,
+                      color: accentColor,
+                    ),
+                    suffixText: 'VNĐ',
+                    suffixStyle: TextStyle(
+                      color: accentColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                     filled: true,
                     fillColor: darkBackground,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.white12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: accentColor, width: 1.5),
                     ),
                   ),
                   onChanged: _capNhatSoTienDaDongMoi,

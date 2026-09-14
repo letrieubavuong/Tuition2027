@@ -8,6 +8,7 @@ import '../models/lich_hoc.dart';
 import 'dart:developer' as developer;
 import 'notification_service.dart';
 import 'widget_sync_service.dart';
+import 'firebase_sync_service.dart';
 
 class LichHocService {
   final dbHelper = DBHelper.instance;
@@ -97,6 +98,9 @@ class LichHocService {
       final createdLich = lichHoc.copyWith(id: id);
       await NotificationService.instance.scheduleClassReminder(createdLich);
       WidgetSyncService.syncTodaySchedule().catchError((e) => null);
+      FirebaseSyncService.instance
+          .pushRecordToCloud(tenBang, id.toString(), createdLich.toMap())
+          .catchError((e) => null);
 
       return createdLich;
     } on DatabaseException catch (e, st) {
@@ -133,7 +137,6 @@ class LichHocService {
       }
 
       final db = await dbHelper.database;
-      // <-- SỬA: dùng id_lop (khớp schema)
       final List<Map<String, dynamic>> maps = await db.query(
         tenBang,
         where: 'id_lop = ?',
@@ -141,25 +144,66 @@ class LichHocService {
         orderBy: 'thuTrongTuan, gioBatDau',
       );
 
+      final List<LichHoc> dsLichHoc = maps.map((m) => LichHoc.fromMap(m)).toList();
+
+      // Kết hợp dữ liệu từ bảng lich_hoc_chung để không sót lịch học
+      final List<Map<String, dynamic>> lhcMaps = await db.query(
+        DBHelper.tenBangLichHocChung,
+        where: 'id_lop = ?',
+        whereArgs: [idLop],
+      );
+
+      if (lhcMaps.isNotEmpty) {
+        for (var lhc in lhcMaps) {
+          final ngayStr = (lhc['ngay_trong_tuan'] as String?) ?? '';
+          final thu = _vnToThuTrongTuan(ngayStr);
+          final gbd = (lhc['gio_bat_dau'] as String?) ?? '00:00';
+          final gkt = (lhc['gio_ket_thuc'] as String?) ?? '00:00';
+
+          final isExist = dsLichHoc.any(
+            (lh) =>
+                lh.thuTrongTuan == thu &&
+                lh.gioBatDau.startsWith(gbd) &&
+                lh.gioKetThuc.startsWith(gkt),
+          );
+
+          if (!isExist) {
+            final newLich = LichHoc(
+              idLop: idLop,
+              thuTrongTuan: thu,
+              gioBatDau: gbd,
+              gioKetThuc: gkt,
+            );
+            dsLichHoc.add(newLich);
+            try {
+              final newId = await db.insert(
+                tenBang,
+                newLich.toMap(),
+                conflictAlgorithm: ConflictAlgorithm.ignore,
+              );
+              if (newId > 0) {
+                dsLichHoc[dsLichHoc.length - 1] = newLich.copyWith(id: newId);
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
+      dsLichHoc.sort((a, b) {
+        int cmp = a.thuTrongTuan.compareTo(b.thuTrongTuan);
+        if (cmp != 0) return cmp;
+        return a.gioBatDau.compareTo(b.gioBatDau);
+      });
+
       developer.log(
-        '✅ Đọc thành công ${maps.length} lịch học từ lớp ID: $idLop',
+        '✅ Đọc thành công ${dsLichHoc.length} lịch học cho lớp ID: $idLop',
         name: 'LichHocService.layLichHocTheoLop',
       );
 
-      return List.generate(maps.length, (i) {
-        return LichHoc.fromMap(maps[i]);
-      });
-    } on DatabaseException catch (e, st) {
-      developer.log(
-        '❌ Lỗi Database khi đọc lịch học',
-        name: 'LichHocService.layLichHocTheoLop',
-        error: {'idLop': idLop, 'error': e.toString()},
-        stackTrace: st,
-      );
-      return [];
+      return dsLichHoc;
     } catch (e, st) {
       developer.log(
-        '❌ Lỗi không xác định khi đọc lịch học',
+        '❌ Lỗi đọc lịch học',
         name: 'LichHocService.layLichHocTheoLop',
         error: {'idLop': idLop, 'error': e.toString()},
         stackTrace: st,
@@ -288,6 +332,9 @@ class LichHocService {
 
         await NotificationService.instance.scheduleClassReminder(lichHoc);
         WidgetSyncService.syncTodaySchedule().catchError((e) => null);
+        FirebaseSyncService.instance
+            .pushRecordToCloud(tenBang, lichHoc.id.toString(), lichHoc.toMap())
+            .catchError((e) => null);
       }
 
       return result > 0;
@@ -330,6 +377,18 @@ class LichHocService {
       default:
         return 'Không rõ';
     }
+  }
+
+  int _vnToThuTrongTuan(String str) {
+    final lower = str.toLowerCase().trim();
+    if (lower.contains('hai') || lower == '2' || lower.contains('mon')) return 2;
+    if (lower.contains('ba') || lower == '3' || lower.contains('tue')) return 3;
+    if (lower.contains('tư') || lower.contains('tu') || lower == '4' || lower.contains('wed')) return 4;
+    if (lower.contains('năm') || lower.contains('nam') || lower == '5' || lower.contains('thu')) return 5;
+    if (lower.contains('sáu') || lower.contains('sau') || lower == '6' || lower.contains('fri')) return 6;
+    if (lower.contains('bảy') || lower.contains('bay') || lower == '7' || lower.contains('sat')) return 7;
+    if (lower.contains('nhật') || lower.contains('nhat') || lower == '1' || lower.contains('sun')) return 1;
+    return 2;
   }
 
   // ===================================================
@@ -382,6 +441,9 @@ class LichHocService {
         );
         await NotificationService.instance.cancelClassReminder(lichHocId);
         WidgetSyncService.syncTodaySchedule().catchError((e) => null);
+        FirebaseSyncService.instance
+            .deleteRecordFromCloud(tenBang, lichHocId.toString())
+            .catchError((e) => null);
       }
 
       return result > 0;

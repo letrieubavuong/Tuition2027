@@ -7,6 +7,7 @@ class HS {
   String? truongDangHoc; // Truong đang học
   String? diaChi;
   String? ghiChu;
+  String? facebook; // Địa chỉ Facebook học sinh
   int? mienGiam;
   int soBuoiDu;
   String caHocTruong; // 'Sáng', 'Chiều', 'Cả ngày'
@@ -19,6 +20,7 @@ class HS {
     this.truongDangHoc,
     this.diaChi,
     this.ghiChu,
+    this.facebook,
     this.mienGiam,
     this.soBuoiDu = 0,
     this.caHocTruong = 'Sáng',
@@ -34,6 +36,7 @@ class HS {
       'truong_dang_hoc': truongDangHoc,
       'dia_chi': diaChi,
       'ghi_chu': ghiChu,
+      'facebook': facebook,
       'mien_giam': mienGiam,
       'so_buoi_du': soBuoiDu,
       'ca_hoc_truong': caHocTruong,
@@ -43,17 +46,19 @@ class HS {
 
   // Tạo đối tượng HS từ Map (đọc từ database)
   factory HS.fromMap(Map<String, dynamic> map) {
+    int? parseInt(dynamic v) => v == null ? null : (v is int ? v : int.tryParse(v.toString()));
     return HS(
-      id: map['id'] as int?,
-      ten: map['ten'] as String,
-      sdt: map['sdt'] as String?,
-      truongDangHoc: map['truong_dang_hoc'] as String?,
-      diaChi: map['dia_chi'] as String?,
-      ghiChu: map['ghi_chu'] as String?,
-      mienGiam: map['mien_giam'] as int?,
-      soBuoiDu: map['so_buoi_du'] as int? ?? 0,
-      caHocTruong: map['ca_hoc_truong'] as String? ?? 'Sáng',
-      lichCanMonKhac: map['lich_can_mon_khac'] as String?,
+      id: parseInt(map['id']),
+      ten: map['ten']?.toString() ?? '',
+      sdt: map['sdt']?.toString(),
+      truongDangHoc: map['truong_dang_hoc']?.toString(),
+      diaChi: map['dia_chi']?.toString(),
+      ghiChu: map['ghi_chu']?.toString(),
+      facebook: map['facebook']?.toString(),
+      mienGiam: parseInt(map['mien_giam']),
+      soBuoiDu: parseInt(map['so_buoi_du']) ?? 0,
+      caHocTruong: map['ca_hoc_truong']?.toString() ?? 'Sáng',
+      lichCanMonKhac: map['lich_can_mon_khac']?.toString(),
     );
   }
 
@@ -63,6 +68,7 @@ class HS {
     int? soBuoiDu,
     String? caHocTruong,
     String? lichCanMonKhac,
+    String? facebook,
   }) {
     return HS(
       id: id ?? this.id,
@@ -71,6 +77,7 @@ class HS {
       truongDangHoc: truongDangHoc,
       diaChi: diaChi,
       ghiChu: ghiChu,
+      facebook: facebook ?? this.facebook,
       mienGiam: mienGiam,
       soBuoiDu: soBuoiDu ?? this.soBuoiDu,
       caHocTruong: caHocTruong ?? this.caHocTruong,

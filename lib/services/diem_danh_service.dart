@@ -7,6 +7,7 @@ import '../models/lich_hoc.dart';
 import '../utils/db.dart'; // Đảm bảo import DBHelper
 import '../models/diem_danh.dart'; // Import model DiemDanh (Đã được cập nhật có idLop)
 import 'tuition_event_service.dart';
+import 'firebase_sync_service.dart';
 
 class DiemDanhService {
   // Sửa: Dùng hằng số từ DBHelper
@@ -27,6 +28,8 @@ class DiemDanhService {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
     if (res > 0) {
+      final key = '${diemDanh.idHocSinh}_${diemDanh.idLop}_${diemDanh.gioDiemDanh.replaceAll(' ', '_')}';
+      FirebaseSyncService.instance.pushRecordToCloud(tenBangDD, key, diemDanh.toMap());
       TuitionEventService().notifyTuitionChanged();
     }
     return res;
@@ -87,6 +90,8 @@ class DiemDanhService {
           diemDanhRecord.toMap(),
           conflictAlgorithm: ConflictAlgorithm.ignore,
         );
+        final key = '${hs.id!}_${caHoc.idLop}_${ngayStr}_${caHoc.gioBatDau.replaceAll(' ', '_')}';
+        FirebaseSyncService.instance.pushRecordToCloud(tenBangDD, key, diemDanhRecord.toMap());
       }
     }
 

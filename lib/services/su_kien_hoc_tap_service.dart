@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import '../models/su_kien_lich_su_view_model.dart';
 import '../models/su_kien_hoc_tap.dart';
 import '../utils/db.dart';
+import 'firebase_sync_service.dart';
 
 class SuKienHocTapService {
   final String _tenBang = DBHelper.tenBangSuKienHocTap;
@@ -27,17 +28,30 @@ class SuKienHocTapService {
   /// Thêm một sự kiện mới
   Future<int> themSuKien(SuKienHocTap suKien) async {
     final db = await _database;
-    return await db.insert(
+    final id = await db.insert(
       _tenBang,
       suKien.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    if (id > 0) {
+      final created = suKien.copyWith(id: id);
+      FirebaseSyncService.instance
+          .pushRecordToCloud(_tenBang, id.toString(), created.toMap())
+          .catchError((e) => null);
+    }
+    return id;
   }
 
   /// Xóa một sự kiện
   Future<int> xoaSuKien(int idSuKien) async {
     final db = await _database;
-    return await db.delete(_tenBang, where: 'id = ?', whereArgs: [idSuKien]);
+    final result = await db.delete(_tenBang, where: 'id = ?', whereArgs: [idSuKien]);
+    if (result > 0) {
+      FirebaseSyncService.instance
+          .deleteRecordFromCloud(_tenBang, idSuKien.toString())
+          .catchError((e) => null);
+    }
+    return result;
   }
 
   /// Lấy toàn bộ lịch sử sự kiện của một học sinh, sắp xếp theo ngày mới nhất.

@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import '../utils/db.dart'; // Import DBHelper
 import '../models/lop.dart'; // Import Model Lop
 import 'dart:developer' as developer;
+import 'firebase_sync_service.dart';
 
 class LopService {
   final dbHelper = DBHelper.instance;
@@ -21,25 +22,20 @@ class LopService {
     );
     // Trả về đối tượng Lop với ID mới được gán
     final savedLop = lop.copyWith(id: id);
+    FirebaseSyncService.instance.pushRecordToCloud(tenBang, id.toString(), savedLop.toMap());
     return savedLop;
   }
 
   // 2. Doc Tat Ca Lop (Read All)
   Future<List<Lop>> docTatCaLop() async {
     final db = await dbHelper.database;
-    // SỬA: Dùng rawQuery để JOIN và đếm sĩ số
+    // SỬA: Dùng rawQuery để JOIN ép kiểu mềm và đếm sĩ số chuẩn xác
     final result = await db.rawQuery('''
       SELECT 
         L.*, 
-        COUNT(LHS.id_hoc_sinh) as si_so
+        COUNT(DISTINCT CASE WHEN (LHS.trang_thai IS NULL OR (UPPER(LHS.trang_thai) != 'NGHI_HOC' AND UPPER(LHS.trang_thai) != 'DA_NGHI')) THEN LHS.id_hoc_sinh END) as si_so
       FROM $tenBang L
-      LEFT JOIN ${DBHelper.tenBangLopHS} LHS
-        ON L.id = LHS.id_lop
-        AND (
-          LHS.ngay_nghi_hoc IS NULL
-          OR LHS.ngay_nghi_hoc > date('now', 'localtime')
-          OR LHS.ngay_hoc_lai_sau_nghi <= date('now', 'localtime')
-        )
+      LEFT JOIN ${DBHelper.tenBangLopHS} LHS ON (L.id = LHS.id_lop OR CAST(L.id AS TEXT) = CAST(LHS.id_lop AS TEXT))
       GROUP BY L.id
       ORDER BY L.khoi ASC, L.ten ASC
     ''');
@@ -49,19 +45,22 @@ class LopService {
 
   Future<int> capNhatLop(Lop lop) async {
     final db = await dbHelper.database;
-    // Cập nhật theo ID
-    return await db.update(
+    final res = await db.update(
       tenBang,
       lop.toMap(),
       where: 'id = ?',
       whereArgs: [lop.id],
     );
+    if (res > 0 && lop.id != null) {
+      FirebaseSyncService.instance.pushRecordToCloud(tenBang, lop.id.toString(), lop.toMap());
+    }
+    return res;
   }
 
   Future<int> xoaLop(int id) async {
     final db = await dbHelper.database;
     try {
-      return await db.transaction((txn) async {
+      final res = await db.transaction((txn) async {
         // lich_hoc_chung chưa có ON DELETE CASCADE. Phải xóa các bản ghi
         // gán lịch cá nhân trước rồi mới xóa lịch chung của lớp.
         await txn.rawDelete(
@@ -104,6 +103,10 @@ class LopService {
         // Các bảng có ON DELETE CASCADE sẽ được SQLite dọn tại đây.
         return txn.delete(tenBang, where: 'id = ?', whereArgs: [id]);
       });
+      if (res > 0) {
+        FirebaseSyncService.instance.deleteRecordFromCloud(tenBang, id.toString());
+      }
+      return res;
     } catch (error, stackTrace) {
       developer.log(
         'Không thể xóa lớp ID $id',

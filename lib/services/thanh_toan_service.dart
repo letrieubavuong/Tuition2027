@@ -3,6 +3,8 @@
 import 'package:sqflite/sqflite.dart';
 import '../utils/db.dart';
 import '../models/lich_su_thanh_toan_view_model.dart';
+import 'firebase_sync_service.dart';
+import 'tuition_event_service.dart';
 
 class ThanhToanService {
   final String tenBangThanhToan = DBHelper.tenBangThanhToan;
@@ -46,6 +48,21 @@ class ThanhToanService {
         'Không tìm thấy hồ sơ thanh toán cho học sinh ID $idHocSinh, lớp ID $idLop, tháng $thang',
       );
     }
+
+    // Đọc lại toàn bộ row để push trọn vẹn lên Cloud
+    final rows = await db.query(
+      tenBangThanhToan,
+      where: 'id_hoc_sinh = ? AND id_lop = ? AND thang = ?',
+      whereArgs: [idHocSinh, idLop, thang],
+    );
+    if (rows.isNotEmpty) {
+      FirebaseSyncService.instance.pushRecordToCloud(
+        tenBangThanhToan,
+        '${idHocSinh}_${idLop}_$thang',
+        rows.first,
+      );
+    }
+    TuitionEventService().notifyTuitionChanged();
   }
 
   // ===================================================
@@ -91,7 +108,7 @@ class ThanhToanService {
     String? ghiChu,
   }) async {
     final db = await _database;
-    return db.update(
+    final res = await db.update(
       tenBangThanhToan,
       {
         'so_tien_da_dong': soTienDaDong,
@@ -101,6 +118,22 @@ class ThanhToanService {
       where: 'id_hoc_sinh = ? AND id_lop = ? AND thang = ?',
       whereArgs: [idHocSinh, idLop, thang],
     );
+    if (res > 0) {
+      final rows = await db.query(
+        tenBangThanhToan,
+        where: 'id_hoc_sinh = ? AND id_lop = ? AND thang = ?',
+        whereArgs: [idHocSinh, idLop, thang],
+      );
+      if (rows.isNotEmpty) {
+        FirebaseSyncService.instance.pushRecordToCloud(
+          tenBangThanhToan,
+          '${idHocSinh}_${idLop}_$thang',
+          rows.first,
+        );
+      }
+      TuitionEventService().notifyTuitionChanged();
+    }
+    return res;
   }
 
   Future<int> xoaLichSuThanhToan({
@@ -110,7 +143,7 @@ class ThanhToanService {
   }) async {
     final db = await _database;
     // Giữ hồ sơ học phí để ReportService có thể tính lại, chỉ xóa dữ liệu đã thu.
-    return db.update(
+    final res = await db.update(
       tenBangThanhToan,
       {
         'so_tien_da_dong': 0,
@@ -120,5 +153,21 @@ class ThanhToanService {
       where: 'id_hoc_sinh = ? AND id_lop = ? AND thang = ?',
       whereArgs: [idHocSinh, idLop, thang],
     );
+    if (res > 0) {
+      final rows = await db.query(
+        tenBangThanhToan,
+        where: 'id_hoc_sinh = ? AND id_lop = ? AND thang = ?',
+        whereArgs: [idHocSinh, idLop, thang],
+      );
+      if (rows.isNotEmpty) {
+        FirebaseSyncService.instance.pushRecordToCloud(
+          tenBangThanhToan,
+          '${idHocSinh}_${idLop}_$thang',
+          rows.first,
+        );
+      }
+      TuitionEventService().notifyTuitionChanged();
+    }
+    return res;
   }
 }

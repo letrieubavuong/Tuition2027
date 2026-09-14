@@ -1,7 +1,7 @@
 import 'package:sqflite/sqflite.dart';
-
 import '../models/khoan_thu.dart';
 import '../utils/db.dart';
+import 'firebase_sync_service.dart';
 
 class KhoanThuService {
   Future<Database> get _db => DBHelper.instance.database;
@@ -19,8 +19,8 @@ class KhoanThuService {
     final start = '$thang-01';
     final endDate = DateTime(int.parse(parts[0]), int.parse(parts[1]) + 1, 0);
     final end = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
-    return db.transaction((txn) async {
-      final id = await txn.insert(DBHelper.tenBangKhoanThu, {
+    final id = await db.transaction((txn) async {
+      final idInsert = await txn.insert(DBHelper.tenBangKhoanThu, {
         'id_lop': idLop,
         'thang': thang,
         'ten_khoan_thu': ten,
@@ -41,14 +41,29 @@ class KhoanThuService {
       final batch = txn.batch();
       for (final student in students) {
         batch.insert(DBHelper.tenBangKhoanThuHocSinh, {
-          'id_khoan_thu': id,
+          'id_khoan_thu': idInsert,
           'id_hoc_sinh': student['id_hoc_sinh'],
           'so_tien_da_dong': 0,
         });
       }
       await batch.commit(noResult: true);
-      return id;
+      return idInsert;
     });
+
+    if (id > 0) {
+      FirebaseSyncService.instance
+          .pushRecordToCloud(DBHelper.tenBangKhoanThu, id.toString(), {
+        'id': id,
+        'id_lop': idLop,
+        'thang': thang,
+        'ten_khoan_thu': ten,
+        'so_tien': soTien,
+        'han_thu': hanThu,
+        'ghi_chu': ghiChu,
+        'created_at': DateTime.now().toIso8601String(),
+      }).catchError((e) => null);
+    }
+    return id;
   }
 
   Future<List<KhoanThu>> layKhoanThu(int idLop, String thang) async {
@@ -104,24 +119,42 @@ class KhoanThuService {
     String? ghiChu,
   }) async {
     final db = await _db;
+    final now = DateTime.now().toIso8601String();
     await db.update(
       DBHelper.tenBangKhoanThuHocSinh,
       {
         'so_tien_da_dong': soTienDaDong,
-        'ngay_thanh_toan': DateTime.now().toIso8601String(),
+        'ngay_thanh_toan': now,
         'ghi_chu': ghiChu,
       },
       where: 'id_khoan_thu = ? AND id_hoc_sinh = ?',
       whereArgs: [idKhoanThu, idHocSinh],
     );
+    FirebaseSyncService.instance.pushRecordToCloud(
+      DBHelper.tenBangKhoanThuHocSinh,
+      '${idKhoanThu}_$idHocSinh',
+      {
+        'id_khoan_thu': idKhoanThu,
+        'id_hoc_sinh': idHocSinh,
+        'so_tien_da_dong': soTienDaDong,
+        'ngay_thanh_toan': now,
+        'ghi_chu': ghiChu,
+      },
+    ).catchError((e) => null);
   }
 
   Future<int> xoaKhoanThu(int idKhoanThu) async {
     final db = await _db;
-    return db.delete(
+    final result = await db.delete(
       DBHelper.tenBangKhoanThu,
       where: 'id = ?',
       whereArgs: [idKhoanThu],
     );
+    if (result > 0) {
+      FirebaseSyncService.instance
+          .deleteRecordFromCloud(DBHelper.tenBangKhoanThu, idKhoanThu.toString())
+          .catchError((e) => null);
+    }
+    return result;
   }
 }

@@ -12,7 +12,7 @@ class DBHelper {
   static Future<Database>? _initFuture;
 
   // current database version - tăng khi cần migration mới
-  static const int _dbVersion = 27;
+  static const int _dbVersion = 29;
 
   // Hằng số cho tên Bảng
   static const String tenBangHS = 'hoc_sinh';
@@ -40,6 +40,7 @@ class DBHelper {
     if (_database != null && _database!.isOpen) return _database!;
     _initFuture ??= _khoiTaoDB('quan_ly_hs.db');
     _database = await _initFuture!;
+    await _ensureSchemaIntegrity(_database!);
     return _database!;
   }
 
@@ -84,6 +85,25 @@ class DBHelper {
     try {
       await db.execute('PRAGMA journal_mode = WAL');
     } catch (_) {}
+  }
+
+  Future<void> _ensureSchemaIntegrity(Database db) async {
+    try {
+      await _addColumnIfMissing(db, tenBangHS, 'facebook', 'TEXT');
+      await _addColumnIfMissing(db, tenBangHS, 'ca_hoc_truong', "TEXT NOT NULL DEFAULT 'Sáng'");
+      await _addColumnIfMissing(db, tenBangHS, 'lich_can_mon_khac', 'TEXT');
+      await _addColumnIfMissing(db, tenBangHS, 'mien_giam', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, tenBangHS, 'so_buoi_du', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(db, tenBangLopHS, 'ngay_tam_ngung', 'TEXT');
+      await _addColumnIfMissing(db, tenBangLopHS, 'ngay_du_kien_hoc_lai', 'TEXT');
+      await _addColumnIfMissing(db, tenBangLopHS, 'ngay_hoc_lai_thuc_te', 'TEXT');
+      await _addColumnIfMissing(db, tenBangLopHS, 'ly_do_tam_ngung', 'TEXT');
+      await _addColumnIfMissing(db, tenBangLopHS, 'ngay_nghi_hoc', 'TEXT');
+      await _addColumnIfMissing(db, tenBangLopHS, 'ly_do_nghi_hoc', 'TEXT');
+      await _addColumnIfMissing(db, tenBangLopHS, 'ngay_hoc_lai_sau_nghi', 'TEXT');
+    } catch (e) {
+      developer.log('Lỗi ensure schema integrity: $e', name: 'DBHelper');
+    }
   }
 
   // onUpgrade sẽ gọi _migrate để áp dụng các bước nâng cấp theo phiên bản
@@ -476,6 +496,15 @@ class DBHelper {
             await _createDonNghiHocTable(db);
             await _createKhoanThuTables(db);
             break;
+          case 28:
+            developer.log('Applying migration v28: add facebook to $tenBangHS');
+            await _addColumnIfMissing(db, tenBangHS, 'facebook', 'TEXT');
+            break;
+          case 29:
+            developer.log('Applying migration v29: ensure facebook and schema integrity in $tenBangHS');
+            await _addColumnIfMissing(db, tenBangHS, 'facebook', 'TEXT');
+            await _ensureSchemaIntegrity(db);
+            break;
           // Thêm case tiếp theo cho các version sau
           default:
             developer.log('No migration defined for version $v');
@@ -526,7 +555,8 @@ class DBHelper {
         mien_giam INTEGER NOT NULL DEFAULT 0,
         so_buoi_du INTEGER NOT NULL DEFAULT 0,
         ca_hoc_truong TEXT NOT NULL DEFAULT 'Sáng',
-        lich_can_mon_khac TEXT
+        lich_can_mon_khac TEXT,
+        facebook TEXT
       )
     ''');
 

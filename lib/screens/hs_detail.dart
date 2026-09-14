@@ -356,6 +356,11 @@ class _HSDetailState extends ConsumerState<HSDetail> {
                       hs.diaChi ?? (isVi ? 'Chưa cập nhật' : 'Not updated'),
                     ),
                     _buildInfoTile(
+                      Icons.facebook,
+                      'Facebook',
+                      hs.facebook ?? (isVi ? 'Chưa cập nhật' : 'Not updated'),
+                    ),
+                    _buildInfoTile(
                       Icons.card_membership,
                       isVi ? 'Miễn giảm' : 'Discount',
                       isVi ? '${hs.mienGiam ?? 0}% mức thu' : '${hs.mienGiam ?? 0}% rate',

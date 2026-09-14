@@ -2,10 +2,11 @@
 
 import 'package:sqflite/sqflite.dart';
 import '../utils/db.dart';
-import '../utils/schedule_helpers.dart'; // <-- IMPORT HELPER
+import '../utils/schedule_helpers.dart';
 import '../models/lich_hoc_chung.dart';
 import 'dart:developer' as developer;
 import '../models/lich_hoc_ca_nhan.dart';
+import 'firebase_sync_service.dart';
 
 class LichHocChungService {
   final String tenBangLHC = DBHelper.tenBangLichHocChung;
@@ -96,7 +97,12 @@ class LichHocChungService {
         },
       );
 
-      return lichHoc.copyWith(id: id);
+      final createdLich = lichHoc.copyWith(id: id);
+      FirebaseSyncService.instance
+          .pushRecordToCloud(tenBangLHC, id.toString(), createdLich.toMap())
+          .catchError((e) => null);
+
+      return createdLich;
     } on DatabaseException catch (e, st) {
       developer.log(
         '❌ Lỗi Database khi thêm lịch học chung',
@@ -235,6 +241,9 @@ class LichHocChungService {
           '✅ Cập nhật lịch học chung thành công! ID: ${lichHoc.id}',
           name: 'LichHocChungService.capNhatLichHocChung',
         );
+        FirebaseSyncService.instance
+            .pushRecordToCloud(tenBangLHC, lichHoc.id.toString(), lichHoc.toMap())
+            .catchError((e) => null);
       }
 
       return result > 0;
@@ -313,6 +322,9 @@ class LichHocChungService {
           '✅ Xóa lịch học chung thành công! ID: $lichHocId',
           name: 'LichHocChungService.xoaLichHocChung',
         );
+        FirebaseSyncService.instance
+            .deleteRecordFromCloud(tenBangLHC, lichHocId.toString())
+            .catchError((e) => null);
       }
 
       return result > 0;
@@ -386,6 +398,10 @@ class LichHocChungService {
         '✅ Gán lịch học cho học sinh thành công!',
         name: 'LichHocChungService.ganLichHocChoHocSinh',
       );
+      FirebaseSyncService.instance
+          .pushRecordToCloud(
+              tenBangLHCN, '${idHocSinh}_$idLichHocChung', lichHocCaNhan.toMap())
+          .catchError((e) => null);
       return true;
     } on DatabaseException catch (e, st) {
       developer.log(
@@ -432,11 +448,9 @@ class LichHocChungService {
           '✅ Hủy gán lịch học thành công!',
           name: 'LichHocChungService.huyGanLichHocChoHocSinh',
         );
-      } else {
-        developer.log(
-          '⚠️ Cảnh báo: Không tìm thấy lịch học cá nhân để hủy',
-          name: 'LichHocChungService.huyGanLichHocChoHocSinh',
-        );
+        FirebaseSyncService.instance
+            .deleteRecordFromCloud(tenBangLHCN, '${idHocSinh}_$idLichHocChung')
+            .catchError((e) => null);
       }
 
       return result > 0;
@@ -574,6 +588,12 @@ class LichHocChungService {
               'id_lich_hoc_chung': lichHocChungId,
             });
             added++;
+            FirebaseSyncService.instance
+                .pushRecordToCloud(tenBangLHCN, '${hsId}_$lichHocChungId', {
+                  'id_hoc_sinh': hsId,
+                  'id_lich_hoc_chung': lichHocChungId,
+                })
+                .catchError((e) => null);
           }
         }
       });

@@ -3,6 +3,7 @@
 import 'package:sqflite/sqflite.dart';
 import '../utils/db.dart'; // Import DBHelper
 import '../models/truong.dart'; // Import Model Truong
+import 'firebase_sync_service.dart';
 
 class TruongService {
   final dbHelper = DBHelper.instance;
@@ -17,8 +18,11 @@ class TruongService {
       truong.toMap(),
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
-    // Trả về đối tượng Truong với ID mới được gán
-    return truong.copyWith(id: id);
+    final created = truong.copyWith(id: id);
+    FirebaseSyncService.instance
+        .pushRecordToCloud(tenBang, id.toString(), created.toMap())
+        .catchError((e) => null);
+    return created;
   }
 
   // 2. Doc Tat Ca Truong
@@ -34,18 +38,30 @@ class TruongService {
   Future<int> capNhatTruong(Truong truong) async {
     final db = await dbHelper.database;
     // Cập nhật theo ID
-    return db.update(
+    final result = await db.update(
       tenBang,
       truong.toMap(),
       where: 'id = ?',
       whereArgs: [truong.id],
     );
+    if (result > 0 && truong.id != null) {
+      FirebaseSyncService.instance
+          .pushRecordToCloud(tenBang, truong.id.toString(), truong.toMap())
+          .catchError((e) => null);
+    }
+    return result;
   }
 
   // 4. Xoa Truong
   Future<int> xoaTruong(int id) async {
     final db = await dbHelper.database;
     // Xóa theo ID
-    return await db.delete(tenBang, where: 'id = ?', whereArgs: [id]);
+    final result = await db.delete(tenBang, where: 'id = ?', whereArgs: [id]);
+    if (result > 0) {
+      FirebaseSyncService.instance
+          .deleteRecordFromCloud(tenBang, id.toString())
+          .catchError((e) => null);
+    }
+    return result;
   }
 }

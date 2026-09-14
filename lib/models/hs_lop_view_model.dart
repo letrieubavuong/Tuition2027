@@ -32,6 +32,7 @@ class HSLopViewModel extends HS {
          truongDangHoc: hocSinh.truongDangHoc,
          diaChi: hocSinh.diaChi,
          ghiChu: hocSinh.ghiChu,
+         facebook: hocSinh.facebook,
          mienGiam: hocSinh.mienGiam,
        );
 }

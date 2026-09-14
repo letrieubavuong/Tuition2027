@@ -1,6 +1,7 @@
 // File: lib/services/report_service.dart
 
 import 'package:sqflite/sqflite.dart';
+import 'package:intl/intl.dart';
 import '../utils/db.dart';
 import '../models/thanh_toan.dart';
 import '../models/hoc_phi_tong_hop.dart';
@@ -10,6 +11,8 @@ import 'lop_hoc_sinh_service.dart';
 import 'lich_hoc_chung_service.dart';
 import 'hoc_sinh_service.dart';
 import 'caidat_service.dart';
+import 'firebase_sync_service.dart';
+import 'tuition_event_service.dart';
 
 // Giả định: Giá học phí mặc định cho một buổi học
 const int GIA_HOC_PHI_MAC_DINH = 50000;
@@ -29,6 +32,19 @@ class ReportService {
     return await DBHelper.instance.database;
   }
 
+  static bool isStatusInactive(String? st) {
+    if (st == null) return false;
+    final s = st.toUpperCase().trim();
+    return s == 'NGHI_HOC' ||
+        s == 'TAM_NGUNG' ||
+        s == 'TAM_NGHI' ||
+        s == 'DA_NGHI' ||
+        s == 'NGHỈ HỌC' ||
+        s == 'TẠM NGỪNG' ||
+        s == 'TẠM NGHỈ' ||
+        s == 'ĐÃ NGHỈ';
+  }
+
   // ===================================================
   // HÀM BÁO CÁO CHÍNH - ĐÃ TỐI ƯU HÓA BATCH
   // ===================================================
@@ -37,6 +53,23 @@ class ReportService {
 
     // 1. Tải danh sách học sinh của lớp
     final dsHsLop = await _lhsService.docDSHSThuocLop(idLop);
+
+    // Dọn dẹp các hồ sơ chưa nộp tiền của học sinh không còn thuộc lớp này
+    final validHsIds = dsHsLop.map((e) => e.id).whereType<int>().toList();
+    if (validHsIds.isNotEmpty) {
+      final placeholders = List.filled(validHsIds.length, '?').join(',');
+      await db.delete(
+        tenBangThanhToan,
+        where: 'id_lop = ? AND thang = ? AND id_hoc_sinh NOT IN ($placeholders) AND so_tien_da_dong = 0',
+        whereArgs: [idLop, thang, ...validHsIds],
+      );
+    } else {
+      await db.delete(
+        tenBangThanhToan,
+        where: 'id_lop = ? AND thang = ? AND so_tien_da_dong = 0',
+        whereArgs: [idLop, thang],
+      );
+    }
 
     // ĐỌC THÔNG SỐ CÀI ĐẶT MỘT LẦN DUY NHẤT (Tránh truy vấn lặp trong vòng lặp học sinh)
     final int giaHocPhiMoiBuoi = await _docGiaHocPhiBuoi();
@@ -99,12 +132,11 @@ class ReportService {
           'Nghỉ không phép',
           ngayBatDauTinh: ngayThamGia,
         );
-        final int soBuoiNghiCoPhep = await _diemDanhService.demSoBuoiTheoThang(
+        final int soBuoiNghiCoPhep = await demSoBuoiNghiCoPhepTrongThang(
           idHocSinh,
           idLop,
           thang,
-          'Nghỉ có phép',
-          ngayBatDauTinh: ngayThamGia,
+          ngayThamGia,
         );
         final int soBuoiHocBu = await _diemDanhService.demSoBuoiTheoThang(
           idHocSinh,
@@ -114,8 +146,8 @@ class ReportService {
           ngayBatDauTinh: ngayThamGia,
         );
 
-        // 3. Số buổi học thực tế học sinh tham gia/được tính trong tháng
-        int soBuoiHocThucTe = tongSoBuoiDuKien - soBuoiNghiCoPhep - soBuoiNghiKhongPhep + soBuoiHocBu;
+        // 3. Số buổi học thực tế học sinh tham gia/được tính trong tháng (Nghỉ có phép trừ buổi, Nghỉ không phép vẫn tính tiền)
+        int soBuoiHocThucTe = tongSoBuoiDuKien - soBuoiNghiCoPhep + soBuoiHocBu;
         if (soBuoiHocThucTe < 0) soBuoiHocThucTe = 0;
 
         int soBuoiCanThanhToan = 0;
@@ -159,7 +191,7 @@ class ReportService {
             : 0;
 
         // Bỏ qua học sinh đã nghỉ học/tạm ngừng từ trước tháng này (0 buổi dự kiến, 0 điểm danh, 0 nợ, 0 đã đóng)
-        if ((hsViewModel.trangThai == 'NGHI_HOC' || hsViewModel.trangThai == 'TAM_NGUNG') &&
+        if (isStatusInactive(hsViewModel.trangThai) &&
             tongSoBuoiDuKien == 0 &&
             soBuoiNghiCoPhep == 0 &&
             soBuoiNghiKhongPhep == 0 &&
@@ -217,6 +249,25 @@ class ReportService {
         );
       }
     });
+
+    for (var item in dsTinhToan) {
+      final recordKey = '${item.idHocSinh}_${idLop}_$thang';
+      final ttMap = {
+        'id_hoc_sinh': item.idHocSinh,
+        'id_lop': idLop,
+        'thang': thang,
+        'tong_so_buoi': item.tongSoBuoiDuKien,
+        'so_buoi_mien_giam_100': item.soBuoiNghiCoPhep,
+        'so_buoi_mien_giam_50': item.soBuoiNghiKhongPhep,
+        'so_buoi_duoc_bu_tru': item.soBuoiDuocBuTru,
+        'so_buoi_du_con_lai': item.soBuoiDuCuoiCung,
+        'tong_thanh_toan': item.tongThanhToan,
+        'so_tien_da_dong': item.soTienDaDong,
+      };
+      FirebaseSyncService.instance
+          .pushRecordToCloud(tenBangThanhToan, recordKey, ttMap)
+          .catchError((e) => null);
+    }
 
     // BƯỚC 2: TRUY VẤN DỮ LIỆU TỪ DB ĐỂ TẠO BÁO CÁO
     // Lấy dữ liệu thanh toán và tên học sinh
@@ -421,12 +472,11 @@ class ReportService {
       'Nghỉ không phép',
       ngayBatDauTinh: ngayThamGia,
     );
-    final int soBuoiNghiCoPhep = await _diemDanhService.demSoBuoiTheoThang(
+    final int soBuoiNghiCoPhep = await demSoBuoiNghiCoPhepTrongThang(
       idHocSinh,
       idLop,
       thang,
-      'Nghỉ có phép',
-      ngayBatDauTinh: ngayThamGia,
+      ngayThamGia,
     );
     final int soBuoiHocBu = await _diemDanhService.demSoBuoiTheoThang(
       idHocSinh,
@@ -436,8 +486,8 @@ class ReportService {
       ngayBatDauTinh: ngayThamGia,
     );
 
-    // 3. Số buổi học thực tế học sinh tham gia/được tính trong tháng
-    int soBuoiHocThucTe = tongSoBuoiDuKien - soBuoiNghiCoPhep - soBuoiNghiKhongPhep + soBuoiHocBu;
+    // 3. Số buổi học thực tế học sinh tham gia/được tính trong tháng (Nghỉ có phép trừ buổi, Nghỉ không phép vẫn tính tiền)
+    int soBuoiHocThucTe = tongSoBuoiDuKien - soBuoiNghiCoPhep + soBuoiHocBu;
     if (soBuoiHocThucTe < 0) soBuoiHocThucTe = 0;
 
     int soBuoiCanThanhToan = 0;
@@ -488,7 +538,7 @@ class ReportService {
     final int soTienDaDong = mapsDaDong.isNotEmpty ? mapsDaDong.first['so_tien_da_dong'] as int? ?? 0 : 0;
 
     // Bỏ qua học sinh đã nghỉ học/tạm ngừng từ trước tháng này (0 buổi dự kiến, 0 điểm danh, 0 nợ, 0 đã đóng)
-    if ((trangThai == 'NGHI_HOC' || trangThai == 'TAM_NGUNG') &&
+    if (isStatusInactive(trangThai) &&
         tongSoBuoiDuKien == 0 &&
         soBuoiNghiCoPhep == 0 &&
         soBuoiNghiKhongPhep == 0 &&
@@ -525,6 +575,11 @@ class ReportService {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
 
+    final recordKey = '${idHocSinh}_${idLop}_$thang';
+    FirebaseSyncService.instance
+        .pushRecordToCloud(tenBangThanhToan, recordKey, newThanhToan.toMap())
+        .catchError((e) => null);
+
     // Cập nhật số buổi dư vào hồ sơ học sinh
     await db.update(
       DBHelper.tenBangHS,
@@ -534,7 +589,92 @@ class ReportService {
     );
   }
 
-  // Khởi tạo và tính toán lại toàn bộ số buổi dư cho tất cả học sinh theo thứ tự thời gian
+  Future<int> demSoBuoiNghiCoPhepTrongThang(
+    int idHocSinh,
+    int idLop,
+    String thang,
+    DateTime? ngayThamGia,
+  ) async {
+    final db = await _database;
+    int countDD = await _diemDanhService.demSoBuoiTheoThang(
+      idHocSinh,
+      idLop,
+      thang,
+      'Nghỉ có phép',
+      ngayBatDauTinh: ngayThamGia,
+    );
+
+    try {
+      final parts = thang.split('-');
+      if (parts.length != 2) return countDD;
+      final year = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final firstDayMonthStr = '$thang-01';
+      final lastDayOfMonth = DateTime(year, month + 1, 0);
+      final lastDayMonthStr = DateFormat('yyyy-MM-dd').format(lastDayOfMonth);
+
+      final donNghiRows = await db.query(
+        DBHelper.tenBangDonNghiHoc,
+        where: 'id_hoc_sinh = ? AND id_lop = ? AND tu_ngay <= ? AND den_ngay >= ?',
+        whereArgs: [idHocSinh, idLop, lastDayMonthStr, firstDayMonthStr],
+      );
+
+      if (donNghiRows.isEmpty) return countDD;
+
+      final lichCaNhan = await _lhcService.layLichHocCaNhanCuaHocSinh(idHocSinh, idLop: idLop);
+      if (lichCaNhan.isEmpty) return countDD;
+
+      final Map<String, int> weekdayMap = {
+        'Thứ Hai': 1, 'Thứ Ba': 2, 'Thứ Tư': 3, 'Thứ Năm': 4, 'Thứ Sáu': 5, 'Thứ Bảy': 6, 'Chủ Nhật': 7,
+      };
+      final Set<int> lichHocWeekdays = lichCaNhan
+          .map((l) => weekdayMap[l.ngayTrongTuan])
+          .where((d) => d != null)
+          .cast<int>()
+          .toSet();
+
+      int extraFromDon = 0;
+
+      for (int day = 1; day <= lastDayOfMonth.day; day++) {
+        final currentDate = DateTime(year, month, day);
+        if (!lichHocWeekdays.contains(currentDate.weekday)) continue;
+
+        if (ngayThamGia != null && currentDate.isBefore(DateTime(ngayThamGia.year, ngayThamGia.month, ngayThamGia.day))) {
+          continue;
+        }
+
+        final dateStr = DateFormat('yyyy-MM-dd').format(currentDate);
+
+        bool inDon = false;
+        for (var row in donNghiRows) {
+          final tu = row['tu_ngay'] as String;
+          final den = row['den_ngay'] as String;
+          if (dateStr.compareTo(tu) >= 0 && dateStr.compareTo(den) <= 0) {
+            inDon = true;
+            break;
+          }
+        }
+        if (!inDon) continue;
+
+        final startStr = '$dateStr 00:00:00';
+        final endStr = '$dateStr 23:59:59';
+        final ddRecords = await db.query(
+          DBHelper.tenBangDiemDanh,
+          where: 'id_hoc_sinh = ? AND id_lop = ? AND gio_diem_danh BETWEEN ? AND ?',
+          whereArgs: [idHocSinh, idLop, startStr, endStr],
+        );
+
+        if (ddRecords.isEmpty) {
+          extraFromDon++;
+        }
+      }
+      return countDD + extraFromDon;
+    } catch (_) {
+      return countDD;
+    }
+  }
+
+  // Khởi tạo và tính toán lại toàn bộ số buổi dư cho tất cả học sinh từ ngày tham gia đến tháng hiện tại
   Future<void> recalculateAllStudentsRemainingSessions() async {
     final db = await _database;
     
@@ -547,35 +687,82 @@ class ReportService {
       'so_buoi_du_con_lai': 0,
     });
 
-    // 3. Lấy danh sách ID học sinh
     final List<Map<String, dynamic>> hsMaps = await db.query(DBHelper.tenBangHS);
-    final List<int> studentIds = hsMaps.map((m) => m['id'] as int).toList();
-
-    // 4. Lấy tất cả các tháng thanh toán hiện có, sắp xếp theo thứ tự thời gian tăng dần
-    final List<Map<String, dynamic>> monthMaps = await db.rawQuery(
-      'SELECT DISTINCT thang FROM $tenBangThanhToan ORDER BY thang ASC'
-    );
-    final List<String> months = monthMaps.map((m) => m['thang'] as String).toList();
-    
-    if (months.isEmpty || studentIds.isEmpty) return;
+    if (hsMaps.isEmpty) return;
 
     final int giaHocPhiMoiBuoi = await _docGiaHocPhiBuoi();
     final int hocPhiThangToiDa = await _docHocPhiThang();
     final int soBuoiChuanThang = await _docSoBuoiChuanThang();
 
-    // 5. Tính toán tuần tự từ tháng cũ nhất đến mới nhất
-    for (var thang in months) {
-      for (var idHocSinh in studentIds) {
-        // Lấy các lớp học sinh có bản ghi thanh toán trong tháng này
-        final List<Map<String, dynamic>> classMaps = await db.query(
+    final now = DateTime.now();
+    final currentYear = now.year;
+    final currentMonth = now.month;
+
+    for (var hsMap in hsMaps) {
+      final int idHocSinh = hsMap['id'] as int;
+
+      // Lấy danh sách tất cả các lớp của học sinh này
+      final List<Map<String, dynamic>> lhsList = await db.query(
+        DBHelper.tenBangLopHS,
+        where: 'id_hoc_sinh = ?',
+        whereArgs: [idHocSinh],
+      );
+
+      if (lhsList.isEmpty) continue;
+
+      for (var lhs in lhsList) {
+        final int idLop = lhs['id_lop'] as int;
+        String? ngayThamGiaStr = lhs['ngay_tham_gia'] as String?;
+
+        DateTime startDt = now;
+        if (ngayThamGiaStr != null && ngayThamGiaStr.isNotEmpty) {
+          final parsed = parseFlexibleDate(ngayThamGiaStr);
+          if (parsed != null) startDt = parsed;
+        } else {
+          // Tìm ngày điểm danh sớm nhất của học sinh trong lớp này
+          final earliestDd = await db.query(
+            DBHelper.tenBangDiemDanh,
+            columns: ['gio_diem_danh'],
+            where: 'id_hoc_sinh = ? AND id_lop = ?',
+            whereArgs: [idHocSinh, idLop],
+            orderBy: 'gio_diem_danh ASC',
+            limit: 1,
+          );
+          if (earliestDd.isNotEmpty) {
+            final parsedDd = parseFlexibleDate(earliestDd.first['gio_diem_danh'] as String?);
+            if (parsedDd != null) startDt = parsedDd;
+          }
+        }
+
+        final Set<String> targetMonths = {};
+        int y = startDt.year;
+        int m = startDt.month;
+        while (y < currentYear || (y == currentYear && m <= currentMonth)) {
+          final mStr = '$y-${m.toString().padLeft(2, '0')}';
+          targetMonths.add(mStr);
+          m++;
+          if (m > 12) {
+            m = 1;
+            y++;
+          }
+        }
+
+        final existingPayMonths = await db.query(
           tenBangThanhToan,
-          columns: ['id_lop'],
-          where: 'id_hoc_sinh = ? AND thang = ?',
-          whereArgs: [idHocSinh, thang],
+          columns: ['thang'],
+          where: 'id_hoc_sinh = ? AND id_lop = ?',
+          whereArgs: [idHocSinh, idLop],
         );
-        
-        for (var row in classMaps) {
-          final int idLop = row['id_lop'] as int;
+        for (var row in existingPayMonths) {
+          final t = row['thang'] as String?;
+          if (t != null && t.isNotEmpty) {
+            targetMonths.add(t);
+          }
+        }
+
+        final sortedMonths = targetMonths.toList()..sort();
+
+        for (var thang in sortedMonths) {
           await _tinhToanVaLuuHoSo(
             idHocSinh,
             idLop,
@@ -583,10 +770,16 @@ class ReportService {
             giaHocPhiMoiBuoi: giaHocPhiMoiBuoi,
             hocPhiThangToiDa: hocPhiThangToiDa,
             soBuoiChuanThang: soBuoiChuanThang,
+            ngayThamGiaStr: ngayThamGiaStr,
           );
         }
       }
     }
+
+    // Đảm bảo số buổi dư của bất kỳ học sinh nào nếu < 0 sẽ được đưa về 0
+    await db.execute('UPDATE ${DBHelper.tenBangHS} SET so_buoi_du = 0 WHERE so_buoi_du < 0');
+
+    TuitionEventService().notifyTuitionChanged();
   }
 
   static DateTime? parseFlexibleDate(String? dateStr) {

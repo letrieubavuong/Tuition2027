@@ -106,10 +106,9 @@ void main() async {
 
   runApp(const ProviderScope(child: MyApp()));
 
-  // Khởi tạo dịch vụ thông báo & Firebase Realtime Database
+  // Khởi tạo dịch vụ thông báo & Widget bằng SQLite cục bộ
   Future.microtask(() async {
     try {
-      await FirebaseSyncService.instance.initialize();
       if (!kIsWeb) {
         await NotificationService.instance.initialize();
         await NotificationService.instance.requestPermissions();
@@ -118,7 +117,7 @@ void main() async {
         await WidgetSyncService.syncBankQRWidget();
         BankNotificationService.instance;
       }
-      debugPrint('✅ Firebase & Services initialized');
+      debugPrint('✅ Local SQLite Services initialized successfully');
     } catch (e) {
       debugPrint('Error starting background services: $e');
     }

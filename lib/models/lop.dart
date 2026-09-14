@@ -25,12 +25,12 @@ class Lop {
 
   // Tạo đối tượng Lop từ Map (đọc từ database)
   factory Lop.fromMap(Map<String, dynamic> map) {
+    int? parseInt(dynamic v) => v == null ? null : (v is int ? v : int.tryParse(v.toString()));
     return Lop(
-      id: map['id'] as int?,
-      ten: map['ten'] as String,
-      // Đảm bảo ép kiểu sang int
-      khoi: map['khoi'] as int, // SỬA: Thêm sĩ số từ map
-      siSo: map['si_so'] as int?,
+      id: parseInt(map['id']),
+      ten: map['ten']?.toString() ?? '',
+      khoi: parseInt(map['khoi']) ?? 0,
+      siSo: parseInt(map['si_so']),
     );
   }
 
@@ -43,4 +43,13 @@ class Lop {
       siSo: siSo ?? this.siSo,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Lop && runtimeType == other.runtimeType && id == other.id);
+
+  @override
+  int get hashCode => id.hashCode;
 }
+

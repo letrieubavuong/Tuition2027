@@ -49,3 +49,7 @@ node_modules/
 .next/
 out/
 
+# Temporary / Scratch files
+scratch/
+*.rar
+*.tar.gz

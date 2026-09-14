@@ -2,6 +2,8 @@
 
 import 'package:sqflite/sqflite.dart';
 import '../utils/db.dart';
+import 'firebase_sync_service.dart';
+import 'tuition_event_service.dart';
 
 class CaiDatService {
   final dbHelper = DBHelper.instance;
@@ -30,10 +32,17 @@ class CaiDatService {
   Future<int> capNhatCaiDat(String khoa, String giaTri) async {
     try {
       final db = await dbHelper.database.timeout(const Duration(seconds: 1));
-      return await db.insert(tenBang, {
+      final result = await db.insert(tenBang, {
         'khoa': khoa,
         'gia_tri': giaTri,
       }, conflictAlgorithm: ConflictAlgorithm.replace).timeout(const Duration(seconds: 1));
+      if (result > 0) {
+        FirebaseSyncService.instance
+            .pushRecordToCloud(tenBang, khoa, {'khoa': khoa, 'gia_tri': giaTri})
+            .catchError((e) => null);
+        TuitionEventService().notifyTuitionChanged();
+      }
+      return result;
     } catch (e) {
       return 0;
     }

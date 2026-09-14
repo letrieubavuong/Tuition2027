@@ -76,7 +76,12 @@ class DashboardService {
 
       // 2. Đếm tổng số học sinh ĐANG HỌC (loại bỏ học sinh đã nghỉ)
       final soHocSinhResult = await db.rawQuery(
-        "SELECT COUNT(*) as count FROM ${DBHelper.tenBangHS} WHERE trang_thai IS NULL OR (trang_thai != 'DA_NGHI' AND trang_thai != 'NGHI_HOC')",
+        '''
+        SELECT COUNT(DISTINCT HS.id) as count
+        FROM ${DBHelper.tenBangHS} HS
+        LEFT JOIN ${DBHelper.tenBangLopHS} LHS ON HS.id = LHS.id_hoc_sinh
+        WHERE LHS.id_hoc_sinh IS NULL OR LHS.trang_thai IS NULL OR (LHS.trang_thai != 'DA_NGHI' AND LHS.trang_thai != 'NGHI_HOC')
+        ''',
       );
       final int soHocSinh = Sqflite.firstIntValue(soHocSinhResult) ?? 0;
 
@@ -165,7 +170,8 @@ class DashboardService {
         dsCaHocHomNay: dsCaHocHomNay,
         phanBoHocSinh: phanBoHocSinh,
       );
-    } catch (e) {
+    } catch (e, st) {
+      print('Lỗi getDashboardData: $e\n$st');
       return DashboardData();
     }
   }

@@ -18,20 +18,21 @@ class LopHocSinh {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'id_lop': idLop, // <-- ĐÃ SỬA
-      'id_hoc_sinh': idHocSinh, // <-- ĐÃ SỬA
-      'ngay_tham_gia': ngayThamGia, // <-- ĐÃ SỬA
-      'trang_thai': trangThai, // <-- ĐÃ THÊM
+      'id_lop': idLop,
+      'id_hoc_sinh': idHocSinh,
+      'ngay_tham_gia': ngayThamGia,
+      'trang_thai': trangThai,
     };
   }
 
   factory LopHocSinh.fromMap(Map<String, dynamic> map) {
+    int? parseInt(dynamic v) => v == null ? null : (v is int ? v : int.tryParse(v.toString()));
     return LopHocSinh(
-      id: map['id'] as int?,
-      idLop: map['id_lop'] as int, // <-- ĐÃ SỬA
-      idHocSinh: map['id_hoc_sinh'] as int, // <-- ĐÃ SỬA
-      ngayThamGia: map['ngay_tham_gia'] as String, // <-- ĐÃ SỬA
-      trangThai: map['trang_thai'] as String, // <-- ĐÃ THÊM
+      id: parseInt(map['id']),
+      idLop: parseInt(map['id_lop']) ?? 0,
+      idHocSinh: parseInt(map['id_hoc_sinh']) ?? 0,
+      ngayThamGia: map['ngay_tham_gia']?.toString() ?? '',
+      trangThai: map['trang_thai']?.toString() ?? 'DANG_HOC',
     );
   }
 

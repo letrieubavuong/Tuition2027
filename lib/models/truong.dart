@@ -9,7 +9,11 @@ class Truong {
   }
 
   factory Truong.fromMap(Map<String, dynamic> map) {
-    return Truong(id: map['id'] as int?, ten: map['ten'] as String);
+    int? parseInt(dynamic v) => v == null ? null : (v is int ? v : int.tryParse(v.toString()));
+    return Truong(
+      id: parseInt(map['id']),
+      ten: map['ten']?.toString() ?? '',
+    );
   }
 
   Truong copyWith({int? id}) {

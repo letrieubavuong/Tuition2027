@@ -4,9 +4,9 @@ import 'package:sqflite/sqflite.dart';
 import '../models/danh_gia_lich_su_view_model.dart';
 import '../models/su_kien_hoc_tap.dart';
 import 'su_kien_hoc_tap_service.dart';
-// Import service mới
 import '../models/danh_gia_buoi_hoc.dart';
 import '../utils/db.dart';
+import 'firebase_sync_service.dart';
 
 class DanhGiaBuoiHocService {
   final String _tenBang = DBHelper.tenBangDanhGiaBuoiHoc;
@@ -48,11 +48,18 @@ class DanhGiaBuoiHocService {
       return 0; // Không có gì để lưu
     }
 
-    return await db.insert(
+    final id = await db.insert(
       _tenBang,
       danhGia.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    if (id > 0) {
+      final recordKey = danhGia.id != null ? danhGia.id.toString() : id.toString();
+      FirebaseSyncService.instance
+          .pushRecordToCloud(_tenBang, recordKey, danhGia.copyWith(id: id).toMap())
+          .catchError((e) => null);
+    }
+    return id;
   }
 
   // HÀM MỚI: Tự động tính toán và cập nhật điểm buổi học từ các sự kiện
@@ -108,11 +115,17 @@ class DanhGiaBuoiHocService {
 
     // 5. Lưu lại vào CSDL
     final db = await _database;
-    await db.insert(
+    final id = await db.insert(
       _tenBang,
       danhGia.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    if (id > 0) {
+      final recordKey = danhGia.id != null ? danhGia.id.toString() : id.toString();
+      FirebaseSyncService.instance
+          .pushRecordToCloud(_tenBang, recordKey, danhGia.copyWith(id: id).toMap())
+          .catchError((e) => null);
+    }
   }
 
   /// Tự động sinh nhận xét buổi học dựa trên điểm thái độ, hiểu bài, bài tập.

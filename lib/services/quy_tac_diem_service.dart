@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import '../utils/db.dart';
 import '../models/quy_tac_diem.dart';
+import 'firebase_sync_service.dart';
 
 class QuyTacDiemService {
   final String _tenBang = DBHelper.tenBangQuyTacDiem;
@@ -17,7 +18,11 @@ class QuyTacDiemService {
       quyTac.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-    return quyTac.copyWith(id: id);
+    final created = quyTac.copyWith(id: id);
+    FirebaseSyncService.instance
+        .pushRecordToCloud(_tenBang, id.toString(), created.toMap())
+        .catchError((e) => null);
+    return created;
   }
 
   // Đọc tất cả các quy tắc điểm
@@ -45,17 +50,29 @@ class QuyTacDiemService {
   // Cập nhật một quy tắc điểm
   Future<int> capNhatQuyTacDiem(QuyTacDiem quyTac) async {
     final db = await _database;
-    return await db.update(
+    final result = await db.update(
       _tenBang,
       quyTac.toMap(),
       where: 'id = ?',
       whereArgs: [quyTac.id],
     );
+    if (result > 0 && quyTac.id != null) {
+      FirebaseSyncService.instance
+          .pushRecordToCloud(_tenBang, quyTac.id.toString(), quyTac.toMap())
+          .catchError((e) => null);
+    }
+    return result;
   }
 
   // Xóa một quy tắc điểm
   Future<int> xoaQuyTacDiem(int id) async {
     final db = await _database;
-    return await db.delete(_tenBang, where: 'id = ?', whereArgs: [id]);
+    final result = await db.delete(_tenBang, where: 'id = ?', whereArgs: [id]);
+    if (result > 0) {
+      FirebaseSyncService.instance
+          .deleteRecordFromCloud(_tenBang, id.toString())
+          .catchError((e) => null);
+    }
+    return result;
   }
 }

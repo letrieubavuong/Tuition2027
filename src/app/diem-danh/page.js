@@ -122,8 +122,14 @@ export default function DiemDanhPage() {
       const combined = [...listSched1, ...listSched2];
       const map = new Map();
       combined.forEach((sc) => {
-        const key = String(sc.id || sc._key);
-        if (!map.has(key)) map.set(key, sc);
+        const val = sc.thu ?? sc.thuTrongTuan ?? sc.ngay_trong_tuan ?? sc.thu_trong_tuan;
+        const startKey = sc.gio_bat_dau || sc.gioBatDau || "00:00";
+        const classKey = sc.id_lop ?? sc.lop_id ?? sc.idLop;
+        const fingerprint = (classKey !== undefined && val !== undefined)
+          ? `${classKey}_${val}_${startKey}`
+          : String(sc.id || sc._key);
+
+        if (!map.has(fingerprint)) map.set(fingerprint, sc);
       });
       setSchedules(Array.from(map.values()));
     };

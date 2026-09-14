@@ -19,6 +19,22 @@ class SuKienHocTap {
     required this.diemThayDoi,
   });
 
+  SuKienHocTap copyWith({
+    int? id,
+    int? idDiemDanh,
+    LoaiSuKien? loaiSuKien,
+    String? moTa,
+    double? diemThayDoi,
+  }) {
+    return SuKienHocTap(
+      id: id ?? this.id,
+      idDiemDanh: idDiemDanh ?? this.idDiemDanh,
+      loaiSuKien: loaiSuKien ?? this.loaiSuKien,
+      moTa: moTa ?? this.moTa,
+      diemThayDoi: diemThayDoi ?? this.diemThayDoi,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

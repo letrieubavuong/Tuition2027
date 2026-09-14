@@ -19,6 +19,7 @@ class _FormHocSinhState extends State<FormHocSinh> {
   final _sdtController = TextEditingController();
   final _truongController = TextEditingController();
   final _diaChiController = TextEditingController();
+  final _facebookController = TextEditingController();
   final _ghiChuController = TextEditingController();
 
   // Màu sắc cho Dark Mode (đồng bộ)
@@ -36,6 +37,7 @@ class _FormHocSinhState extends State<FormHocSinh> {
       _sdtController.text = widget.hocSinh!.sdt ?? '';
       _truongController.text = widget.hocSinh!.truongDangHoc ?? '';
       _diaChiController.text = widget.hocSinh!.diaChi ?? '';
+      _facebookController.text = widget.hocSinh!.facebook ?? '';
       _ghiChuController.text = widget.hocSinh!.ghiChu ?? '';
     }
   }
@@ -46,6 +48,7 @@ class _FormHocSinhState extends State<FormHocSinh> {
     _sdtController.dispose();
     _truongController.dispose();
     _diaChiController.dispose();
+    _facebookController.dispose();
     _ghiChuController.dispose();
     super.dispose();
   }
@@ -57,6 +60,7 @@ class _FormHocSinhState extends State<FormHocSinh> {
       final String sdt = _sdtController.text.trim();
       final String truong = _truongController.text.trim();
       final String diaChi = _diaChiController.text.trim();
+      final String facebook = _facebookController.text.trim();
       final String ghiChu = _ghiChuController.text.trim();
 
       try {
@@ -67,6 +71,7 @@ class _FormHocSinhState extends State<FormHocSinh> {
             sdt: sdt.isEmpty ? null : sdt,
             truongDangHoc: truong.isEmpty ? null : truong,
             diaChi: diaChi.isEmpty ? null : diaChi,
+            facebook: facebook.isEmpty ? null : facebook,
             ghiChu: ghiChu.isEmpty ? null : ghiChu,
           );
           await _hsService.taoHocSinh(hsMoi);
@@ -76,6 +81,7 @@ class _FormHocSinhState extends State<FormHocSinh> {
           widget.hocSinh!.sdt = sdt.isEmpty ? null : sdt;
           widget.hocSinh!.truongDangHoc = truong.isEmpty ? null : truong;
           widget.hocSinh!.diaChi = diaChi.isEmpty ? null : diaChi;
+          widget.hocSinh!.facebook = facebook.isEmpty ? null : facebook;
           widget.hocSinh!.ghiChu = ghiChu.isEmpty ? null : ghiChu;
           final result = await _hsService.capNhatHocSinh(widget.hocSinh!);
           if (result == 0) {
@@ -215,6 +221,15 @@ class _FormHocSinhState extends State<FormHocSinh> {
                 _diaChiController,
                 isVi ? 'Địa Chỉ' : 'Address',
                 Icons.home,
+                isRequired: false,
+              ),
+              const SizedBox(height: 20),
+
+              // --- Link/Địa chỉ Facebook ---
+              _buildTextField(
+                _facebookController,
+                isVi ? 'Link / Địa chỉ Facebook' : 'Facebook Profile',
+                Icons.facebook,
                 isRequired: false,
               ),
               const SizedBox(height: 20),

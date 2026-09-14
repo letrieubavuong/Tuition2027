@@ -12,6 +12,7 @@ import 'tuition_event_service.dart';
 import 'dart:developer' as developer;
 
 import 'report_service.dart';
+import 'firebase_sync_service.dart';
 
 class LopHocSinhService {
   final dbHelper = DBHelper.instance;
@@ -20,34 +21,41 @@ class LopHocSinhService {
   final HocSinhService _hsService = HocSinhService();
 
   bool hoatDongTrongNgay(HSLopViewModel hs, DateTime date) {
+    final status = (hs.trangThai).toUpperCase().trim();
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
-    if (hs.ngayThamGia.isNotEmpty) {
-      final nth = ReportService.parseFlexibleDate(hs.ngayThamGia);
-      if (nth != null) {
-        final nthStr = DateFormat('yyyy-MM-dd').format(nth);
-        if (nthStr.compareTo(dateStr) > 0) return false;
-      } else if (hs.ngayThamGia.compareTo(dateStr) > 0) {
-        return false;
+
+    if (status == 'NGHI_HOC' || status == 'DA_NGHI' || status == 'NGHỈ HỌC' || status == 'ĐÃ NGHỈ') {
+      if (hs.ngayHocLaiSauNghi != null && hs.ngayHocLaiSauNghi!.trim().isNotEmpty) {
+        final nhl = ReportService.parseFlexibleDate(hs.ngayHocLaiSauNghi);
+        if (nhl != null && DateFormat('yyyy-MM-dd').format(nhl).compareTo(dateStr) <= 0) {
+          return true;
+        }
       }
-    }
-    if (hs.trangThai == 'NGHI_HOC') {
-      if (hs.ngayHocLaiSauNghi != null && hs.ngayHocLaiSauNghi!.compareTo(dateStr) <= 0) {
-        return true;
-      }
-      if (hs.ngayNghiHoc != null && hs.ngayNghiHoc!.compareTo(dateStr) > 0) {
-        return true;
+      if (hs.ngayNghiHoc != null && hs.ngayNghiHoc!.trim().isNotEmpty) {
+        final nnh = ReportService.parseFlexibleDate(hs.ngayNghiHoc);
+        if (nnh != null && DateFormat('yyyy-MM-dd').format(nnh).compareTo(dateStr) > 0) {
+          return true;
+        }
       }
       return false;
     }
-    if (hs.trangThai == 'TAM_NGUNG') {
-      if (hs.ngayHocLaiThucTe != null && hs.ngayHocLaiThucTe!.compareTo(dateStr) <= 0) {
-        return true;
+
+    if (status == 'TAM_NGUNG' || status == 'TAM_NGHI' || status == 'TẠM NGỪNG' || status == 'TẠM NGHỈ') {
+      if (hs.ngayHocLaiThucTe != null && hs.ngayHocLaiThucTe!.trim().isNotEmpty) {
+        final nhl = ReportService.parseFlexibleDate(hs.ngayHocLaiThucTe);
+        if (nhl != null && DateFormat('yyyy-MM-dd').format(nhl).compareTo(dateStr) <= 0) {
+          return true;
+        }
       }
-      if (hs.ngayTamNgung != null && hs.ngayTamNgung!.compareTo(dateStr) > 0) {
-        return true;
+      if (hs.ngayTamNgung != null && hs.ngayTamNgung!.trim().isNotEmpty) {
+        final ntn = ReportService.parseFlexibleDate(hs.ngayTamNgung);
+        if (ntn != null && DateFormat('yyyy-MM-dd').format(ntn).compareTo(dateStr) > 0) {
+          return true;
+        }
       }
       return false;
     }
+
     return true;
   }
 
@@ -58,7 +66,7 @@ class LopHocSinhService {
           : dateOrStr.toString();
       final db = await dbHelper.database;
       final res = await db.query(
-        'xin_nghi_hoc',
+        DBHelper.tenBangDonNghiHoc,
         where: 'id_lop = ? AND id_hoc_sinh = ? AND tu_ngay <= ? AND den_ngay >= ?',
         whereArgs: [idLop, idHocSinh, dateStr, dateStr],
       );
@@ -81,10 +89,14 @@ class LopHocSinhService {
       }
 
       final db = await dbHelper.database;
-      final List<Map<String, dynamic>> maps = await db.rawQuery(
+      List<Map<String, dynamic>> maps = await db.rawQuery(
         '''
             SELECT 
-              T1.*, 
+              T1.*,
+              T1.id as hs_id,
+              T2.id as lhs_id,
+              T2.id_lop,
+              T2.id_hoc_sinh,
               T2.ngay_tham_gia, 
               T2.trang_thai,
               T2.ngay_tam_ngung,
@@ -95,12 +107,42 @@ class LopHocSinhService {
               T2.ly_do_nghi_hoc,
               T2.ngay_hoc_lai_sau_nghi
             FROM $tenBangHS T1
-            INNER JOIN $tenBang T2 ON T1.id = T2.id_hoc_sinh
-            WHERE T2.id_lop = ?
+            INNER JOIN $tenBang T2 ON (T1.id = T2.id_hoc_sinh OR CAST(T1.id AS TEXT) = CAST(T2.id_hoc_sinh AS TEXT) OR T1.id = CAST(T2.id_hoc_sinh AS INTEGER))
+            WHERE (T2.id_lop = ? OR CAST(T2.id_lop AS TEXT) = ? OR CAST(T2.id_lop AS INTEGER) = ?)
+            GROUP BY T1.id
             ORDER BY T1.ten ASC
           ''',
-        [idLop],
+        [idLop, idLop.toString(), idLop],
       );
+
+      if (maps.isEmpty) {
+        // Fallback: Thử tìm theo chuỗi TRIM
+        maps = await db.rawQuery(
+          '''
+              SELECT 
+                T1.*,
+                T1.id as hs_id,
+                T2.id as lhs_id,
+                T2.id_lop,
+                T2.id_hoc_sinh,
+                T2.ngay_tham_gia, 
+                T2.trang_thai,
+                T2.ngay_tam_ngung,
+                T2.ngay_du_kien_hoc_lai,
+                T2.ngay_hoc_lai_thuc_te,
+                T2.ly_do_tam_ngung,
+                T2.ngay_nghi_hoc,
+                T2.ly_do_nghi_hoc,
+                T2.ngay_hoc_lai_sau_nghi
+              FROM $tenBangHS T1
+              INNER JOIN $tenBang T2 ON TRIM(CAST(T1.id AS TEXT)) = TRIM(CAST(T2.id_hoc_sinh AS TEXT))
+              WHERE TRIM(CAST(T2.id_lop AS TEXT)) = TRIM(CAST(? AS TEXT))
+              GROUP BY T1.id
+              ORDER BY T1.ten ASC
+            ''',
+          [idLop.toString()],
+        );
+      }
 
       developer.log(
         '✅ Đọc thành công ${maps.length} học sinh từ lớp ID: $idLop',
@@ -108,7 +150,14 @@ class LopHocSinhService {
       );
 
       return List.generate(maps.length, (i) {
-        final hs = HS.fromMap(maps[i]);
+        final Map<String, dynamic> mapData = Map<String, dynamic>.from(maps[i]);
+        final hsId = maps[i]['hs_id'] ?? maps[i]['id_hoc_sinh'] ?? maps[i]['id'];
+        if (hsId != null) {
+          mapData['id'] = (hsId is num)
+              ? hsId.toInt()
+              : int.tryParse(hsId.toString());
+        }
+        final hs = HS.fromMap(mapData);
         return HSLopViewModel(
           hocSinh: hs,
           ngayThamGia: (maps[i]['ngay_tham_gia'] as String?) ?? '',
@@ -150,16 +199,53 @@ class LopHocSinhService {
   }) async {
     try {
       final db = await dbHelper.database;
-      await db.insert('xin_nghi_hoc', {
+      final nowStr = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
+      await db.insert(DBHelper.tenBangDonNghiHoc, {
         'id_lop': idLop,
         'id_hoc_sinh': idHocSinh,
         'tu_ngay': tuNgay,
         'den_ngay': denNgay,
         'ly_do': lyDo ?? '',
+        'created_at': nowStr,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
       TuitionEventService().notifyTuitionChanged();
     } catch (e, st) {
       developer.log('Lỗi dangKyNghiCoPhep', error: e, stackTrace: st);
+    }
+  }
+
+  Future<int> dangKyNghiCoPhepHangLoat({
+    required int idLop,
+    required List<int> dsHocSinhIds,
+    required String tuNgay,
+    required String denNgay,
+    String? lyDo,
+  }) async {
+    try {
+      if (dsHocSinhIds.isEmpty) return 0;
+      final db = await dbHelper.database;
+      final nowStr = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
+      int successCount = 0;
+      await db.transaction((txn) async {
+        for (final hsId in dsHocSinhIds) {
+          await txn.insert(DBHelper.tenBangDonNghiHoc, {
+            'id_lop': idLop,
+            'id_hoc_sinh': hsId,
+            'tu_ngay': tuNgay,
+            'den_ngay': denNgay,
+            'ly_do': lyDo ?? '',
+            'created_at': nowStr,
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+          successCount++;
+        }
+      });
+      if (successCount > 0) {
+        TuitionEventService().notifyTuitionChanged();
+      }
+      return successCount;
+    } catch (e, st) {
+      developer.log('Lỗi dangKyNghiCoPhepHangLoat', error: e, stackTrace: st);
+      return 0;
     }
   }
 
@@ -172,18 +258,25 @@ class LopHocSinhService {
   }) async {
     try {
       final db = await dbHelper.database;
+      final updateData = {
+        'trang_thai': 'TAM_NGUNG',
+        'ngay_tam_ngung': ngayBatDau,
+        'ngay_du_kien_hoc_lai': ngayDuKienHocLai,
+        'ly_do_tam_ngung': lyDo,
+      };
       final res = await db.update(
         tenBang,
-        {
-          'trang_thai': 'TAM_NGUNG',
-          'ngay_tam_ngung': ngayBatDau,
-          'ngay_du_kien_hoc_lai': ngayDuKienHocLai,
-          'ly_do_tam_ngung': lyDo,
-        },
+        updateData,
         where: 'id_lop = ? AND id_hoc_sinh = ?',
         whereArgs: [idLop, idHocSinh],
       );
-      if (res > 0) TuitionEventService().notifyTuitionChanged();
+      if (res > 0) {
+        final rowMap = Map<String, dynamic>.from(updateData)
+          ..['id_lop'] = idLop
+          ..['id_hoc_sinh'] = idHocSinh;
+        FirebaseSyncService.instance.pushRecordToCloud(tenBang, '${idHocSinh}_${idLop}', rowMap);
+        TuitionEventService().notifyTuitionChanged();
+      }
       return res;
     } catch (e, st) {
       developer.log('Lỗi tamNgungHoc', error: e, stackTrace: st);
@@ -198,16 +291,23 @@ class LopHocSinhService {
   }) async {
     try {
       final db = await dbHelper.database;
+      final updateData = {
+        'trang_thai': 'DANG_HOC',
+        'ngay_hoc_lai_thuc_te': ngayHocLai,
+      };
       final res = await db.update(
         tenBang,
-        {
-          'trang_thai': 'DANG_HOC',
-          'ngay_hoc_lai_thuc_te': ngayHocLai,
-        },
+        updateData,
         where: 'id_lop = ? AND id_hoc_sinh = ?',
         whereArgs: [idLop, idHocSinh],
       );
-      if (res > 0) TuitionEventService().notifyTuitionChanged();
+      if (res > 0) {
+        final rowMap = Map<String, dynamic>.from(updateData)
+          ..['id_lop'] = idLop
+          ..['id_hoc_sinh'] = idHocSinh;
+        FirebaseSyncService.instance.pushRecordToCloud(tenBang, '${idHocSinh}_${idLop}', rowMap);
+        TuitionEventService().notifyTuitionChanged();
+      }
       return res;
     } catch (e, st) {
       developer.log('Lỗi choHocLai', error: e, stackTrace: st);
@@ -222,16 +322,23 @@ class LopHocSinhService {
   }) async {
     try {
       final db = await dbHelper.database;
+      final updateData = {
+        'trang_thai': 'DANG_HOC',
+        'ngay_hoc_lai_sau_nghi': ngayHocLai,
+      };
       final res = await db.update(
         tenBang,
-        {
-          'trang_thai': 'DANG_HOC',
-          'ngay_hoc_lai_sau_nghi': ngayHocLai,
-        },
+        updateData,
         where: 'id_lop = ? AND id_hoc_sinh = ?',
         whereArgs: [idLop, idHocSinh],
       );
-      if (res > 0) TuitionEventService().notifyTuitionChanged();
+      if (res > 0) {
+        final rowMap = Map<String, dynamic>.from(updateData)
+          ..['id_lop'] = idLop
+          ..['id_hoc_sinh'] = idHocSinh;
+        FirebaseSyncService.instance.pushRecordToCloud(tenBang, '${idHocSinh}_${idLop}', rowMap);
+        TuitionEventService().notifyTuitionChanged();
+      }
       return res;
     } catch (e, st) {
       developer.log('Lỗi kichHoatHocLai', error: e, stackTrace: st);
@@ -247,17 +354,24 @@ class LopHocSinhService {
   }) async {
     try {
       final db = await dbHelper.database;
+      final updateData = {
+        'trang_thai': 'NGHI_HOC',
+        'ngay_nghi_hoc': ngayNghiHoc,
+        'ly_do_nghi_hoc': lyDo,
+      };
       final res = await db.update(
         tenBang,
-        {
-          'trang_thai': 'NGHI_HOC',
-          'ngay_nghi_hoc': ngayNghiHoc,
-          'ly_do_nghi_hoc': lyDo,
-        },
+        updateData,
         where: 'id_lop = ? AND id_hoc_sinh = ?',
         whereArgs: [idLop, idHocSinh],
       );
-      if (res > 0) TuitionEventService().notifyTuitionChanged();
+      if (res > 0) {
+        final rowMap = Map<String, dynamic>.from(updateData)
+          ..['id_lop'] = idLop
+          ..['id_hoc_sinh'] = idHocSinh;
+        FirebaseSyncService.instance.pushRecordToCloud(tenBang, '${idHocSinh}_${idLop}', rowMap);
+        TuitionEventService().notifyTuitionChanged();
+      }
       return res;
     } catch (e, st) {
       developer.log('Lỗi choHocSinhNghiHoc', error: e, stackTrace: st);
@@ -459,6 +573,8 @@ class LopHocSinhService {
         name: 'themHocSinhVaoLop',
         error: {'id': id},
       );
+      FirebaseSyncService.instance.pushRecordToCloud(tenBang, '${hsVal}_${lopVal}', map);
+      TuitionEventService().notifyTuitionChanged();
       return lhs.copyWith(id: id);
     } on DatabaseException catch (e, st) {
       developer.log(
@@ -557,10 +673,17 @@ class LopHocSinhService {
       );
 
       if (result > 0) {
+        // Xóa bản ghi học phí chưa thu tiền của học sinh này khỏi lớp
+        await db.delete(
+          DBHelper.tenBangThanhToan,
+          where: 'id_lop = ? AND id_hoc_sinh = ? AND so_tien_da_dong = 0',
+          whereArgs: [lopId, hsId],
+        );
         developer.log(
           '✅ Xóa học sinh khỏi lớp thành công! Số bản ghi đã xóa: $result',
           name: 'LopHocSinhService.xoaHocSinhKhoiLop',
         );
+        FirebaseSyncService.instance.deleteRecordFromCloud(tenBang, '${hsId}_${lopId}');
         TuitionEventService().notifyTuitionChanged();
       }
 

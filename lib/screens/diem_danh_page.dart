@@ -10,6 +10,7 @@ import '../models/lich_hoc.dart'; // Cần LichHoc model
 import '../models/hs_lop_view_model.dart'; // Cần HSLopViewModel
 import 'su_kien_buoi_hoc_page.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/dang_ky_nghi_le_dialog.dart';
 
 class DiemDanhPage extends ConsumerStatefulWidget {
   final int? selectedLopId;
@@ -472,6 +473,37 @@ class _DiemDanhPageState extends ConsumerState<DiemDanhPage> {
         backgroundColor: cardColor,
         foregroundColor: lightText,
         actions: [
+          // Nút Đăng ký nghỉ lễ / nghỉ hè hàng loạt
+          IconButton(
+            icon: const Icon(Icons.beach_access_rounded),
+            tooltip: isVi
+                ? 'Đăng ký nghỉ lễ / nghỉ hè hàng loạt'
+                : 'Batch holiday / vacation leave',
+            color: Colors.orangeAccent,
+            onPressed: () async {
+              final provider = diemDanhControllerProvider(
+                widget.selectedLopId,
+                widget.selectedDate,
+              );
+              final currentState = ref.read(provider).value;
+              if (currentState != null && currentState.selectedLop != null) {
+                final dsHS = await ref
+                    .read(lopHocSinhServiceProvider)
+                    .docDSHSThuocLop(currentState.selectedLop!.id!);
+                if (!mounted) return;
+                final res = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => DangKyNghiLeDialog(
+                    lop: currentState.selectedLop!,
+                    danhSachHocSinh: dsHS,
+                  ),
+                );
+                if (res == true) {
+                  ref.invalidate(provider);
+                }
+              }
+            },
+          ),
           // HÀM MỚI: Nút điểm danh bù
           IconButton(
             icon: const Icon(Icons.event_repeat_outlined),
