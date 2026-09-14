@@ -24,10 +24,17 @@ import {
   Clock
 } from "lucide-react";
 
-export default function StudentDetailContainer({ params: routeParams }) {
+export default function StudentDetailContainer() {
   const routerParams = useParams();
-  const rawId = routeParams?.id || routerParams?.id;
+  const rawId = routerParams?.id;
   const studentId = rawId ? decodeURIComponent(String(rawId)) : "";
+
+  const formatCurrency = (num) => {
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+    }).format(num || 0);
+  };
 
   const [student, setStudent] = useState(null);
   const [allClasses, setAllClasses] = useState([]);
