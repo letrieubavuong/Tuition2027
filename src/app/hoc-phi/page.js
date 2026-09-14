@@ -219,6 +219,11 @@ export default function HocPhiPage() {
       new Set(list.map((p) => p.thang).filter(Boolean))
     ).sort((a, b) => b.localeCompare(a));
     setAvailableMonths(months);
+
+    // Mặc định chọn tháng mới nhất nếu chưa có tháng nào được chọn
+    if (months.length > 0 && selectedMonth === "all") {
+      setSelectedMonth(months[0]);
+    }
   }, [rawPayments, classesMap]);
 
   const formatCurrency = (num) => {
@@ -390,10 +395,12 @@ export default function HocPhiPage() {
     return false;
   };
 
-  const filteredPayments = payments.filter((p) => {
+  // Base list filtered by Search, Month, and Class (used for top summary statistics)
+  const classAndMonthPayments = payments.filter((p) => {
     const sName = getStudentName(p);
     const cName = getPaymentClassName(p);
     const matchesSearch =
+      !searchQuery ||
       (sName && sName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (cName && cName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (p.thang && p.thang.includes(searchQuery));
@@ -401,21 +408,24 @@ export default function HocPhiPage() {
     const matchesMonth = selectedMonth === "all" || p.thang === selectedMonth;
     const matchesClass = isPaymentInSelectedClass(p);
 
+    return matchesMonth && matchesClass && matchesSearch;
+  });
+
+  // Table list filtered further by status tab (paid / debt / all)
+  const filteredPayments = classAndMonthPayments.filter((p) => {
     const daDong = Number(p.so_tien_da_dong) || 0;
     const tong = Number(p.tong_thanh_toan) || 0;
     const isPaid = daDong >= tong && tong > 0;
-
-    if (!matchesMonth || !matchesClass || !matchesSearch) return false;
 
     if (statusFilter === "paid") return isPaid;
     if (statusFilter === "debt") return !isPaid;
     return true;
   });
 
-  // Calculate monthly stats
-  const totalMonthAmount = filteredPayments.reduce((sum, p) => sum + (Number(p.tong_thanh_toan) || 0), 0);
-  const totalMonthPaid = filteredPayments.reduce((sum, p) => sum + (Number(p.so_tien_da_dong) || 0), 0);
-  const totalMonthDebt = filteredPayments.reduce((sum, p) => {
+  // Calculate top summary stats based on classAndMonthPayments (unaffected by table status tab)
+  const totalMonthAmount = classAndMonthPayments.reduce((sum, p) => sum + (Number(p.tong_thanh_toan) || 0), 0);
+  const totalMonthPaid = classAndMonthPayments.reduce((sum, p) => sum + (Number(p.so_tien_da_dong) || 0), 0);
+  const totalMonthDebt = classAndMonthPayments.reduce((sum, p) => {
     const tong = Number(p.tong_thanh_toan) || 0;
     const daDong = Number(p.so_tien_da_dong) || 0;
     return sum + (tong > daDong ? tong - daDong : 0);
