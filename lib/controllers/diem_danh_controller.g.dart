@@ -7,7 +7,7 @@ part of 'diem_danh_controller.dart';
 // **************************************************************************
 
 String _$diemDanhControllerHash() =>
-    r'd97f8f3062d3a8916748601816ea00178b8c7b90';
+    r'c3d266116089c21f26f33f26d37957b9ed79304e';
 
 /// Copied from Dart SDK
 class _SystemHash {

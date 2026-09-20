@@ -4,8 +4,12 @@ import '../services/lop_service.dart';
 import '../services/lop_hoc_sinh_service.dart';
 import '../services/lich_hoc_service.dart';
 import '../services/lich_hoc_chung_service.dart';
-import '../services/report_service.dart';
-import '../services/diem_danh_service.dart';
+import '../services/v2/session_generation_service_v2.dart';
+import '../services/v2/roster_service_v2.dart';
+import '../services/v2/session_credit_service_v2.dart';
+import '../services/v2/tuition_service_v2.dart';
+import '../repositories/v2/hoc_sinh_repository_v2.dart';
+import '../repositories/v2/lop_repository_v2.dart';
 
 part 'service_providers.g.dart';
 
@@ -13,18 +17,13 @@ part 'service_providers.g.dart';
 LopService lopService(LopServiceRef ref) => LopService();
 
 @riverpod
-LopHocSinhService lopHocSinhService(LopHocSinhServiceRef ref) =>
-    LopHocSinhService();
+LopRepositoryV2 lopRepositoryV2(LopRepositoryV2Ref ref) => LopRepositoryV2();
 
 @riverpod
-LichHocService lichHocService(LichHocServiceRef ref) => LichHocService();
+HocSinhRepositoryV2 hocSinhRepositoryV2(HocSinhRepositoryV2Ref ref) => HocSinhRepositoryV2();
 
 @riverpod
-LichHocChungService lichHocChungService(LichHocChungServiceRef ref) =>
-    LichHocChungService();
+TuitionServiceV2 tuitionServiceV2(TuitionServiceV2Ref ref) => TuitionServiceV2();
 
 @riverpod
-ReportService reportService(ReportServiceRef ref) => ReportService();
-
-@riverpod
-DiemDanhService diemDanhService(DiemDanhServiceRef ref) => DiemDanhService();
+RosterServiceV2 rosterServiceV2(RosterServiceV2Ref ref) => RosterServiceV2();
