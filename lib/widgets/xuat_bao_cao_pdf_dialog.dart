@@ -1,50 +1,49 @@
 // File: lib/widgets/xuat_bao_cao_pdf_dialog.dart
 
+import 'dart:developer' as dev;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../models/lop.dart';
-import '../screens/hocphi.dart'; // For LopHocPhiViewModel
+import '../models/report_models.dart';
 import '../services/lop_service.dart';
 import '../services/pdf_export_service.dart';
 import '../services/report_service.dart';
-import '../models/hoc_phi_tong_hop.dart'; // THÊM IMPORT NÀY
-
-// --- Hằng số màu sắc ---
-// const Color darkBackground = Color(0xFF1A1A2E);
-// const Color cardColor = Color(0xFF16213E);
-// const Color lightText = Colors.white;
-// const Color secondaryText = Colors.white70;
-// const Color accentColor = Color(0xFF00BFA5);
 
 class XuatBaoCaoPdfDialog extends StatefulWidget {
-  const XuatBaoCaoPdfDialog({super.key});
+  final Lop? initialLop;
+  final Set<ReportSection>? initialSections;
+
+  const XuatBaoCaoPdfDialog({super.key, this.initialLop, this.initialSections});
 
   @override
   State<XuatBaoCaoPdfDialog> createState() => _XuatBaoCaoPdfDialogState();
 }
 
 class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
-  Color get darkBackground => Theme.of(context).scaffoldBackgroundColor;
   Color get cardColor => Theme.of(context).cardColor;
   Color get lightText =>
-      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.white;
+      Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
   Color get secondaryText =>
-      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white70;
+      Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey;
   Color get accentColor => Theme.of(context).primaryColor;
-  Color get deleteColor => Theme.of(context).colorScheme.error;
 
   final LopService _lopService = LopService();
   final ReportService _reportService = ReportService();
   final PdfExportService _pdfService = PdfExportService();
 
   late Future<List<Lop>> _lopListFuture;
-  Lop? _selectedLop;
+
+  // Options
+  ReportPeriodType _periodType = ReportPeriodType.month;
   late int _selectedYear;
   late int _selectedMonth;
-  final Lop _lopTatCa = Lop(
-    id: -1,
-    ten: 'Tất cả các lớp',
-    khoi: 0,
-  ); // THÊM BIẾN NÀY
+  late DateTime _startDate;
+  late DateTime _endDate;
+
+  ReportScope _scope = ReportScope.allClasses;
+  Lop? _selectedLop;
+
+  late Set<ReportSection> _selectedSections;
 
   bool _isExporting = false;
 
@@ -55,35 +54,102 @@ class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
     final now = DateTime.now();
     _selectedYear = now.year;
     _selectedMonth = now.month;
+    _startDate = DateTime(now.year, now.month, 1);
+    _endDate = now;
+
+    if (widget.initialLop != null) {
+      _scope = ReportScope.singleClass;
+      _selectedLop = widget.initialLop;
+    }
+
+    _selectedSections =
+        widget.initialSections ??
+        {
+          ReportSection.classSummary,
+          ReportSection.attendance,
+          ReportSection.tuition,
+          ReportSection.evaluation,
+        };
   }
 
-  Future<void> _handleExport() async {
-    final isVi = Localizations.localeOf(context).languageCode == 'vi';
-    if (_selectedLop == null) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: cardColor,
-          title: Text(
-            isVi ? 'Thông báo' : 'Notification',
-            style: TextStyle(color: accentColor, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            isVi
-                ? 'Vui lòng chọn một lớp để xuất báo cáo.'
-                : 'Please select a class to export the report.',
-            style: TextStyle(color: lightText),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text(
-                isVi ? 'Đóng' : 'Close',
-                style: TextStyle(color: secondaryText),
-              ),
-            ),
-          ],
-        ),
+  void _applyPresetThisMonth() {
+    final now = DateTime.now();
+    setState(() {
+      _periodType = ReportPeriodType.month;
+      _selectedYear = now.year;
+      _selectedMonth = now.month;
+      _startDate = DateTime(now.year, now.month, 1);
+      _endDate = now;
+    });
+  }
+
+  void _applyPresetLastMonth() {
+    final now = DateTime.now();
+    final lastMonth = DateTime(now.year, now.month - 1, 1);
+    final lastMonthEnd = DateTime(now.year, now.month, 0);
+    setState(() {
+      _periodType = ReportPeriodType.month;
+      _selectedYear = lastMonth.year;
+      _selectedMonth = lastMonth.month;
+      _startDate = lastMonth;
+      _endDate = lastMonthEnd;
+    });
+  }
+
+  void _applyPreset7Days() {
+    final now = DateTime.now();
+    setState(() {
+      _periodType = ReportPeriodType.customRange;
+      _endDate = now;
+      _startDate = now.subtract(const Duration(days: 6));
+    });
+  }
+
+  void _applyPreset30Days() {
+    final now = DateTime.now();
+    setState(() {
+      _periodType = ReportPeriodType.customRange;
+      _endDate = now;
+      _startDate = now.subtract(const Duration(days: 29));
+    });
+  }
+
+  Future<void> _pickDate({required bool isStart}) async {
+    final initialDate = isStart ? _startDate : _endDate;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          _startDate = picked;
+          if (_startDate.isAfter(_endDate)) {
+            _endDate = _startDate;
+          }
+        } else {
+          _endDate = picked;
+          if (_endDate.isBefore(_startDate)) {
+            _startDate = _endDate;
+          }
+        }
+      });
+    }
+  }
+
+  Future<void> _handleGenerateReport(PdfAction action) async {
+    if (_selectedSections.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn ít nhất 1 mục báo cáo.')),
+      );
+      return;
+    }
+
+    if (_scope == ReportScope.singleClass && _selectedLop == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn một lớp cụ thể.')),
       );
       return;
     }
@@ -91,95 +157,49 @@ class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
     setState(() => _isExporting = true);
 
     try {
-      // SỬA: Tạo chuỗi tháng từ các dropdown đã chọn
-      final thang =
+      final monthStr =
           '$_selectedYear-${_selectedMonth.toString().padLeft(2, '0')}';
+      final request = ReportRequest(
+        periodType: _periodType,
+        monthStr: monthStr,
+        startDate: _startDate,
+        endDate: _endDate,
+        scope: _scope,
+        classId: _scope == ReportScope.singleClass ? _selectedLop?.id : null,
+        sections: _selectedSections,
+      );
 
-      LopHocPhiViewModel viewModel;
-
-      if (_selectedLop!.id == -1) {
-        // Nếu chọn "Tất cả các lớp", tiến hành gom dữ liệu
-        int tongSoHocSinh = 0;
-        int tongTienCanThu = 0;
-        int tongTienDaThu = 0;
-        int tongTienConNo = 0;
-        List<HocSinhNoHocPhi> dsNoGop = [];
-
-        final allLops = await _lopService.docTatCaLop();
-        for (var lop in allLops) {
-          final report = await _reportService.layBaoCaoHocPhiThang(
-            lop.id!,
-            thang,
-          );
-          tongSoHocSinh += report.tongSoHocSinh;
-          tongTienCanThu += report.tongSoTienCanThu;
-          tongTienDaThu += report.tongSoTienDaThu;
-          tongTienConNo += report.tongSoTienConNo;
-
-          // Thêm tên lớp vào sau tên học sinh để dễ nhận biết trong danh sách nợ
-          for (var hs in report.dsHocSinhConNo) {
-            dsNoGop.add(
-              HocSinhNoHocPhi(
-                idHocSinh: hs.idHocSinh,
-                tenHocSinh: '${hs.tenHocSinh} (${lop.ten})',
-                soTienCanNop: hs.soTienCanNop,
-                soTienDaDong: hs.soTienDaDong,
-                soTienConNo: hs.soTienConNo,
-                mienGiam: hs.mienGiam,
-                soBuoiDu: hs.soBuoiDu,
-                sdt: hs.sdt,
-              ),
-            );
-          }
-        }
-
-        final mergedReport = HocPhiTongHop(
-          tongSoBuoi: 0, // Không áp dụng cho nhiều lớp
-          tongSoHocSinh: tongSoHocSinh,
-          tongSoTienCanThu: tongTienCanThu,
-          tongSoTienDaThu: tongTienDaThu,
-          tongSoTienConNo: tongTienConNo,
-          dsHocSinhConNo: dsNoGop,
-        );
-        viewModel = LopHocPhiViewModel(lop: _lopTatCa, report: mergedReport);
-      } else {
-        // Xuất cho 1 lớp bình thường
-        final report = await _reportService.layBaoCaoHocPhiThang(
-          _selectedLop!.id!,
-          thang,
-        );
-        viewModel = LopHocPhiViewModel(lop: _selectedLop!, report: report);
-      }
-
-      await _pdfService.generateAndOpenHocPhiPdf(viewModel, thang);
+      final reportData = await _reportService.generateFacilityReport(request);
+      await _pdfService.generateAndExportUnifiedPdf(reportData, action: action);
 
       if (mounted) {
-        Navigator.of(context).pop(); // Đóng dialog sau khi xuất thành công
+        Navigator.of(context).pop();
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      dev.log(
+        'Lỗi khi tạo/xuất báo cáo PDF: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: cardColor,
-            title: Text(
-              isVi ? 'Lỗi' : 'Error',
-              style: const TextStyle(
+            title: const Text(
+              'Lỗi',
+              style: TextStyle(
                 color: Colors.redAccent,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            content: Text(
-              isVi ? 'Lỗi khi xuất PDF: $e' : 'Error exporting PDF: $e',
-              style: TextStyle(color: lightText),
+            content: const Text(
+              'Không thể tạo báo cáo PDF. Vui lòng thử lại hoặc kiểm tra dữ liệu.',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
-                child: Text(
-                  isVi ? 'Đóng' : 'Close',
-                  style: TextStyle(color: secondaryText),
-                ),
+                child: const Text('Đóng'),
               ),
             ],
           ),
@@ -194,112 +214,133 @@ class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final isVi = Localizations.localeOf(context).languageCode == 'vi';
+    final dateFormat = DateFormat('dd/MM/yyyy');
+
     return AlertDialog(
       backgroundColor: cardColor,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Center(
-        child: Text(
-          isVi ? 'XUẤT BÁO CÁO HỌC PHÍ' : 'EXPORT TUITION REPORT',
-          style: TextStyle(color: lightText, fontWeight: FontWeight.bold),
-        ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Row(
+        children: [
+          Icon(Icons.picture_as_pdf, color: accentColor),
+          const SizedBox(width: 8),
+          const Text(
+            'XUẤT BÁO CÁO PDF',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+        ],
       ),
-      content: FutureBuilder<List<Lop>>(
-        future: _lopListFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const SizedBox(
-              height: 100,
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-          if (snapshot.hasError ||
-              !snapshot.hasData ||
-              snapshot.data!.isEmpty) {
-            return Text(
-              isVi
-                  ? 'Không có lớp nào để chọn.'
-                  : 'No classes available to select.',
-              style: TextStyle(color: secondaryText),
-            );
-          }
-
-          // SỬA: Chèn tùy chọn "Tất cả các lớp" vào đầu danh sách
-          final lopList = [_lopTatCa, ...snapshot.data!];
-          if (_selectedLop == null && lopList.isNotEmpty) {
-            _selectedLop = lopList.first;
-          }
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Dropdown Chọn Lớp
-              DropdownButtonFormField<Lop>(
-                initialValue: _selectedLop,
-                items: lopList.map((lop) {
-                  return DropdownMenuItem<Lop>(
-                    value: lop,
-                    child: Text(
-                      lop.id == -1
-                          ? (isVi ? 'Tất cả các lớp' : 'All classes')
-                          : (isVi
-                                ? 'Lớp ${lop.ten} (Khối ${lop.khoi})'
-                                : 'Class ${lop.ten} (Grade ${lop.khoi})'),
-                    ),
-                  );
-                }).toList(),
-                onChanged: (Lop? newValue) {
-                  setState(() {
-                    _selectedLop = newValue;
-                  });
-                },
-                decoration: InputDecoration(
-                  labelText: isVi ? 'Chọn Lớp' : 'Select Class',
-                  labelStyle: TextStyle(color: secondaryText),
-                  prefixIcon: Icon(Icons.class_, color: secondaryText),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Presets
+            const Text(
+              'Chọn nhanh khoảng thời gian:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                ChoiceChip(
+                  label: const Text(
+                    'Tháng này',
+                    style: TextStyle(fontSize: 11),
                   ),
-                  filled: true,
-                  fillColor: darkBackground,
+                  selected:
+                      _periodType == ReportPeriodType.month &&
+                      _selectedMonth == DateTime.now().month &&
+                      _selectedYear == DateTime.now().year,
+                  onSelected: (_) => _applyPresetThisMonth(),
                 ),
-                dropdownColor: cardColor,
-                style: TextStyle(color: lightText),
-              ),
-              const SizedBox(height: 20),
-              // SỬA: Dùng 2 Dropdown cho Tháng và Năm
+                ChoiceChip(
+                  label: const Text(
+                    'Tháng trước',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  selected: false,
+                  onSelected: (_) => _applyPresetLastMonth(),
+                ),
+                ChoiceChip(
+                  label: const Text(
+                    '7 ngày vừa qua',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  selected: false,
+                  onSelected: (_) => _applyPreset7Days(),
+                ),
+                ChoiceChip(
+                  label: const Text(
+                    '30 ngày vừa qua',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  selected: false,
+                  onSelected: (_) => _applyPreset30Days(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Period Selection Type
+            Row(
+              children: [
+                Expanded(
+                  child: RadioListTile<ReportPeriodType>(
+                    title: const Text(
+                      'Theo tháng',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    value: ReportPeriodType.month,
+                    groupValue: _periodType,
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (val) {
+                      if (val != null) setState(() => _periodType = val);
+                    },
+                  ),
+                ),
+                Expanded(
+                  child: RadioListTile<ReportPeriodType>(
+                    title: const Text(
+                      'Từ ngày -> đến ngày',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    value: ReportPeriodType.customRange,
+                    groupValue: _periodType,
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (val) {
+                      if (val != null) setState(() => _periodType = val);
+                    },
+                  ),
+                ),
+              ],
+            ),
+
+            if (_periodType == ReportPeriodType.month) ...[
               Row(
                 children: [
-                  // Dropdown Chọn Tháng
                   Expanded(
                     child: DropdownButtonFormField<int>(
                       initialValue: _selectedMonth,
                       items: List.generate(12, (index) => index + 1).map((m) {
                         return DropdownMenuItem<int>(
                           value: m,
-                          child: Text(isVi ? 'Tháng $m' : 'Month $m'),
+                          child: Text('Tháng $m'),
                         );
                       }).toList(),
-                      onChanged: (int? newValue) {
-                        if (newValue != null) {
-                          setState(() => _selectedMonth = newValue);
-                        }
+                      onChanged: (val) {
+                        if (val != null) setState(() => _selectedMonth = val);
                       },
-                      decoration: InputDecoration(
-                        labelText: isVi ? 'Tháng' : 'Month',
-                        labelStyle: TextStyle(color: secondaryText),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        filled: true,
-                        fillColor: darkBackground,
+                      decoration: const InputDecoration(
+                        labelText: 'Tháng',
+                        isDense: true,
                       ),
-                      dropdownColor: cardColor,
-                      style: TextStyle(color: lightText),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  // Dropdown Chọn Năm
+                  const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<int>(
                       initialValue: _selectedYear,
@@ -313,57 +354,228 @@ class _XuatBaoCaoPdfDialogState extends State<XuatBaoCaoPdfDialog> {
                               child: Text('$y'),
                             );
                           }).toList(),
-                      onChanged: (int? newValue) {
-                        if (newValue != null) {
-                          setState(() => _selectedYear = newValue);
-                        }
+                      onChanged: (val) {
+                        if (val != null) setState(() => _selectedYear = val);
                       },
-                      decoration: InputDecoration(
-                        labelText: isVi ? 'Năm' : 'Year',
-                        labelStyle: TextStyle(color: secondaryText),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        filled: true,
-                        fillColor: darkBackground,
+                      decoration: const InputDecoration(
+                        labelText: 'Năm',
+                        isDense: true,
                       ),
-                      dropdownColor: cardColor,
-                      style: TextStyle(color: lightText),
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => _pickDate(isStart: true),
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Từ ngày',
+                          isDense: true,
+                        ),
+                        child: Text(dateFormat.format(_startDate)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => _pickDate(isStart: false),
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Đến ngày',
+                          isDense: true,
+                        ),
+                        child: Text(dateFormat.format(_endDate)),
+                      ),
                     ),
                   ),
                 ],
               ),
             ],
-          );
-        },
-      ),
-      actionsAlignment: MainAxisAlignment.center,
-      actions: [
-        TextButton(
-          onPressed: _isExporting ? null : () => Navigator.of(context).pop(),
-          child: Text(
-            isVi ? 'HỦY' : 'CANCEL',
-            style: TextStyle(color: secondaryText),
-          ),
-        ),
-        ElevatedButton.icon(
-          onPressed: _isExporting ? null : _handleExport,
-          icon: _isExporting
-              ? SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: darkBackground,
+            const SizedBox(height: 16),
+            const Divider(),
+
+            // Scope selection
+            const Text(
+              'Phạm vi báo cáo:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: RadioListTile<ReportScope>(
+                    title: const Text(
+                      'Tất cả các lớp',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    value: ReportScope.allClasses,
+                    groupValue: _scope,
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (val) {
+                      if (val != null) setState(() => _scope = val);
+                    },
                   ),
-                )
-              : const Icon(Icons.picture_as_pdf),
-          label: Text(isVi ? 'XUẤT PDF' : 'EXPORT PDF'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: accentColor,
-            foregroundColor: darkBackground,
-          ),
+                ),
+                Expanded(
+                  child: RadioListTile<ReportScope>(
+                    title: const Text(
+                      'Một lớp cụ thể',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    value: ReportScope.singleClass,
+                    groupValue: _scope,
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (val) {
+                      if (val != null) setState(() => _scope = val);
+                    },
+                  ),
+                ),
+              ],
+            ),
+
+            if (_scope == ReportScope.singleClass) ...[
+              FutureBuilder<List<Lop>>(
+                future: _lopListFuture,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const SizedBox(
+                      height: 40,
+                      child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    );
+                  }
+                  final lops = snapshot.data!;
+                  if (_selectedLop == null && lops.isNotEmpty) {
+                    _selectedLop = lops.first;
+                  }
+                  return DropdownButtonFormField<Lop>(
+                    initialValue: _selectedLop,
+                    items: lops.map((l) {
+                      return DropdownMenuItem<Lop>(
+                        value: l,
+                        child: Text('Lớp ${l.ten} (Khối ${l.khoi})'),
+                      );
+                    }).toList(),
+                    onChanged: (val) => setState(() => _selectedLop = val),
+                    decoration: const InputDecoration(
+                      labelText: 'Chọn lớp',
+                      isDense: true,
+                    ),
+                  );
+                },
+              ),
+            ],
+            const SizedBox(height: 16),
+            const Divider(),
+
+            // Sections Selection
+            const Text(
+              'Nội dung báo cáo:',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            CheckboxListTile(
+              title: const Text(
+                'Tổng quan trung tâm / lớp',
+                style: TextStyle(fontSize: 12),
+              ),
+              value: _selectedSections.contains(ReportSection.classSummary),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (val) {
+                setState(() {
+                  if (val == true) {
+                    _selectedSections.add(ReportSection.classSummary);
+                  } else {
+                    _selectedSections.remove(ReportSection.classSummary);
+                  }
+                });
+              },
+            ),
+            CheckboxListTile(
+              title: const Text(
+                'Báo cáo điểm danh',
+                style: TextStyle(fontSize: 12),
+              ),
+              value: _selectedSections.contains(ReportSection.attendance),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (val) {
+                setState(() {
+                  if (val == true) {
+                    _selectedSections.add(ReportSection.attendance);
+                  } else {
+                    _selectedSections.remove(ReportSection.attendance);
+                  }
+                });
+              },
+            ),
+            CheckboxListTile(
+              title: const Text(
+                'Báo cáo học phí',
+                style: TextStyle(fontSize: 12),
+              ),
+              value: _selectedSections.contains(ReportSection.tuition),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (val) {
+                setState(() {
+                  if (val == true) {
+                    _selectedSections.add(ReportSection.tuition);
+                  } else {
+                    _selectedSections.remove(ReportSection.tuition);
+                  }
+                });
+              },
+            ),
+            CheckboxListTile(
+              title: const Text(
+                'Báo cáo đánh giá học tập',
+                style: TextStyle(fontSize: 12),
+              ),
+              value: _selectedSections.contains(ReportSection.evaluation),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (val) {
+                setState(() {
+                  if (val == true) {
+                    _selectedSections.add(ReportSection.evaluation);
+                  } else {
+                    _selectedSections.remove(ReportSection.evaluation);
+                  }
+                });
+              },
+            ),
+          ],
         ),
+      ),
+      actionsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      actions: [
+        if (_isExporting)
+          const Center(child: CircularProgressIndicator())
+        else ...[
+          OutlinedButton.icon(
+            onPressed: () => _handleGenerateReport(PdfAction.preview),
+            icon: const Icon(Icons.visibility, size: 16),
+            label: const Text('XEM TRƯỚC', style: TextStyle(fontSize: 11)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => _handleGenerateReport(PdfAction.print),
+            icon: const Icon(Icons.picture_as_pdf, size: 16),
+            label: const Text('XUẤT PDF', style: TextStyle(fontSize: 11)),
+          ),
+          IconButton(
+            tooltip: 'Chia sẻ',
+            icon: Icon(Icons.share, color: accentColor),
+            onPressed: () => _handleGenerateReport(PdfAction.share),
+          ),
+        ],
       ],
     );
   }

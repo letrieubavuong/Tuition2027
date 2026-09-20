@@ -1,4 +1,5 @@
 import 'package:sqflite/sqflite.dart';
+import 'dart:developer' as developer;
 import '../models/khoan_thu.dart';
 import '../utils/db.dart';
 import 'firebase_sync_service.dart';
@@ -18,7 +19,9 @@ class KhoanThuService {
     final parts = thang.split('-');
     final start = '$thang-01';
     final endDate = DateTime(int.parse(parts[0]), int.parse(parts[1]) + 1, 0);
-    final end = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+    final end =
+        '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
+    final createdAt = DateTime.now().toIso8601String();
     final id = await db.transaction((txn) async {
       final idInsert = await txn.insert(DBHelper.tenBangKhoanThu, {
         'id_lop': idLop,
@@ -27,7 +30,7 @@ class KhoanThuService {
         'so_tien': soTien,
         'han_thu': hanThu,
         'ghi_chu': ghiChu,
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at': createdAt,
       });
       final students = await txn.query(
         DBHelper.tenBangLopHS,
@@ -53,15 +56,16 @@ class KhoanThuService {
     if (id > 0) {
       FirebaseSyncService.instance
           .pushRecordToCloud(DBHelper.tenBangKhoanThu, id.toString(), {
-        'id': id,
-        'id_lop': idLop,
-        'thang': thang,
-        'ten_khoan_thu': ten,
-        'so_tien': soTien,
-        'han_thu': hanThu,
-        'ghi_chu': ghiChu,
-        'created_at': DateTime.now().toIso8601String(),
-      }).catchError((e) => null);
+            'id': id,
+            'id_lop': idLop,
+            'thang': thang,
+            'ten_khoan_thu': ten,
+            'so_tien': soTien,
+            'han_thu': hanThu,
+            'ghi_chu': ghiChu,
+            'created_at': createdAt,
+          })
+          .catchError((e) => null);
     }
     return id;
   }
@@ -74,42 +78,75 @@ class KhoanThuService {
       whereArgs: [idLop, thang],
       orderBy: 'created_at DESC',
     );
-    final result = <KhoanThu>[];
-    for (final charge in charges) {
-      final students = await db.rawQuery('''
-        SELECT KTHS.*, HS.ten, HS.sdt
-        FROM ${DBHelper.tenBangKhoanThuHocSinh} KTHS
-        JOIN ${DBHelper.tenBangHS} HS ON HS.id = KTHS.id_hoc_sinh
-        WHERE KTHS.id_khoan_thu = ?
-        ORDER BY HS.ten
-      ''', [charge['id']]);
-      result.add(KhoanThu(
-        id: charge['id'] as int,
+    if (charges.isEmpty) return [];
+
+    final chargeIds = charges.map((c) => c['id'] as int).toList();
+    final placeholders = List.filled(chargeIds.length, '?').join(',');
+
+    final allStudentsRows = await db.rawQuery('''
+      SELECT KTHS.*, HS.ten, HS.sdt
+      FROM ${DBHelper.tenBangKhoanThuHocSinh} KTHS
+      JOIN ${DBHelper.tenBangHS} HS ON HS.id = KTHS.id_hoc_sinh
+      WHERE KTHS.id_khoan_thu IN ($placeholders)
+      ORDER BY HS.ten
+    ''', chargeIds);
+
+    final Map<int, List<KhoanThuHocSinh>> studentsMap = {};
+    for (final row in allStudentsRows) {
+      final ktId = row['id_khoan_thu'] as int;
+      studentsMap
+          .putIfAbsent(ktId, () => [])
+          .add(
+            KhoanThuHocSinh(
+              idHocSinh: row['id_hoc_sinh'] as int,
+              tenHocSinh: row['ten'] as String,
+              sdt: row['sdt'] as String?,
+              daDong: row['so_tien_da_dong'] as int? ?? 0,
+              ngayThanhToan: row['ngay_thanh_toan'] as String?,
+            ),
+          );
+    }
+
+    return charges.map((charge) {
+      final ktId = charge['id'] as int;
+      return KhoanThu(
+        id: ktId,
         idLop: charge['id_lop'] as int,
         thang: charge['thang'] as String,
         ten: charge['ten_khoan_thu'] as String,
         soTien: charge['so_tien'] as int,
         hanThu: charge['han_thu'] as String?,
         ghiChu: charge['ghi_chu'] as String?,
-        hocSinhs: students.map((row) => KhoanThuHocSinh(
-          idHocSinh: row['id_hoc_sinh'] as int,
-          tenHocSinh: row['ten'] as String,
-          sdt: row['sdt'] as String?,
-          daDong: row['so_tien_da_dong'] as int? ?? 0,
-          ngayThanhToan: row['ngay_thanh_toan'] as String?,
-        )).toList(),
-      ));
-    }
-    return result;
+        hocSinhs: studentsMap[ktId] ?? [],
+      );
+    }).toList();
   }
 
+  /// Tính tổng hợp khoản thu trực tiếp bằng 1 SQL Aggregate Query (không khởi tạo đối tượng thừa)
   Future<Map<String, int>> layTongHop(int idLop, String thang) async {
-    final charges = await layKhoanThu(idLop, thang);
-    return {
-      'phaiThu': charges.fold(0, (sum, item) => sum + item.tongPhaiThu),
-      'daThu': charges.fold(0, (sum, item) => sum + item.tongDaThu),
-      'conNo': charges.fold(0, (sum, item) => sum + item.tongConNo),
-    };
+    final db = await _db;
+    final rows = await db.rawQuery(
+      '''
+      SELECT 
+        SUM(KT.so_tien) as phai_thu,
+        SUM(KTHS.so_tien_da_dong) as da_thu
+      FROM ${DBHelper.tenBangKhoanThu} KT
+      JOIN ${DBHelper.tenBangKhoanThuHocSinh} KTHS ON KT.id = KTHS.id_khoan_thu
+      WHERE KT.id_lop = ? AND KT.thang = ?
+    ''',
+      [idLop, thang],
+    );
+
+    if (rows.isEmpty) {
+      return {'phaiThu': 0, 'daThu': 0, 'conNo': 0};
+    }
+
+    final phaiThu = (rows.first['phai_thu'] as num?)?.toInt() ?? 0;
+    final daThu = (rows.first['da_thu'] as num?)?.toInt() ?? 0;
+    int conNo = phaiThu - daThu;
+    if (conNo < 0) conNo = 0;
+
+    return {'phaiThu': phaiThu, 'daThu': daThu, 'conNo': conNo};
   }
 
   Future<void> capNhatThanhToan({
@@ -119,40 +156,69 @@ class KhoanThuService {
     String? ghiChu,
   }) async {
     final db = await _db;
-    final now = DateTime.now().toIso8601String();
-    await db.update(
+    final String? ngayThanhToan = soTienDaDong > 0
+        ? DateTime.now().toIso8601String()
+        : null;
+    final affected = await db.update(
       DBHelper.tenBangKhoanThuHocSinh,
       {
         'so_tien_da_dong': soTienDaDong,
-        'ngay_thanh_toan': now,
+        'ngay_thanh_toan': ngayThanhToan,
         'ghi_chu': ghiChu,
       },
       where: 'id_khoan_thu = ? AND id_hoc_sinh = ?',
       whereArgs: [idKhoanThu, idHocSinh],
     );
-    FirebaseSyncService.instance.pushRecordToCloud(
-      DBHelper.tenBangKhoanThuHocSinh,
-      '${idKhoanThu}_$idHocSinh',
-      {
-        'id_khoan_thu': idKhoanThu,
-        'id_hoc_sinh': idHocSinh,
-        'so_tien_da_dong': soTienDaDong,
-        'ngay_thanh_toan': now,
-        'ghi_chu': ghiChu,
-      },
-    ).catchError((e) => null);
+
+    if (affected == 0) {
+      developer.log(
+        '⚠️ capNhatThanhToan: Không tìm thấy bản ghi phù hợp (idKhoanThu: $idKhoanThu, idHocSinh: $idHocSinh)',
+        name: 'KhoanThuService',
+      );
+      return;
+    }
+
+    FirebaseSyncService.instance
+        .pushRecordToCloud(
+          DBHelper.tenBangKhoanThuHocSinh,
+          '${idKhoanThu}_$idHocSinh',
+          {
+            'id_khoan_thu': idKhoanThu,
+            'id_hoc_sinh': idHocSinh,
+            'so_tien_da_dong': soTienDaDong,
+            'ngay_thanh_toan': ngayThanhToan,
+            'ghi_chu': ghiChu,
+          },
+        )
+        .catchError((e) => null);
   }
 
   Future<int> xoaKhoanThu(int idKhoanThu) async {
     final db = await _db;
-    final result = await db.delete(
-      DBHelper.tenBangKhoanThu,
-      where: 'id = ?',
-      whereArgs: [idKhoanThu],
-    );
+    int result = 0;
+
+    await db.transaction((txn) async {
+      // 1. Cascade cleanup bản ghi con trong khoan_thu_hoc_sinh (ngăn chặn orphan records)
+      await txn.delete(
+        DBHelper.tenBangKhoanThuHocSinh,
+        where: 'id_khoan_thu = ?',
+        whereArgs: [idKhoanThu],
+      );
+
+      // 2. Xóa bản ghi cha trong khoan_thu
+      result = await txn.delete(
+        DBHelper.tenBangKhoanThu,
+        where: 'id = ?',
+        whereArgs: [idKhoanThu],
+      );
+    });
+
     if (result > 0) {
       FirebaseSyncService.instance
-          .deleteRecordFromCloud(DBHelper.tenBangKhoanThu, idKhoanThu.toString())
+          .deleteRecordFromCloud(
+            DBHelper.tenBangKhoanThu,
+            idKhoanThu.toString(),
+          )
           .catchError((e) => null);
     }
     return result;

@@ -15,6 +15,8 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage>
   final NhanXetService _nhanXetService = NhanXetService();
   late TabController _gradeTabController;
   final List<int> _grades = [6, 7, 8, 9, 10, 11, 12];
+  final Map<String, Future<List<Map<String, dynamic>>>> _leaderboardFutures =
+      {};
 
   // Months list for dropdown (current month and previous 2 months)
   late List<String> _months;
@@ -39,6 +41,14 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage>
       return DateFormat('yyyy-MM').format(date);
     });
     _selectedMonth = _months.first;
+  }
+
+  Future<List<Map<String, dynamic>>> _getLeaderboardFuture(int grade) {
+    final key = '${grade}_$_selectedMonth';
+    return _leaderboardFutures.putIfAbsent(
+      key,
+      () => _nhanXetService.layBangXepHangTheoKhoi(grade, _selectedMonth),
+    );
   }
 
   @override
@@ -127,9 +137,10 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage>
                 dropdownColor: cardColor,
                 icon: const Icon(Icons.arrow_drop_down, color: accentColor),
                 onChanged: (String? newValue) {
-                  if (newValue != null) {
+                  if (newValue != null && newValue != _selectedMonth) {
                     setState(() {
                       _selectedMonth = newValue;
+                      _leaderboardFutures.clear();
                     });
                   }
                 },
@@ -178,7 +189,7 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage>
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
 
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _nhanXetService.layBangXepHangTheoKhoi(grade, _selectedMonth),
+      future: _getLeaderboardFuture(grade),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -187,9 +198,15 @@ class _BangXepHangKhoiPageState extends State<BangXepHangKhoiPage>
         }
         if (snapshot.hasError) {
           return Center(
-            child: Text(
-              isVi ? 'Lỗi: ${snapshot.error}' : 'Error: ${snapshot.error}',
-              style: const TextStyle(color: Colors.redAccent),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                isVi
+                    ? 'Không thể tải bảng xếp hạng. Vui lòng thử lại sau.'
+                    : 'Failed to load leaderboard. Please try again later.',
+                style: const TextStyle(color: Colors.redAccent),
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }

@@ -41,7 +41,7 @@
         android:id="@+id/widget_qr_info"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Chưa cấu hình tài khoản"
+        android:text="SACOMBANK - 0123456789"
         android:textColor="#00B0FF"
         android:textSize="11sp"
         android:textStyle="bold"

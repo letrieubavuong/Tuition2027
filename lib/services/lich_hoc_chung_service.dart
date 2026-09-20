@@ -12,6 +12,16 @@ class LichHocChungService {
   final String tenBangLHC = DBHelper.tenBangLichHocChung;
   final String tenBangLHCN = DBHelper.tenBangLichHocCaNhan;
 
+  static const Map<String, int> _weekdayMap = {
+    'Thứ Hai': 1,
+    'Thứ Ba': 2,
+    'Thứ Tư': 3,
+    'Thứ Năm': 4,
+    'Thứ Sáu': 5,
+    'Thứ Bảy': 6,
+    'Chủ Nhật': 7,
+  };
+
   Future<Database> get _database async {
     return await DBHelper.instance.database;
   }
@@ -192,22 +202,6 @@ class LichHocChungService {
 
       final db = await _database;
 
-      // Kiểm tra tồn tại
-      final existing = await db.query(
-        tenBangLHC,
-        where: 'id = ?',
-        whereArgs: [lichHoc.id],
-      );
-
-      if (existing.isEmpty) {
-        developer.log(
-          '⚠️ Cảnh báo: Lịch học chung ID ${lichHoc.id} không tồn tại',
-          name: 'LichHocChungService.capNhatLichHocChung',
-          error: {'id': lichHoc.id},
-        );
-        return false;
-      }
-
       // Kiểm tra chồng lấn
       final overlapping = await kiemTraChongLanLichHoc(
         db: db,
@@ -242,7 +236,11 @@ class LichHocChungService {
           name: 'LichHocChungService.capNhatLichHocChung',
         );
         FirebaseSyncService.instance
-            .pushRecordToCloud(tenBangLHC, lichHoc.id.toString(), lichHoc.toMap())
+            .pushRecordToCloud(
+              tenBangLHC,
+              lichHoc.id.toString(),
+              lichHoc.toMap(),
+            )
             .catchError((e) => null);
       }
 
@@ -267,7 +265,7 @@ class LichHocChungService {
   }
 
   // ===================================================
-  // 4. XÓA LỊCH HỌC CHUNG (DELETE)
+  // 4. XÓA LỊCH HỌC CHUNG (DELETE IN TRANSACTION)
   // ===================================================
   Future<bool> xoaLichHocChung(int lichHocId) async {
     try {
@@ -287,47 +285,49 @@ class LichHocChungService {
 
       final db = await _database;
 
-      // Kiểm tra tồn tại
-      final existing = await db.query(
-        tenBangLHC,
-        where: 'id = ?',
-        whereArgs: [lichHocId],
-      );
-
-      if (existing.isEmpty) {
-        developer.log(
-          '⚠️ Cảnh báo: Lịch học chung ID $lichHocId không tồn tại',
-          name: 'LichHocChungService.xoaLichHocChung',
-          error: {'lichHocId': lichHocId},
-        );
-        return false;
-      }
-
-      // Xóa tất cả lịch học cá nhân liên quan
-      await db.delete(
+      final List<Map<String, dynamic>> lhcnRows = await db.query(
         tenBangLHCN,
+        columns: ['id_hoc_sinh'],
         where: 'id_lich_hoc_chung = ?',
         whereArgs: [lichHocId],
       );
 
-      // Xóa lịch học chung
-      final result = await db.delete(
-        tenBangLHC,
-        where: 'id = ?',
-        whereArgs: [lichHocId],
-      );
+      int result = 0;
+
+      // Thực hiện chuỗi xóa trong 1 db.transaction duy nhất để đảm bảo tính toàn vẹn
+      await db.transaction((txn) async {
+        await txn.delete(
+          tenBangLHCN,
+          where: 'id_lich_hoc_chung = ?',
+          whereArgs: [lichHocId],
+        );
+
+        result = await txn.delete(
+          tenBangLHC,
+          where: 'id = ?',
+          whereArgs: [lichHocId],
+        );
+      });
 
       if (result > 0) {
         developer.log(
           '✅ Xóa lịch học chung thành công! ID: $lichHocId',
           name: 'LichHocChungService.xoaLichHocChung',
         );
+        // Đồng bộ xóa Firebase SAU KHI transaction thành công
+        for (var row in lhcnRows) {
+          final hsId = row['id_hoc_sinh'];
+          FirebaseSyncService.instance
+              .deleteRecordFromCloud(tenBangLHCN, '${hsId}_$lichHocId')
+              .catchError((e) => null);
+        }
         FirebaseSyncService.instance
             .deleteRecordFromCloud(tenBangLHC, lichHocId.toString())
             .catchError((e) => null);
+        return true;
       }
 
-      return result > 0;
+      return false;
     } on DatabaseException catch (e, st) {
       developer.log(
         '❌ Lỗi Database khi xóa lịch học chung',
@@ -368,14 +368,19 @@ class LichHocChungService {
 
       final db = await _database;
 
-      // Kiểm tra đã gán chưa
-      final existing = await db.query(
-        tenBangLHCN,
-        where: 'id_hoc_sinh = ? AND id_lich_hoc_chung = ?',
-        whereArgs: [idHocSinh, idLichHocChung],
+      final lichHocCaNhan = LichHocCaNhan(
+        idHocSinh: idHocSinh,
+        idLichHocChung: idLichHocChung,
       );
 
-      if (existing.isNotEmpty) {
+      // Nhờ PRIMARY KEY(id_hoc_sinh, id_lich_hoc_chung), dùng ignore không cần SELECT trước
+      final insertedId = await db.insert(
+        tenBangLHCN,
+        lichHocCaNhan.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+
+      if (insertedId <= 0) {
         developer.log(
           '⚠️ Cảnh báo: Học sinh đã được gán lịch học này rồi',
           name: 'LichHocChungService.ganLichHocChoHocSinh',
@@ -383,24 +388,16 @@ class LichHocChungService {
         return false;
       }
 
-      final lichHocCaNhan = LichHocCaNhan(
-        idHocSinh: idHocSinh,
-        idLichHocChung: idLichHocChung,
-      );
-
-      await db.insert(
-        tenBangLHCN,
-        lichHocCaNhan.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.abort,
-      );
-
       developer.log(
         '✅ Gán lịch học cho học sinh thành công!',
         name: 'LichHocChungService.ganLichHocChoHocSinh',
       );
       FirebaseSyncService.instance
           .pushRecordToCloud(
-              tenBangLHCN, '${idHocSinh}_$idLichHocChung', lichHocCaNhan.toMap())
+            tenBangLHCN,
+            '${idHocSinh}_$idLichHocChung',
+            lichHocCaNhan.toMap(),
+          )
           .catchError((e) => null);
       return true;
     } on DatabaseException catch (e, st) {
@@ -550,8 +547,10 @@ class LichHocChungService {
 
       final result = await db.query(
         tenBangLHCN,
+        columns: ['id_hoc_sinh'],
         where: 'id_hoc_sinh = ? AND id_lich_hoc_chung = ?',
         whereArgs: [idHocSinh, idLichHocChung],
+        limit: 1,
       );
 
       return result.isNotEmpty;
@@ -567,42 +566,167 @@ class LichHocChungService {
   }
 
   // ===================================================
+  // 8.1 LẤY DANH SÁCH ID HỌC SINH ĐÃ ĐƯỢC GÁN LỊCH (1 QUERY)
+  // ===================================================
+  Future<Set<int>> layDanhSachHocSinhDaGan(int idLichHocChung) async {
+    try {
+      if (idLichHocChung <= 0) return {};
+      final db = await _database;
+      final List<Map<String, dynamic>> maps = await db.query(
+        tenBangLHCN,
+        columns: ['id_hoc_sinh'],
+        where: 'id_lich_hoc_chung = ?',
+        whereArgs: [idLichHocChung],
+      );
+      return maps.map((r) => r['id_hoc_sinh'] as int).toSet();
+    } catch (e, st) {
+      developer.log(
+        '❌ Lỗi khi lấy danh sách học sinh đã gán lịch',
+        name: 'LichHocChungService.layDanhSachHocSinhDaGan',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
+  }
+
+  // ===================================================
+  // 8.2 LƯU PHÂN CÔNG LỊCH HỌC HÀNG LOẠT (1 TRANSACTION ATOMIC)
+  // ===================================================
+  Future<bool> luuPhanCongLichHocHangLoat({
+    required int idLichHocChung,
+    required Set<int> desiredHocSinhIds,
+  }) async {
+    try {
+      if (idLichHocChung <= 0) return false;
+      final db = await _database;
+      final Set<int> addedHsIds = {};
+      final Set<int> removedHsIds = {};
+
+      await db.transaction((txn) async {
+        final List<Map<String, dynamic>> existingRows = await txn.query(
+          tenBangLHCN,
+          columns: ['id_hoc_sinh'],
+          where: 'id_lich_hoc_chung = ?',
+          whereArgs: [idLichHocChung],
+        );
+        final Set<int> currentHsIds = existingRows
+            .map((r) => r['id_hoc_sinh'] as int)
+            .toSet();
+
+        final toAdd = desiredHocSinhIds.difference(currentHsIds);
+        final toRemove = currentHsIds.difference(desiredHocSinhIds);
+
+        if (toAdd.isEmpty && toRemove.isEmpty) {
+          return;
+        }
+
+        final batch = txn.batch();
+
+        for (final hsId in toAdd) {
+          batch.insert(tenBangLHCN, {
+            'id_hoc_sinh': hsId,
+            'id_lich_hoc_chung': idLichHocChung,
+          }, conflictAlgorithm: ConflictAlgorithm.ignore);
+          addedHsIds.add(hsId);
+        }
+
+        for (final hsId in toRemove) {
+          batch.delete(
+            tenBangLHCN,
+            where: 'id_hoc_sinh = ? AND id_lich_hoc_chung = ?',
+            whereArgs: [hsId, idLichHocChung],
+          );
+          removedHsIds.add(hsId);
+        }
+
+        await batch.commit(noResult: true);
+      });
+
+      // Đồng bộ Firebase fire-and-forget SAU KHI Transaction hoàn tất 100% thành công
+      for (final hsId in addedHsIds) {
+        FirebaseSyncService.instance
+            .pushRecordToCloud(tenBangLHCN, '${hsId}_$idLichHocChung', {
+              'id_hoc_sinh': hsId,
+              'id_lich_hoc_chung': idLichHocChung,
+            })
+            .catchError((e) => null);
+      }
+      for (final hsId in removedHsIds) {
+        FirebaseSyncService.instance
+            .deleteRecordFromCloud(tenBangLHCN, '${hsId}_$idLichHocChung')
+            .catchError((e) => null);
+      }
+
+      return true;
+    } catch (e, st) {
+      developer.log(
+        '❌ Lỗi khi lưu phân công lịch học hàng loạt',
+        name: 'LichHocChungService.luuPhanCongLichHocHangLoat',
+        error: e,
+        stackTrace: st,
+      );
+      rethrow;
+    }
+  }
+
+  // ===================================================
   // 9. GÁN LỊCH HỌC CHUNG CHO NHIỀU HỌC SINH (TRANSACTION)
   // ===================================================
   Future<int> ganLichChoNhieuHS(List<int> hsIds, int lichHocChungId) async {
-    if (hsIds.isEmpty || lichHocChungId <= 0) return 0;
+    final validHsIds = hsIds.where((id) => id > 0).toSet().toList();
+    if (validHsIds.isEmpty || lichHocChungId <= 0) return 0;
     final db = await _database;
-    int added = 0;
+    final List<int> newlyAssignedIds = [];
+
     try {
-      await db.transaction((txn) async {
-        for (final hsId in hsIds) {
-          if (hsId <= 0) continue;
-          final exists = await txn.query(
-            tenBangLHCN,
-            where: 'id_hoc_sinh = ? AND id_lich_hoc_chung = ?',
-            whereArgs: [hsId, lichHocChungId],
-          );
-          if (exists.isEmpty) {
-            await txn.insert(tenBangLHCN, {
+      // 1. SELECT 1 lần duy nhất lấy tất cả ID học sinh đã được gán lịch chung này
+      final String placeholders = List.filled(validHsIds.length, '?').join(',');
+      final List<Map<String, dynamic>> existingRows = await db.query(
+        tenBangLHCN,
+        columns: ['id_hoc_sinh'],
+        where: 'id_lich_hoc_chung = ? AND id_hoc_sinh IN ($placeholders)',
+        whereArgs: [lichHocChungId, ...validHsIds],
+      );
+
+      final Set<int> existingHsIds = existingRows
+          .map((r) => r['id_hoc_sinh'] as int)
+          .toSet();
+
+      final missingHsIds = validHsIds
+          .where((id) => !existingHsIds.contains(id))
+          .toList();
+
+      if (missingHsIds.isEmpty) return 0;
+
+      // 2. SQLite Batch insert 1 lần duy nhất
+      final batch = db.batch();
+      for (final hsId in missingHsIds) {
+        batch.insert(tenBangLHCN, {
+          'id_hoc_sinh': hsId,
+          'id_lich_hoc_chung': lichHocChungId,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+        newlyAssignedIds.add(hsId);
+      }
+
+      await batch.commit(noResult: true);
+
+      // 3. Đồng bộ Firebase SAU KHI SQLite transaction hoàn tất thành công (100% ngoài DB transaction)
+      for (final hsId in newlyAssignedIds) {
+        FirebaseSyncService.instance
+            .pushRecordToCloud(tenBangLHCN, '${hsId}_$lichHocChungId', {
               'id_hoc_sinh': hsId,
               'id_lich_hoc_chung': lichHocChungId,
-            });
-            added++;
-            FirebaseSyncService.instance
-                .pushRecordToCloud(tenBangLHCN, '${hsId}_$lichHocChungId', {
-                  'id_hoc_sinh': hsId,
-                  'id_lich_hoc_chung': lichHocChungId,
-                })
-                .catchError((e) => null);
-          }
-        }
-      });
+            })
+            .catchError((e) => null);
+      }
     } on DatabaseException catch (e, st) {
       developer.log('DB error ganLichChoNhieuHS', error: e, stackTrace: st);
     } catch (e, st) {
       developer.log('Error ganLichChoNhieuHS', error: e, stackTrace: st);
     }
-    return added;
+
+    return newlyAssignedIds.length;
   }
 
   // ===================================================
@@ -673,29 +797,28 @@ class LichHocChungService {
           ? DateTime(ngayNghiHoc.year, ngayNghiHoc.month, ngayNghiHoc.day)
           : null;
       final resumeAfterLeaveOnly = ngayHocLaiSauNghi != null
-          ? DateTime(ngayHocLaiSauNghi.year, ngayHocLaiSauNghi.month, ngayHocLaiSauNghi.day)
+          ? DateTime(
+              ngayHocLaiSauNghi.year,
+              ngayHocLaiSauNghi.month,
+              ngayHocLaiSauNghi.day,
+            )
           : null;
 
-      // Map 'Thứ Hai' -> 1, 'Thứ Ba' -> 2, ..., 'Chủ Nhật' -> 7
-      final Map<String, int> weekdayMap = {
-        'Thứ Hai': 1,
-        'Thứ Ba': 2,
-        'Thứ Tư': 3,
-        'Thứ Năm': 4,
-        'Thứ Sáu': 5,
-        'Thứ Bảy': 6,
-        'Chủ Nhật': 7,
-      };
-      final Set<int> lichHocWeekdays = lichCaNhan
-          .map((l) => weekdayMap[l.ngayTrongTuan])
-          .where((d) => d != null)
-          .cast<int>()
-          .toSet();
+      // Đếm số ca học trong mỗi Thứ (hỗ trợ trường hợp có 2 ca trong cùng 1 Thứ)
+      final Map<int, int> caPerWeekdayCount = {};
+      for (var l in lichCaNhan) {
+        final dayNum = _weekdayMap[l.ngayTrongTuan];
+        if (dayNum != null) {
+          caPerWeekdayCount[dayNum] = (caPerWeekdayCount[dayNum] ?? 0) + 1;
+        }
+      }
 
-      // 3. Duyệt qua các ngày trong tháng và đếm
+      // 3. Duyệt qua các ngày trong tháng và đếm tổng số ca học
       int soBuoiHoc = 0;
       for (int day = 1; day <= daysInMonth; day++) {
         final currentDate = DateTime(nam, month, day);
+        final int caCountOnDay = caPerWeekdayCount[currentDate.weekday] ?? 0;
+
         // Chỉ đếm nếu ngày hiện tại lớn hơn hoặc bằng ngày tham gia
         final bool afterJoiningDate =
             joiningDateOnly == null ||
@@ -710,11 +833,11 @@ class LichHocChungService {
             currentDate.isBefore(leaveDateOnly) ||
             (resumeAfterLeaveOnly != null &&
                 !currentDate.isBefore(resumeAfterLeaveOnly));
-        if (lichHocWeekdays.contains(currentDate.weekday) &&
+        if (caCountOnDay > 0 &&
             afterJoiningDate &&
             !inPausedPeriod &&
             outsideLeavePeriod) {
-          soBuoiHoc++;
+          soBuoiHoc += caCountOnDay;
         }
       }
       return soBuoiHoc;

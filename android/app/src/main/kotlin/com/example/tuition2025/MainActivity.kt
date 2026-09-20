@@ -10,6 +10,12 @@ import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
+
 class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "com.example.tuition2025/notification_listener"
     private var methodChannel: MethodChannel? = null
@@ -47,6 +53,23 @@ class MainActivity : FlutterFragmentActivity() {
                     openNotificationListenerSettings()
                     result.success(true)
                 }
+                "rescheduleWidgetWorker" -> {
+                    val interval = (call.argument<Int>("interval") ?: 80).toLong().coerceAtLeast(15L)
+                    try {
+                        val workManager = WorkManager.getInstance(applicationContext)
+                        val periodicWork = PeriodicWorkRequestBuilder<WidgetBackgroundWorker>(
+                            interval, TimeUnit.MINUTES
+                        ).build()
+                        workManager.enqueueUniquePeriodicWork(
+                            "widget_periodic_refresh",
+                            ExistingPeriodicWorkPolicy.REPLACE,
+                            periodicWork
+                        )
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("WORK_ERROR", e.message, null)
+                    }
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -58,6 +81,27 @@ class MainActivity : FlutterFragmentActivity() {
         super.onCreate(savedInstanceState)
         val filter = IntentFilter(NotificationReceiverService.ACTION_BANK_TRANSACTION)
         registerReceiver(transactionReceiver, filter)
+
+        try {
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val storedInterval = prefs.getString("flutter.widget_refresh_interval_minutes", null)
+                ?: prefs.getString("widget_refresh_interval_minutes", "80")
+            val intervalMinutes = storedInterval?.toLongOrNull()?.coerceAtLeast(15L) ?: 80L
+
+            val workManager = WorkManager.getInstance(applicationContext)
+            val periodicWork = PeriodicWorkRequestBuilder<WidgetBackgroundWorker>(
+                intervalMinutes, TimeUnit.MINUTES
+            ).build()
+            workManager.enqueueUniquePeriodicWork(
+                "widget_periodic_refresh",
+                ExistingPeriodicWorkPolicy.KEEP,
+                periodicWork
+            )
+            val immediateWork = OneTimeWorkRequestBuilder<WidgetBackgroundWorker>().build()
+            workManager.enqueue(immediateWork)
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Failed to schedule WorkManager in MainActivity", e)
+        }
     }
 
     override fun onDestroy() {

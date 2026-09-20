@@ -52,15 +52,15 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
   }
 
   void _applyPreset(String reason, int days) {
-    final now = DateTime.now();
+    if (_isSaving) return;
     setState(() {
-      _tuNgay = DateTime(now.year, now.month, now.day);
       _denNgay = _tuNgay.add(Duration(days: days > 0 ? days - 1 : 0));
       _lyDoController.text = reason;
     });
   }
 
   Future<void> _pickDate(bool isTuNgay) async {
+    if (_isSaving) return;
     final initial = isTuNgay ? _tuNgay : _denNgay;
     final picked = await showDatePicker(
       context: context,
@@ -86,36 +86,47 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
   }
 
   Future<void> _handleConfirm() async {
+    if (_isSaving) return;
     if (_selectedHsIds.isEmpty) {
       ToastHelper.showWarning(context, 'Vui lòng chọn ít nhất 1 học sinh!');
       return;
     }
 
     setState(() => _isSaving = true);
-    final tuNgayStr = DateFormat('yyyy-MM-dd').format(_tuNgay);
-    final denNgayStr = DateFormat('yyyy-MM-dd').format(_denNgay);
-    final lyDo = _lyDoController.text.trim().isEmpty
-        ? 'Nghỉ lễ'
-        : _lyDoController.text.trim();
+    try {
+      final tuNgayStr = DateFormat('yyyy-MM-dd').format(_tuNgay);
+      final denNgayStr = DateFormat('yyyy-MM-dd').format(_denNgay);
+      final lyDo = _lyDoController.text.trim().isEmpty
+          ? 'Nghỉ lễ'
+          : _lyDoController.text.trim();
 
-    final count = await _lhsService.dangKyNghiCoPhepHangLoat(
-      idLop: widget.lop.id!,
-      dsHocSinhIds: _selectedHsIds.toList(),
-      tuNgay: tuNgayStr,
-      denNgay: denNgayStr,
-      lyDo: lyDo,
-    );
+      final count = await _lhsService.dangKyNghiCoPhepHangLoat(
+        idLop: widget.lop.id!,
+        dsHocSinhIds: _selectedHsIds.toList(),
+        tuNgay: tuNgayStr,
+        denNgay: denNgayStr,
+        lyDo: lyDo,
+        loaiNghi: 'TOANLOP',
+      );
 
-    if (mounted) {
-      setState(() => _isSaving = false);
-      if (count > 0) {
-        ToastHelper.showSuccess(
-          context,
-          'Đã đăng ký nghỉ phép thành công cho $count học sinh!',
-        );
-        Navigator.pop(context, true);
-      } else {
-        ToastHelper.showError(context, 'Lỗi đăng ký nghỉ phép!');
+      if (mounted) {
+        if (count > 0) {
+          ToastHelper.showSuccess(
+            context,
+            'Đã đăng ký nghỉ phép thành công cho $count học sinh!',
+          );
+          Navigator.pop(context, true);
+        } else {
+          ToastHelper.showError(context, 'Không thể đăng ký nghỉ phép!');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ToastHelper.showError(context, 'Lỗi khi đăng ký nghỉ phép: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
       }
     }
   }
@@ -128,7 +139,9 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
         .toList();
     final allSelected =
         activeStudents.isNotEmpty &&
-        _selectedHsIds.length == activeStudents.length;
+        activeStudents.every(
+          (hs) => hs.id != null && _selectedHsIds.contains(hs.id!),
+        );
 
     return AlertDialog(
       backgroundColor: theme.cardColor,
@@ -141,7 +154,11 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
               color: Colors.orange.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.beach_access_rounded, color: Colors.orange, size: 22),
+            child: const Icon(
+              Icons.beach_access_rounded,
+              color: Colors.orange,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -179,24 +196,44 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
                 runSpacing: 6,
                 children: [
                   ChoiceChip(
-                    label: const Text('🌴 Nghỉ lễ 1 ngày', style: TextStyle(fontSize: 11)),
+                    label: const Text(
+                      '🌴 Nghỉ lễ 1 ngày',
+                      style: TextStyle(fontSize: 11),
+                    ),
                     selected: false,
-                    onSelected: (_) => _applyPreset('Nghỉ lễ', 1),
+                    onSelected: _isSaving
+                        ? null
+                        : (_) => _applyPreset('Nghỉ lễ', 1),
                   ),
                   ChoiceChip(
-                    label: const Text('🎉 Nghỉ 3 ngày', style: TextStyle(fontSize: 11)),
+                    label: const Text(
+                      '🎉 Nghỉ 3 ngày',
+                      style: TextStyle(fontSize: 11),
+                    ),
                     selected: false,
-                    onSelected: (_) => _applyPreset('Nghỉ lễ', 3),
+                    onSelected: _isSaving
+                        ? null
+                        : (_) => _applyPreset('Nghỉ lễ', 3),
                   ),
                   ChoiceChip(
-                    label: const Text('☀️ Nghỉ hè 7 ngày', style: TextStyle(fontSize: 11)),
+                    label: const Text(
+                      '☀️ Nghỉ hè 7 ngày',
+                      style: TextStyle(fontSize: 11),
+                    ),
                     selected: false,
-                    onSelected: (_) => _applyPreset('Nghỉ hè', 7),
+                    onSelected: _isSaving
+                        ? null
+                        : (_) => _applyPreset('Nghỉ hè', 7),
                   ),
                   ChoiceChip(
-                    label: const Text('🧧 Nghỉ Tết 10 ngày', style: TextStyle(fontSize: 11)),
+                    label: const Text(
+                      '🧧 Nghỉ Tết 10 ngày',
+                      style: TextStyle(fontSize: 11),
+                    ),
                     selected: false,
-                    onSelected: (_) => _applyPreset('Nghỉ Tết', 10),
+                    onSelected: _isSaving
+                        ? null
+                        : (_) => _applyPreset('Nghỉ Tết', 10),
                   ),
                 ],
               ),
@@ -207,10 +244,13 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
                 children: [
                   Expanded(
                     child: InkWell(
-                      onTap: () => _pickDate(true),
+                      onTap: _isSaving ? null : () => _pickDate(true),
                       borderRadius: BorderRadius.circular(10),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.white24),
                           borderRadius: BorderRadius.circular(10),
@@ -218,15 +258,28 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Từ ngày', style: TextStyle(fontSize: 10, color: theme.hintColor)),
+                            Text(
+                              'Từ ngày',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: theme.hintColor,
+                              ),
+                            ),
                             const SizedBox(height: 2),
                             Row(
                               children: [
-                                const Icon(Icons.calendar_today_rounded, size: 14, color: Colors.orange),
+                                const Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 14,
+                                  color: Colors.orange,
+                                ),
                                 const SizedBox(width: 6),
                                 Text(
                                   DateFormat('dd/MM/yyyy').format(_tuNgay),
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ],
                             ),
@@ -238,10 +291,13 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: InkWell(
-                      onTap: () => _pickDate(false),
+                      onTap: _isSaving ? null : () => _pickDate(false),
                       borderRadius: BorderRadius.circular(10),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.white24),
                           borderRadius: BorderRadius.circular(10),
@@ -249,15 +305,28 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Đến ngày', style: TextStyle(fontSize: 10, color: theme.hintColor)),
+                            Text(
+                              'Đến ngày',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: theme.hintColor,
+                              ),
+                            ),
                             const SizedBox(height: 2),
                             Row(
                               children: [
-                                const Icon(Icons.event_available_rounded, size: 14, color: Colors.orange),
+                                const Icon(
+                                  Icons.event_available_rounded,
+                                  size: 14,
+                                  color: Colors.orange,
+                                ),
                                 const SizedBox(width: 6),
                                 Text(
                                   DateFormat('dd/MM/yyyy').format(_denNgay),
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ],
                             ),
@@ -273,10 +342,16 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
               // Lý do
               TextField(
                 controller: _lyDoController,
+                enabled: !_isSaving,
                 decoration: InputDecoration(
                   labelText: 'Lý do nghỉ',
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
                 style: const TextStyle(fontSize: 13),
               ),
@@ -288,24 +363,32 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
                 children: [
                   Text(
                     'Học sinh áp dụng (${_selectedHsIds.length}/${activeStudents.length}):',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   TextButton(
-                    onPressed: () {
-                      setState(() {
-                        if (allSelected) {
-                          _selectedHsIds.clear();
-                        } else {
-                          for (var hs in activeStudents) {
-                            if (hs.id != null) _selectedHsIds.add(hs.id!);
-                          }
-                        }
-                      });
-                    },
+                    onPressed: _isSaving
+                        ? null
+                        : () {
+                            setState(() {
+                              if (allSelected) {
+                                _selectedHsIds.clear();
+                              } else {
+                                for (var hs in activeStudents) {
+                                  if (hs.id != null) _selectedHsIds.add(hs.id!);
+                                }
+                              }
+                            });
+                          },
                     style: TextButton.styleFrom(padding: EdgeInsets.zero),
                     child: Text(
                       allSelected ? 'Bỏ chọn hết' : 'Chọn tất cả',
-                      style: const TextStyle(fontSize: 11, color: Colors.orange),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: _isSaving ? Colors.grey : Colors.orange,
+                      ),
                     ),
                   ),
                 ],
@@ -325,19 +408,23 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
                     return CheckboxListTile(
                       dense: true,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                      title: Text(hs.ten, style: const TextStyle(fontSize: 12.5)),
+                      title: Text(
+                        hs.ten,
+                        style: const TextStyle(fontSize: 12.5),
+                      ),
                       value: isChecked,
                       activeColor: Colors.orange,
-                      onChanged: (val) {
-                        if (hs.id == null) return;
-                        setState(() {
-                          if (val == true) {
-                            _selectedHsIds.add(hs.id!);
-                          } else {
-                            _selectedHsIds.remove(hs.id!);
-                          }
-                        });
-                      },
+                      onChanged: (_isSaving || hs.id == null)
+                          ? null
+                          : (val) {
+                              setState(() {
+                                if (val == true) {
+                                  _selectedHsIds.add(hs.id!);
+                                } else {
+                                  _selectedHsIds.remove(hs.id!);
+                                }
+                              });
+                            },
                     );
                   },
                 ),
@@ -348,7 +435,7 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context, false),
+          onPressed: _isSaving ? null : () => Navigator.pop(context, false),
           child: const Text('Hủy'),
         ),
         ElevatedButton.icon(
@@ -356,13 +443,18 @@ class _DangKyNghiLeDialogState extends State<DangKyNghiLeDialog> {
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.orange,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
           icon: _isSaving
               ? const SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Icon(Icons.check_circle_rounded, size: 16),
           label: Text('Đăng ký (${_selectedHsIds.length})'),

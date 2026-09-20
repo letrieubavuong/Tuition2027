@@ -45,6 +45,7 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
   final Set<int> _selectedHsIds = {};
   DateTime _ngayThamGia = DateTime.now();
   String _searchQuery = '';
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -132,11 +133,13 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
   }
 
   void _handleThemHS() async {
+    if (_isSaving) return;
     if (_selectedHsIds.isEmpty) {
       ToastHelper.showWarning(context, 'Vui lòng chọn ít nhất 1 học sinh!');
       return;
     }
 
+    setState(() => _isSaving = true);
     try {
       final ngayThamGiaStr = DateFormat('yyyy-MM-dd').format(_ngayThamGia);
       int addedCount = 0;
@@ -147,8 +150,10 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
           idHocSinh: idHs,
           ngayThamGia: ngayThamGiaStr,
         );
-        await widget.lhsService.themHocSinhVaoLop(lhs);
-        addedCount++;
+        final result = await widget.lhsService.themHocSinhVaoLop(lhs);
+        if (result != null) {
+          addedCount++;
+        }
       }
 
       if (mounted) {
@@ -161,6 +166,7 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
     } catch (e) {
       if (mounted) {
         ToastHelper.showError(context, 'Lỗi khi thêm học sinh vào lớp: $e');
+        setState(() => _isSaving = false);
       }
     }
   }
@@ -186,7 +192,8 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
   Widget build(BuildContext context) {
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
     final filteredList = _filteredStudents;
-    final bool isAllSelected = filteredList.isNotEmpty &&
+    final bool isAllSelected =
+        filteredList.isNotEmpty &&
         filteredList.every((hs) => _selectedHsIds.contains(hs.id));
 
     return Dialog(
@@ -208,7 +215,11 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
                     color: accentColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.person_add_alt_1_rounded, color: accentColor, size: 22),
+                  child: Icon(
+                    Icons.person_add_alt_1_rounded,
+                    color: accentColor,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -216,7 +227,9 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isVi ? 'THÊM HỌC SINH VÀO LỚP' : 'ADD STUDENTS TO CLASS',
+                        isVi
+                            ? 'THÊM HỌC SINH VÀO LỚP'
+                            : 'ADD STUDENTS TO CLASS',
                         style: TextStyle(
                           color: lightText,
                           fontWeight: FontWeight.bold,
@@ -225,7 +238,11 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
                       ),
                       Text(
                         widget.lop.ten,
-                        style: TextStyle(color: accentColor, fontSize: 13, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          color: accentColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -245,9 +262,15 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
               height: 42,
               child: OutlinedButton.icon(
                 onPressed: _handleTaoMoiVaThem,
-                icon: Icon(Icons.add_circle_outline_rounded, size: 18, color: accentColor),
+                icon: Icon(
+                  Icons.add_circle_outline_rounded,
+                  size: 18,
+                  color: accentColor,
+                ),
                 label: Text(
-                  isVi ? 'TẠO MỚI HỌC SINH MỚI PHÁT SINH' : 'CREATE NEW STUDENT',
+                  isVi
+                      ? 'TẠO MỚI HỌC SINH MỚI PHÁT SINH'
+                      : 'CREATE NEW STUDENT',
                   style: TextStyle(
                     color: accentColor,
                     fontWeight: FontWeight.bold,
@@ -256,7 +279,9 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
                 ),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: accentColor.withValues(alpha: 0.6)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),
@@ -268,12 +293,25 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
               style: TextStyle(color: lightText, fontSize: 14),
               decoration: InputDecoration(
                 isDense: true,
-                hintText: isVi ? 'Tìm học sinh theo tên hoặc SĐT...' : 'Search by name or phone...',
-                hintStyle: TextStyle(color: secondaryText.withValues(alpha: 0.6), fontSize: 13),
-                prefixIcon: Icon(Icons.search_rounded, color: accentColor, size: 20),
+                hintText: isVi
+                    ? 'Tìm học sinh theo tên hoặc SĐT...'
+                    : 'Search by name or phone...',
+                hintStyle: TextStyle(
+                  color: secondaryText.withValues(alpha: 0.6),
+                  fontSize: 13,
+                ),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: accentColor,
+                  size: 20,
+                ),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear_rounded, color: secondaryText, size: 18),
+                        icon: Icon(
+                          Icons.clear_rounded,
+                          color: secondaryText,
+                          size: 18,
+                        ),
                         onPressed: () => _searchController.clear(),
                       )
                     : null,
@@ -283,7 +321,10 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 12,
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -296,19 +337,32 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
                   onTap: () => _chonNgayThamGia(context),
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: darkBackground,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: accentColor.withValues(alpha: 0.4)),
+                      border: Border.all(
+                        color: accentColor.withValues(alpha: 0.4),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.calendar_today_rounded, size: 16, color: accentColor),
+                        Icon(
+                          Icons.calendar_today_rounded,
+                          size: 16,
+                          color: accentColor,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           '${isVi ? "Ngày vào:" : "Joined:"} ${DateFormat("dd/MM/yyyy").format(_ngayThamGia)}',
-                          style: TextStyle(color: lightText, fontSize: 12, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: lightText,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -318,17 +372,27 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
                   TextButton.icon(
                     onPressed: _toggleSelectAll,
                     icon: Icon(
-                      isAllSelected ? Icons.deselect_rounded : Icons.select_all_rounded,
+                      isAllSelected
+                          ? Icons.deselect_rounded
+                          : Icons.select_all_rounded,
                       size: 16,
                       color: accentColor,
                     ),
                     label: Text(
                       isAllSelected
                           ? (isVi ? 'Bỏ chọn hết' : 'Deselect all')
-                          : (isVi ? 'Chọn tất cả (${filteredList.length})' : 'Select all'),
-                      style: TextStyle(color: accentColor, fontSize: 12, fontWeight: FontWeight.bold),
+                          : (isVi
+                                ? 'Chọn tất cả (${filteredList.length})'
+                                : 'Select all'),
+                      style: TextStyle(
+                        color: accentColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                    ),
                   ),
               ],
             ),
@@ -341,11 +405,11 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
                       child: Text(
                         widget.danhSachTatCaHS.isEmpty
                             ? (isVi
-                                ? 'Tất cả học sinh trong hệ thống đã thuộc lớp này.'
-                                : 'All students are already in this class.')
+                                  ? 'Tất cả học sinh trong hệ thống đã thuộc lớp này.'
+                                  : 'All students are already in this class.')
                             : (isVi
-                                ? 'Không tìm thấy học sinh phù hợp.'
-                                : 'No matching students found.'),
+                                  ? 'Không tìm thấy học sinh phù hợp.'
+                                  : 'No matching students found.'),
                         textAlign: TextAlign.center,
                         style: TextStyle(color: secondaryText, fontSize: 13),
                       ),
@@ -354,7 +418,8 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
                       itemCount: filteredList.length,
                       itemBuilder: (context, index) {
                         final hs = filteredList[index];
-                        final isSelected = hs.id != null && _selectedHsIds.contains(hs.id);
+                        final isSelected =
+                            hs.id != null && _selectedHsIds.contains(hs.id);
 
                         return Card(
                           color: isSelected
@@ -385,19 +450,27 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
                             activeColor: accentColor,
                             checkColor: darkBackground,
                             dense: true,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 0,
+                            ),
                             title: Text(
                               hs.ten,
                               style: TextStyle(
                                 color: lightText,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
                                 fontSize: 14,
                               ),
                             ),
                             subtitle: (hs.sdt != null && hs.sdt!.isNotEmpty)
                                 ? Text(
                                     'SĐT: ${hs.sdt}',
-                                    style: TextStyle(color: secondaryText, fontSize: 12),
+                                    style: TextStyle(
+                                      color: secondaryText,
+                                      fontSize: 12,
+                                    ),
                                   )
                                 : null,
                           ),
@@ -412,10 +485,15 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
               children: [
                 Expanded(
                   child: TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
+                    onPressed: _isSaving
+                        ? null
+                        : () => Navigator.of(context).pop(false),
                     child: Text(
                       isVi ? 'HỦY' : 'CANCEL',
-                      style: TextStyle(color: secondaryText, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: secondaryText,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -423,8 +501,16 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
                 Expanded(
                   flex: 2,
                   child: ElevatedButton.icon(
-                    onPressed: _selectedHsIds.isEmpty ? null : _handleThemHS,
-                    icon: const Icon(Icons.add_rounded, size: 20),
+                    onPressed: (_selectedHsIds.isEmpty || _isSaving)
+                        ? null
+                        : _handleThemHS,
+                    icon: _isSaving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.add_rounded, size: 20),
                     label: Text(
                       isVi
                           ? 'THÊM (${_selectedHsIds.length} HS)'
@@ -437,7 +523,9 @@ class _ThemHSVaoLopDialogState extends State<ThemHSVaoLopDialog> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: accentColor,
                       foregroundColor: darkBackground,
-                      disabledBackgroundColor: Colors.grey.withValues(alpha: 0.3),
+                      disabledBackgroundColor: Colors.grey.withValues(
+                        alpha: 0.3,
+                      ),
                       elevation: 2,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(

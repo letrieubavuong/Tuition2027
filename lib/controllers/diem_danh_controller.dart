@@ -11,7 +11,6 @@ import '../services/diem_danh_service.dart';
 import '../services/lich_hoc_service.dart';
 import '../services/lop_hoc_sinh_service.dart';
 import '../services/lop_service.dart';
-import '../services/tuition_event_service.dart';
 
 import 'service_providers.dart';
 
@@ -26,6 +25,7 @@ class DiemDanhState {
   final Map<int, List<HSLopViewModel>> danhSachHSCuaTungCa;
   final Map<String, DiemDanh> trangThaiDiemDanh;
   final Set<int> studentsWithWarnings;
+  final Map<int, Map<String, DiemDanh>> lastBulkBackupPerCa;
 
   DiemDanhState({
     this.lopList = const [],
@@ -35,6 +35,7 @@ class DiemDanhState {
     this.danhSachHSCuaTungCa = const {},
     this.trangThaiDiemDanh = const {},
     this.studentsWithWarnings = const {},
+    this.lastBulkBackupPerCa = const {},
   });
 
   DiemDanhState copyWith({
@@ -45,6 +46,7 @@ class DiemDanhState {
     Map<int, List<HSLopViewModel>>? danhSachHSCuaTungCa,
     Map<String, DiemDanh>? trangThaiDiemDanh,
     Set<int>? studentsWithWarnings,
+    Map<int, Map<String, DiemDanh>>? lastBulkBackupPerCa,
   }) {
     return DiemDanhState(
       lopList: lopList ?? this.lopList,
@@ -54,6 +56,7 @@ class DiemDanhState {
       danhSachHSCuaTungCa: danhSachHSCuaTungCa ?? this.danhSachHSCuaTungCa,
       trangThaiDiemDanh: trangThaiDiemDanh ?? this.trangThaiDiemDanh,
       studentsWithWarnings: studentsWithWarnings ?? this.studentsWithWarnings,
+      lastBulkBackupPerCa: lastBulkBackupPerCa ?? this.lastBulkBackupPerCa,
     );
   }
 }
@@ -111,6 +114,12 @@ class DiemDanhController extends _$DiemDanhController {
     final diemDanhDaCoTrongNgay = await _diemDanhService
         .layDiemDanhTheoLopVaNgay(lopId, ngayStr);
 
+    // Batch load tất cả học sinh có đơn nghỉ trong ngày để tránh N+1 Query (Phần H)
+    final hsCoDonNghiSet = await _lhsService.layHsCoDonNghiTrongNgay(
+      lopId,
+      ngayStr,
+    );
+
     for (var caHoc in caHocTrongNgay) {
       final tatCaHsCuaCa = await _lhsService.docDSHSTheoCaHoc(caHoc.id!);
       final hsCuaCa = tatCaHsCuaCa
@@ -118,17 +127,23 @@ class DiemDanhController extends _$DiemDanhController {
           .toList();
       danhSachHSCuaTungCaMoi[caHoc.id!] = hsCuaCa;
 
+      final targetTime = caHoc.gioBatDau.length >= 5
+          ? caHoc.gioBatDau.substring(0, 5)
+          : caHoc.gioBatDau;
+
       for (var hs in hsCuaCa) {
         final key = '${hs.id}-${caHoc.id}';
-        final coDonNghi = await _lhsService.coDonNghiTrongNgay(
-          lopId,
-          hs.id!,
-          ngayStr,
-        );
+        final coDonNghi = hsCoDonNghiSet.contains(hs.id!);
         final ddRecord = diemDanhDaCoTrongNgay.firstWhere(
-          (dd) =>
-              dd.idHocSinh == hs.id &&
-              dd.gioDiemDanh.startsWith('$ngayStr ${caHoc.gioBatDau}'),
+          (dd) {
+            if (dd.idHocSinh != hs.id) return false;
+            final parts = dd.gioDiemDanh.trim().split(' ');
+            if (parts.length < 2) return false;
+            final dDate = parts[0];
+            final dTime = parts[1];
+            if (dDate != ngayStr) return false;
+            return dTime.startsWith(targetTime);
+          },
           orElse: () => DiemDanh(
             idHocSinh: hs.id!,
             idLop: lopId,
@@ -143,15 +158,11 @@ class DiemDanhController extends _$DiemDanhController {
     final allStudentsInClass = danhSachHSCuaTungCaMoi.values
         .expand((list) => list)
         .map((hs) => hs.id!)
-        .toSet();
-    final warnings = <int>{};
-    for (final hsId in allStudentsInClass) {
-      final hasWarning = await _diemDanhService.kiemTraVangLienTiep(
-        hsId,
-        lopId,
-      );
-      if (hasWarning) warnings.add(hsId);
-    }
+        .toList();
+    final warnings = await _diemDanhService.kiemTraVangLienTiepChoNhieuHS(
+      allStudentsInClass,
+      lopId,
+    );
 
     caHocTrongNgay.sort((a, b) => a.gioBatDau.compareTo(b.gioBatDau));
 
@@ -160,6 +171,7 @@ class DiemDanhController extends _$DiemDanhController {
       danhSachHSCuaTungCa: danhSachHSCuaTungCaMoi,
       trangThaiDiemDanh: trangThaiMoi,
       studentsWithWarnings: warnings,
+      lastBulkBackupPerCa: {},
     );
   }
 
@@ -184,7 +196,7 @@ class DiemDanhController extends _$DiemDanhController {
       currentState.trangThaiDiemDanh,
     );
     if (newTrangThai.containsKey(key)) {
-      newTrangThai[key]!.trangThai = newStatus;
+      newTrangThai[key] = newTrangThai[key]!.copyWith(trangThai: newStatus);
       state = AsyncValue.data(
         currentState.copyWith(trangThaiDiemDanh: newTrangThai),
       );
@@ -199,48 +211,104 @@ class DiemDanhController extends _$DiemDanhController {
       currentState.trangThaiDiemDanh,
     );
     if (newTrangThai.containsKey(key)) {
-      newTrangThai[key]!.ghiChu = newNote;
+      newTrangThai[key] = newTrangThai[key]!.copyWith(ghiChu: newNote);
       state = AsyncValue.data(
         currentState.copyWith(trangThaiDiemDanh: newTrangThai),
       );
     }
   }
 
-  Future<void> saveAllChanges() async {
-    final currentState = state.value;
-    if (currentState == null) return;
+  bool _isSaving = false;
+  bool get isSaving => _isSaving;
 
-    state = AsyncValue.data(currentState); // Keep showing current data
+  Future<bool> saveAllChanges() async {
+    if (_isSaving) return false;
+    _isSaving = true;
+    try {
+      final currentState = state.value;
+      if (currentState == null) return false;
 
-    for (final record in currentState.trangThaiDiemDanh.values) {
-      final newId = await _diemDanhService.themDiemDanh(record);
-      if (record.id == null && newId > 0) {
-        record.id = newId;
-      }
+      state = AsyncValue.data(currentState); // Keep showing current data
+
+      final records = currentState.trangThaiDiemDanh.values.toList();
+      await _diemDanhService.luuDanhSachDiemDanhAtomic(records);
+
+      // Reload data to get all IDs updated correctly
+      await changeSelection(
+        currentState.selectedLop,
+        currentState.selectedDate,
+      );
+      return true;
+    } finally {
+      _isSaving = false;
     }
-    // Reload data to get all IDs updated correctly
-    await changeSelection(currentState.selectedLop, currentState.selectedDate);
-    // Phát sự kiện thông báo dữ liệu học phí có thay đổi
-    TuitionEventService().notifyTuitionChanged();
   }
 
   void markAllPresent(LichHoc caHoc) {
-    final currentState = state.value;
-    if (currentState == null) return;
+    markAllStatus(caHoc, 'Có mặt');
+  }
 
-    final hsCuaCa = currentState.danhSachHSCuaTungCa[caHoc.id!] ?? [];
+  /// Đánh dấu trạng thái hàng loạt cho duy nhất học sinh của caHoc đang chọn
+  void markAllStatus(LichHoc caHoc, String targetStatus) {
+    final currentState = state.value;
+    if (currentState == null || caHoc.id == null) return;
+
+    final caId = caHoc.id!;
+    final hsCuaCa = currentState.danhSachHSCuaTungCa[caId] ?? [];
     final newTrangThai = Map<String, DiemDanh>.from(
       currentState.trangThaiDiemDanh,
     );
+    final backupForThisCa = <String, DiemDanh>{};
 
     for (var hs in hsCuaCa) {
-      final key = '${hs.id}-${caHoc.id}';
+      final key = '${hs.id}-$caId';
       if (newTrangThai.containsKey(key)) {
-        newTrangThai[key]!.trangThai = 'Có mặt';
+        backupForThisCa[key] = newTrangThai[key]!;
+        newTrangThai[key] = newTrangThai[key]!.copyWith(
+          trangThai: targetStatus,
+        );
       }
     }
+
+    final newBackupMap = Map<int, Map<String, DiemDanh>>.from(
+      currentState.lastBulkBackupPerCa,
+    );
+    newBackupMap[caId] = backupForThisCa;
+
     state = AsyncValue.data(
-      currentState.copyWith(trangThaiDiemDanh: newTrangThai),
+      currentState.copyWith(
+        trangThaiDiemDanh: newTrangThai,
+        lastBulkBackupPerCa: newBackupMap,
+      ),
+    );
+  }
+
+  /// Hoàn tác thao tác hàng loạt gần nhất của caHoc
+  void undoBulkAction(LichHoc caHoc) {
+    final currentState = state.value;
+    if (currentState == null || caHoc.id == null) return;
+
+    final caId = caHoc.id!;
+    final backupForThisCa = currentState.lastBulkBackupPerCa[caId];
+    if (backupForThisCa == null || backupForThisCa.isEmpty) return;
+
+    final newTrangThai = Map<String, DiemDanh>.from(
+      currentState.trangThaiDiemDanh,
+    );
+    backupForThisCa.forEach((key, record) {
+      newTrangThai[key] = record;
+    });
+
+    final newBackupMap = Map<int, Map<String, DiemDanh>>.from(
+      currentState.lastBulkBackupPerCa,
+    );
+    newBackupMap.remove(caId);
+
+    state = AsyncValue.data(
+      currentState.copyWith(
+        trangThaiDiemDanh: newTrangThai,
+        lastBulkBackupPerCa: newBackupMap,
+      ),
     );
   }
 }

@@ -1,18 +1,29 @@
-// File: lib/services/lich_hoc_service.dart (ĐÃ CẬP NHẬT VỚI TRY/CATCH VÀ LOGGING)
+// File: lib/services/lich_hoc_service.dart (CẬP NHẬT KIẾN TRÚC & TỐI ƯU HIỆU NĂNG)
 
 import 'package:sqflite/sqflite.dart';
 import '../utils/db.dart';
-import '../utils/schedule_helpers.dart'; // <-- IMPORT HELPER
+import '../utils/schedule_helpers.dart';
 import '../models/hs.dart';
 import '../models/lich_hoc.dart';
 import 'dart:developer' as developer;
 import 'notification_service.dart';
 import 'widget_sync_service.dart';
 import 'firebase_sync_service.dart';
+import 'student_schedule_assignment_service.dart';
 
 class LichHocService {
   final dbHelper = DBHelper.instance;
   final String tenBang = DBHelper.tenBangLichHoc;
+
+  static const Map<int, List<String>> _dayKeywords = {
+    2: ['t2', 'thứ 2', 'thứ hai', 'thu 2', 'thu hai'],
+    3: ['t3', 'thứ 3', 'thứ ba', 'thu 3', 'thu ba'],
+    4: ['t4', 'thứ 4', 'thứ tư', 'thu 4', 'thu tu'],
+    5: ['t5', 'thứ 5', 'thứ năm', 'thu 5', 'thu nam'],
+    6: ['t6', 'thứ 6', 'thứ sáu', 'thu 6', 'thu sau'],
+    7: ['t7', 'thứ 7', 'thứ bảy', 'thu 7', 'thu bay'],
+    1: ['cn', 'chủ nhật', 'chu nhat'],
+  };
 
   // ===================================================
   // 1. THÊM LỊCH HỌC (CREATE)
@@ -24,7 +35,6 @@ class LichHocService {
         name: 'LichHocService.themLichHoc',
       );
 
-      // Validate input
       if (lichHoc.idLop <= 0) {
         developer.log(
           '❌ Lỗi: ID lớp không hợp lệ',
@@ -36,28 +46,7 @@ class LichHocService {
 
       final db = await dbHelper.database;
 
-      // kiểm tra trùng
-      final exists = await db.query(
-        tenBang,
-        where:
-            'id_lop = ? AND thuTrongTuan = ? AND gioBatDau = ? AND gioKetThuc = ?',
-        whereArgs: [
-          lichHoc.idLop,
-          lichHoc.thuTrongTuan,
-          lichHoc.gioBatDau,
-          lichHoc.gioKetThuc,
-        ],
-      );
-      if (exists.isNotEmpty) {
-        developer.log(
-          '⚠️ Cảnh báo: Lịch học này đã tồn tại',
-          name: 'LichHocService.themLichHoc',
-          error: lichHoc.toMap(),
-        );
-        return null;
-      }
-
-      // Kiểm tra lịch học có chồng lấn không
+      // Kiểm tra lịch học có bị trùng hoặc chồng lấn không
       final overlapping = await kiemTraChongLanLichHoc(
         db: db,
         tenBang: tenBang,
@@ -66,12 +55,12 @@ class LichHocService {
         giaTriNgay: lichHoc.thuTrongTuan,
         gioBatDauMoi: lichHoc.gioBatDau,
         gioKetThucMoi: lichHoc.gioKetThuc,
-        excludeId: null, // không có id khi thêm mới
+        excludeId: null,
       );
 
       if (overlapping) {
         developer.log(
-          '⚠️ Cảnh báo: Lịch học bị chồng lấn với lịch học khác',
+          '⚠️ Cảnh báo: Lịch học bị trùng hoặc chồng lấn với lịch học khác',
           name: 'LichHocService.themLichHoc',
           error: lichHoc.toMap(),
         );
@@ -96,7 +85,14 @@ class LichHocService {
       );
 
       final createdLich = lichHoc.copyWith(id: id);
-      await NotificationService.instance.scheduleClassReminder(createdLich);
+      try {
+        await NotificationService.instance.scheduleClassReminder(createdLich);
+      } catch (e) {
+        developer.log(
+          '⚠️ Không thể cập nhật báo thức thông báo: $e',
+          name: 'LichHocService',
+        );
+      }
       WidgetSyncService.syncTodaySchedule().catchError((e) => null);
       FirebaseSyncService.instance
           .pushRecordToCloud(tenBang, id.toString(), createdLich.toMap())
@@ -123,8 +119,9 @@ class LichHocService {
   }
 
   // ===================================================
-  // 2. LẤY LỊCH HỌC THEO LỚP (READ)
+  // 2. LẤY LỊCH HỌC THEO LỚP (PURE READ)
   // ===================================================
+  /// Truy vấn đọc danh sách lịch học của lớp (100% Thuần READ - Không ghi DB).
   Future<List<LichHoc>> layLichHocTheoLop(int idLop) async {
     try {
       if (idLop <= 0) {
@@ -144,9 +141,6 @@ class LichHocService {
         orderBy: 'thuTrongTuan, gioBatDau',
       );
 
-      final List<LichHoc> dsLichHoc = maps.map((m) => LichHoc.fromMap(m)).toList();
-
-      // Kết hợp dữ liệu từ bảng lich_hoc_chung để không sót lịch học
       final List<Map<String, dynamic>> lhcMaps = await db.query(
         DBHelper.tenBangLichHocChung,
         where: 'id_lop = ?',
@@ -154,46 +148,48 @@ class LichHocService {
       );
 
       if (lhcMaps.isNotEmpty) {
+        final existingKeys = maps
+            .map(
+              (e) =>
+                  '${e['thuTrongTuan']}|${normalizeTime(e['gioBatDau']?.toString() ?? '')}|${normalizeTime(e['gioKetThuc']?.toString() ?? '')}',
+            )
+            .toSet();
+
+        final batch = db.batch();
+        bool hasNew = false;
         for (var lhc in lhcMaps) {
           final ngayStr = (lhc['ngay_trong_tuan'] as String?) ?? '';
           final thu = _vnToThuTrongTuan(ngayStr);
           final gbd = (lhc['gio_bat_dau'] as String?) ?? '00:00';
           final gkt = (lhc['gio_ket_thuc'] as String?) ?? '00:00';
-
-          final isExist = dsLichHoc.any(
-            (lh) =>
-                lh.thuTrongTuan == thu &&
-                lh.gioBatDau.startsWith(gbd) &&
-                lh.gioKetThuc.startsWith(gkt),
-          );
-
-          if (!isExist) {
-            final newLich = LichHoc(
-              idLop: idLop,
-              thuTrongTuan: thu,
-              gioBatDau: gbd,
-              gioKetThuc: gkt,
-            );
-            dsLichHoc.add(newLich);
-            try {
-              final newId = await db.insert(
-                tenBang,
-                newLich.toMap(),
-                conflictAlgorithm: ConflictAlgorithm.ignore,
-              );
-              if (newId > 0) {
-                dsLichHoc[dsLichHoc.length - 1] = newLich.copyWith(id: newId);
-              }
-            } catch (_) {}
+          final key = '$thu|${normalizeTime(gbd)}|${normalizeTime(gkt)}';
+          if (!existingKeys.contains(key)) {
+            batch.insert(tenBang, {
+              'id_lop': idLop,
+              'thuTrongTuan': thu,
+              'gioBatDau': gbd,
+              'gioKetThuc': gkt,
+            });
+            existingKeys.add(key);
+            hasNew = true;
           }
+        }
+
+        if (hasNew) {
+          await batch.commit(noResult: true);
+          final List<Map<String, dynamic>> refreshedMaps = await db.query(
+            tenBang,
+            where: 'id_lop = ?',
+            whereArgs: [idLop],
+            orderBy: 'thuTrongTuan, gioBatDau',
+          );
+          return refreshedMaps.map((m) => LichHoc.fromMap(m)).toList();
         }
       }
 
-      dsLichHoc.sort((a, b) {
-        int cmp = a.thuTrongTuan.compareTo(b.thuTrongTuan);
-        if (cmp != 0) return cmp;
-        return a.gioBatDau.compareTo(b.gioBatDau);
-      });
+      final List<LichHoc> dsLichHoc = maps
+          .map((m) => LichHoc.fromMap(m))
+          .toList();
 
       developer.log(
         '✅ Đọc thành công ${dsLichHoc.length} lịch học cho lớp ID: $idLop',
@@ -213,7 +209,84 @@ class LichHocService {
   }
 
   // ===================================================
-  // 3. CẬP NHẬT LỊCH HỌC (UPDATE)
+  // HÀM MỚI: ĐỒNG BỘ LỊCH HỌC TỪ LỊCH HỌC CHUNG (WRITE BATCH)
+  // ===================================================
+  /// Bổ sung các ca học từ `lich_hoc_chung` còn thiếu vào `lich_hoc` bằng SQLite Batch (Tốc độ O(1) Lookup).
+  Future<List<LichHoc>> dongBoLichHocTuLichChung(int idLop) async {
+    try {
+      if (idLop <= 0) return [];
+      final db = await dbHelper.database;
+
+      final dsLichHoc = await layLichHocTheoLop(idLop);
+
+      final List<Map<String, dynamic>> lhcMaps = await db.query(
+        DBHelper.tenBangLichHocChung,
+        where: 'id_lop = ?',
+        whereArgs: [idLop],
+      );
+
+      if (lhcMaps.isEmpty) return dsLichHoc;
+
+      // O(1) Lookup Set cho các lịch học đã có
+      final Set<String> existingKeys = dsLichHoc
+          .map(
+            (e) =>
+                '${e.thuTrongTuan}|${normalizeTime(e.gioBatDau)}|${normalizeTime(e.gioKetThuc)}',
+          )
+          .toSet();
+
+      final List<LichHoc> missingSchedules = [];
+
+      for (var lhc in lhcMaps) {
+        final ngayStr = (lhc['ngay_trong_tuan'] as String?) ?? '';
+        final thu = _vnToThuTrongTuan(ngayStr);
+        final gbd = (lhc['gio_bat_dau'] as String?) ?? '00:00';
+        final gkt = (lhc['gio_ket_thuc'] as String?) ?? '00:00';
+
+        final key = '$thu|${normalizeTime(gbd)}|${normalizeTime(gkt)}';
+        if (!existingKeys.contains(key)) {
+          missingSchedules.add(
+            LichHoc(
+              idLop: idLop,
+              thuTrongTuan: thu,
+              gioBatDau: gbd,
+              gioKetThuc: gkt,
+            ),
+          );
+          existingKeys.add(key);
+        }
+      }
+
+      if (missingSchedules.isNotEmpty) {
+        final batch = db.batch();
+        for (var item in missingSchedules) {
+          batch.insert(
+            tenBang,
+            item.toMap(),
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+        }
+        await batch.commit(noResult: true);
+        developer.log(
+          '🔄 Đã batch insert thành công ${missingSchedules.length} lịch học thiếu cho lớp ID: $idLop',
+          name: 'LichHocService.dongBoLichHocTuLichChung',
+        );
+      }
+
+      return await layLichHocTheoLop(idLop);
+    } catch (e, st) {
+      developer.log(
+        '❌ Lỗi đồng bộ lịch học từ lịch chung',
+        name: 'LichHocService.dongBoLichHocTuLichChung',
+        error: {'idLop': idLop, 'error': e.toString()},
+        stackTrace: st,
+      );
+      return await layLichHocTheoLop(idLop);
+    }
+  }
+
+  // ===================================================
+  // 3. CẬP NHẬT LỊCH HỌC (UPDATE IN TRANSACTION)
   // ===================================================
   Future<bool> capNhatLichHoc(LichHoc lichHoc) async {
     try {
@@ -233,29 +306,7 @@ class LichHocService {
 
       final db = await dbHelper.database;
 
-      // kiểm tra trùng với bản ghi khác
-      final exists = await db.query(
-        tenBang,
-        where:
-            'id_lop = ? AND thuTrongTuan = ? AND gioBatDau = ? AND gioKetThuc = ? AND id != ?',
-        whereArgs: [
-          lichHoc.idLop,
-          lichHoc.thuTrongTuan,
-          lichHoc.gioBatDau,
-          lichHoc.gioKetThuc,
-          lichHoc.id,
-        ],
-      );
-      if (exists.isNotEmpty) {
-        developer.log(
-          '⚠️ Cảnh báo: Lịch học bị trùng với lịch học khác',
-          name: 'LichHocService.capNhatLichHoc',
-          error: lichHoc.toMap(),
-        );
-        return false;
-      }
-
-      // Kiểm tra chồng lấn khi cập nhật
+      // Kiểm tra chồng lấn / trùng lịch khi cập nhật
       final overlapping = await kiemTraChongLanLichHoc(
         db: db,
         tenBang: tenBang,
@@ -268,27 +319,66 @@ class LichHocService {
       );
       if (overlapping) {
         developer.log(
-          '⚠️ Cảnh báo: Lịch học bị chồng lấn với lịch học khác',
+          '⚠️ Cảnh báo: Lịch học bị trùng hoặc chồng lấn với lịch học khác',
           name: 'LichHocService.capNhatLichHoc',
           error: lichHoc.toMap(),
         );
         return false;
       }
-      // Lấy thông tin lịch cũ để tìm lịch học chung tương ứng trước khi cập nhật
-      final List<Map<String, dynamic>> oldRecords = await db.query(
-        tenBang,
-        where: 'id = ?',
-        whereArgs: [lichHoc.id],
-      );
 
-      final result = await db.update(
-        tenBang,
-        lichHoc.toMap(),
-        where: 'id = ?',
-        whereArgs: [lichHoc.id],
-      );
+      bool success = false;
 
-      if (result > 0) {
+      // Thực hiện chuỗi UPDATE trong 1 db.transaction duy nhất để đảm bảo tính toàn vẹn dữ liệu
+      await db.transaction((txn) async {
+        final List<Map<String, dynamic>> oldRecords = await txn.query(
+          tenBang,
+          where: 'id = ?',
+          whereArgs: [lichHoc.id],
+        );
+
+        final result = await txn.update(
+          tenBang,
+          lichHoc.toMap(),
+          where: 'id = ?',
+          whereArgs: [lichHoc.id],
+        );
+
+        if (result > 0) {
+          success = true;
+
+          // Cập nhật bảng lich_hoc_chung tương ứng nếu có
+          if (oldRecords.isNotEmpty) {
+            final oldRecord = oldRecords.first;
+            final int oldThu = oldRecord['thuTrongTuan'] as int;
+            final String oldGioBatDau = normalizeTime(
+              oldRecord['gioBatDau'] as String? ?? '',
+            );
+            final String oldGioKetThuc = normalizeTime(
+              oldRecord['gioKetThuc'] as String? ?? '',
+            );
+            final oldNgayTrongTuan = _thuTrongTuanToVN(oldThu);
+
+            await txn.update(
+              DBHelper.tenBangLichHocChung,
+              {
+                'ngay_trong_tuan': _thuTrongTuanToVN(lichHoc.thuTrongTuan),
+                'gio_bat_dau': normalizeTime(lichHoc.gioBatDau),
+                'gio_ket_thuc': normalizeTime(lichHoc.gioKetThuc),
+              },
+              where:
+                  'id_lop = ? AND ngay_trong_tuan = ? AND gio_bat_dau = ? AND gio_ket_thuc = ?',
+              whereArgs: [
+                lichHoc.idLop,
+                oldNgayTrongTuan,
+                oldGioBatDau,
+                oldGioKetThuc,
+              ],
+            );
+          }
+        }
+      });
+
+      if (success) {
         developer.log(
           '✅ Cập nhật lịch học thành công!',
           name: 'LichHocService.capNhatLichHoc',
@@ -299,37 +389,6 @@ class LichHocService {
           },
         );
 
-        // ĐỒNG BỘ: Cập nhật thông tin trong bảng lich_hoc_chung tương ứng nếu có
-        if (oldRecords.isNotEmpty) {
-          final oldRecord = oldRecords.first;
-          final int oldThu = oldRecord['thuTrongTuan'] as int;
-          final String oldGioBatDau = (oldRecord['gioBatDau'] as String)
-              .substring(0, 5);
-          final String oldGioKetThuc = (oldRecord['gioKetThuc'] as String)
-              .substring(0, 5);
-
-          // Chuyển đổi thứ của lịch cũ sang tiếng Việt
-          final oldNgayTrongTuan = _thuTrongTuanToVN(oldThu);
-
-          // Cập nhật lich_hoc_chung tương ứng
-          await db.update(
-            DBHelper.tenBangLichHocChung,
-            {
-              'ngay_trong_tuan': _thuTrongTuanToVN(lichHoc.thuTrongTuan),
-              'gio_bat_dau': lichHoc.gioBatDau.substring(0, 5),
-              'gio_ket_thuc': lichHoc.gioKetThuc.substring(0, 5),
-            },
-            where:
-                'id_lop = ? AND ngay_trong_tuan = ? AND gio_bat_dau = ? AND gio_ket_thuc = ?',
-            whereArgs: [
-              lichHoc.idLop,
-              oldNgayTrongTuan,
-              oldGioBatDau,
-              oldGioKetThuc,
-            ],
-          );
-        }
-
         await NotificationService.instance.scheduleClassReminder(lichHoc);
         WidgetSyncService.syncTodaySchedule().catchError((e) => null);
         FirebaseSyncService.instance
@@ -337,7 +396,7 @@ class LichHocService {
             .catchError((e) => null);
       }
 
-      return result > 0;
+      return success;
     } on DatabaseException catch (e, st) {
       developer.log(
         '❌ Lỗi Database khi cập nhật lịch học',
@@ -381,13 +440,34 @@ class LichHocService {
 
   int _vnToThuTrongTuan(String str) {
     final lower = str.toLowerCase().trim();
-    if (lower.contains('hai') || lower == '2' || lower.contains('mon')) return 2;
+    if (lower.contains('hai') || lower == '2' || lower.contains('mon'))
+      return 2;
     if (lower.contains('ba') || lower == '3' || lower.contains('tue')) return 3;
-    if (lower.contains('tư') || lower.contains('tu') || lower == '4' || lower.contains('wed')) return 4;
-    if (lower.contains('năm') || lower.contains('nam') || lower == '5' || lower.contains('thu')) return 5;
-    if (lower.contains('sáu') || lower.contains('sau') || lower == '6' || lower.contains('fri')) return 6;
-    if (lower.contains('bảy') || lower.contains('bay') || lower == '7' || lower.contains('sat')) return 7;
-    if (lower.contains('nhật') || lower.contains('nhat') || lower == '1' || lower.contains('sun')) return 1;
+    if (lower.contains('tư') ||
+        lower.contains('tu') ||
+        lower == '4' ||
+        lower.contains('wed'))
+      return 4;
+    if (lower.contains('năm') ||
+        lower.contains('nam') ||
+        lower == '5' ||
+        lower == 't5')
+      return 5;
+    if (lower.contains('sáu') ||
+        lower.contains('sau') ||
+        lower == '6' ||
+        lower.contains('fri'))
+      return 6;
+    if (lower.contains('bảy') ||
+        lower.contains('bay') ||
+        lower == '7' ||
+        lower.contains('sat'))
+      return 7;
+    if (lower.contains('nhật') ||
+        lower.contains('nhat') ||
+        lower == '1' ||
+        lower.contains('sun'))
+      return 1;
     return 2;
   }
 
@@ -412,22 +492,6 @@ class LichHocService {
 
       final db = await dbHelper.database;
 
-      // Kiểm tra lịch học có tồn tại không
-      final existing = await db.query(
-        tenBang,
-        where: 'id = ?',
-        whereArgs: [lichHocId],
-      );
-
-      if (existing.isEmpty) {
-        developer.log(
-          '⚠️ Cảnh báo: Lịch học ID $lichHocId không tồn tại',
-          name: 'LichHocService.xoaLichHoc',
-          error: {'lichHocId': lichHocId},
-        );
-        return false;
-      }
-
       final result = await db.delete(
         tenBang,
         where: 'id = ?',
@@ -439,14 +503,22 @@ class LichHocService {
           '✅ Xóa lịch học thành công! ID: $lichHocId',
           name: 'LichHocService.xoaLichHoc',
         );
+        await StudentScheduleAssignmentService.instance
+            .deleteAssignmentsForSchedule(lichHocId);
         await NotificationService.instance.cancelClassReminder(lichHocId);
         WidgetSyncService.syncTodaySchedule().catchError((e) => null);
         FirebaseSyncService.instance
             .deleteRecordFromCloud(tenBang, lichHocId.toString())
             .catchError((e) => null);
+        return true;
+      } else {
+        developer.log(
+          '⚠️ Cảnh báo: Lịch học ID $lichHocId không tồn tại',
+          name: 'LichHocService.xoaLichHoc',
+          error: {'lichHocId': lichHocId},
+        );
+        return false;
       }
-
-      return result > 0;
     } on DatabaseException catch (e, st) {
       developer.log(
         '❌ Lỗi Database khi xóa lịch học',
@@ -504,9 +576,6 @@ class LichHocService {
   // ===================================================
   // 6. THUẬT TOÁN GỢI Ý CA HỌC TỐI ƯU CHO HỌC SINH CẤN LỊCH
   // ===================================================
-  // ===================================================
-  // 6. THUẬT TOÁN GỢI Ý CA HỌC TỐI ƯU CHO HỌC SINH CẤN LỊCH
-  // ===================================================
   Future<List<GoiYCaHoc>> layGoiYCaHocPhuHop({
     int? targetKhoi,
     HS? targetHocSinh,
@@ -519,13 +588,10 @@ class LichHocService {
       bool isSchoolConflict(int thu, String gioStart, String caSchool) {
         final startHour = int.tryParse(gioStart.split(':').first) ?? 17;
         if (caSchool == 'Sáng') {
-          // Trường học sáng (07:00 - 12:00) -> Ca dạy < 12:00 bị trùng
           return startHour < 12;
         } else if (caSchool == 'Chiều') {
-          // Trường học chiều (12:00 - 17:15) -> Ca dạy từ 12:00 đến 17:15 bị trùng
           return startHour >= 12 && startHour < 17;
         } else if (caSchool == 'Cả ngày') {
-          // Học cả ngày từ T2 đến T6 trước 17:15 bị trùng
           return (thu >= 2 && thu <= 6) && startHour < 17;
         }
         return false;
@@ -536,21 +602,10 @@ class LichHocService {
         if (lichCanText == null || lichCanText.trim().isEmpty) return false;
         final text = lichCanText.toLowerCase();
 
-        final Map<int, List<String>> dayKeywords = {
-          2: ['t2', 'thứ 2', 'thứ hai', 'thu 2', 'thu hai'],
-          3: ['t3', 'thứ 3', 'thứ ba', 'thu 3', 'thu ba'],
-          4: ['t4', 'thứ 4', 'thứ tư', 'thu 4', 'thu tu'],
-          5: ['t5', 'thứ 5', 'thứ năm', 'thu 5', 'thu nam'],
-          6: ['t6', 'thứ 6', 'thứ sáu', 'thu 6', 'thu sau'],
-          7: ['t7', 'thứ 7', 'thứ bảy', 'thu 7', 'thu bay'],
-          1: ['cn', 'chủ nhật', 'chu nhat'],
-        };
-
-        final keywords = dayKeywords[thu] ?? [];
+        final keywords = _dayKeywords[thu] ?? [];
         return keywords.any((kw) => text.contains(kw));
       }
 
-      // Build recommendation items with scoring
       final List<_ScoredItem> scoredList = [];
 
       for (var item in all) {
@@ -561,8 +616,15 @@ class LichHocService {
         bool subjectConflict = false;
 
         if (targetHocSinh != null) {
-          schoolConflict = isSchoolConflict(thu, gioStart, targetHocSinh.caHocTruong);
-          subjectConflict = isSubjectConflict(thu, targetHocSinh.lichCanMonKhac);
+          schoolConflict = isSchoolConflict(
+            thu,
+            gioStart,
+            targetHocSinh.caHocTruong,
+          );
+          subjectConflict = isSubjectConflict(
+            thu,
+            targetHocSinh.lichCanMonKhac,
+          );
         }
 
         final bool sameGrade = targetKhoi != null && item.khoi == targetKhoi;
@@ -573,18 +635,22 @@ class LichHocService {
         if (targetKhoi != null && !sameGrade) score += 500;
         score += item.siSo;
 
-        scoredList.add(_ScoredItem(
-          item: item,
-          sameGrade: sameGrade,
-          schoolConflict: schoolConflict,
-          subjectConflict: subjectConflict,
-          score: score,
-        ));
+        scoredList.add(
+          _ScoredItem(
+            item: item,
+            sameGrade: sameGrade,
+            schoolConflict: schoolConflict,
+            subjectConflict: subjectConflict,
+            score: score,
+          ),
+        );
       }
 
       scoredList.sort((a, b) => a.score.compareTo(b.score));
 
-      final int lowestScore = scoredList.isNotEmpty ? scoredList.first.score : 0;
+      final int lowestScore = scoredList.isNotEmpty
+          ? scoredList.first.score
+          : 0;
 
       return scoredList.map((s) {
         final item = s.item;
@@ -596,12 +662,15 @@ class LichHocService {
           if (s.schoolConflict) {
             reasons.add('⚠️ Trùng ca ${targetHocSinh.caHocTruong} ở trường');
           } else {
-            reasons.add('☀️ Rảnh lịch trường (Ca ${targetHocSinh.caHocTruong})');
+            reasons.add(
+              '☀️ Rảnh lịch trường (Ca ${targetHocSinh.caHocTruong})',
+            );
           }
 
           if (s.subjectConflict) {
             reasons.add('⚠️ Trùng môn khác (${targetHocSinh.lichCanMonKhac})');
-          } else if (targetHocSinh.lichCanMonKhac != null && targetHocSinh.lichCanMonKhac!.isNotEmpty) {
+          } else if (targetHocSinh.lichCanMonKhac != null &&
+              targetHocSinh.lichCanMonKhac!.isNotEmpty) {
             reasons.add('✅ Không vướng môn khác');
           }
         }

@@ -3,15 +3,25 @@
 import 'package:sqflite/sqflite.dart';
 import 'dart:developer' as developer;
 
-/// Chuyển đổi chuỗi thời gian "HH:mm" hoặc "HH:mm:ss" thành tổng số phút trong ngày.
+/// Chuyển đổi chuỗi thời gian "HH:mm" hoặc "HH:mm:ss" thành tổng số phút trong ngày (0..1439).
 ///
-/// Trả về 0 nếu định dạng không hợp lệ.
-int chuyenGioSangPhut(String time) {
+/// Trả về `null` nếu định dạng không hợp lệ hoặc ngoài dải cho phép (hour 0..23, minute 0..59).
+/// Trả về `0` nếu là "00:00".
+int? chuyenGioSangPhut(String time) {
+  final trimmed = time.trim();
+  if (trimmed.isEmpty) return null;
+
   try {
-    final parts = time.split(':');
-    if (parts.length < 2) return 0;
-    final hours = int.parse(parts[0]);
-    final minutes = int.parse(parts[1]);
+    final parts = trimmed.split(':');
+    if (parts.length < 2) return null;
+
+    final hours = int.tryParse(parts[0]);
+    final minutes = int.tryParse(parts[1]);
+
+    if (hours == null || minutes == null) return null;
+    if (hours < 0 || hours > 23) return null;
+    if (minutes < 0 || minutes > 59) return null;
+
     return hours * 60 + minutes;
   } catch (e) {
     developer.log(
@@ -19,23 +29,37 @@ int chuyenGioSangPhut(String time) {
       name: 'chuyenGioSangPhut',
       error: e,
     );
-    return 0;
+    return null;
   }
+}
+
+/// Kiểm tra khung thời gian có hợp lệ không (cả hai thời gian đều hợp lệ và start < end).
+bool validateTimeRange(String start, String end) {
+  final startPhut = chuyenGioSangPhut(start);
+  final endPhut = chuyenGioSangPhut(end);
+  if (startPhut == null || endPhut == null) return false;
+  return startPhut < endPhut;
+}
+
+/// Chuẩn hóa định dạng chuỗi giờ thành "HH:mm" (ví dụ: "19:30:00" -> "19:30", "9:5" -> "09:05").
+String normalizeTime(String time) {
+  final trimmed = time.trim();
+  final parts = trimmed.split(':');
+  if (parts.length >= 2) {
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h != null && m != null && h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      final hStr = h.toString().padLeft(2, '0');
+      final mStr = m.toString().padLeft(2, '0');
+      return '$hStr:$mStr';
+    }
+  }
+  return trimmed;
 }
 
 /// Kiểm tra xem một khung thời gian mới có bị chồng lấn với các lịch đã có trong cùng một lớp và ngày không.
 ///
-/// Hàm này đủ linh hoạt để làm việc với cả `lich_hoc` (dùng `thuTrongTuan` kiểu int)
-/// và `lich_hoc_chung` (dùng `ngay_trong_tuan` kiểu String).
-///
-/// [db]: Đối tượng Database.
-/// [tenBang]: Tên bảng cần kiểm tra ('lich_hoc' hoặc 'lich_hoc_chung').
-/// [idLop]: ID của lớp học.
-/// [cotNgay]: Tên cột chứa ngày trong tuần ('thuTrongTuan' hoặc 'ngay_trong_tuan').
-/// [giaTriNgay]: Giá trị của ngày trong tuần (int hoặc String).
-/// [gioBatDauMoi]: Giờ bắt đầu của lịch mới.
-/// [gioKetThucMoi]: Giờ kết thúc của lịch mới.
-/// [excludeId]: (Tùy chọn) ID của lịch học cần loại trừ khỏi việc kiểm tra (dùng khi cập nhật).
+/// Trả về `true` nếu bị chồng lấn hoặc dữ liệu/thời gian không hợp lệ (fail-closed).
 Future<bool> kiemTraChongLanLichHoc({
   required Database db,
   required String tenBang,
@@ -47,6 +71,20 @@ Future<bool> kiemTraChongLanLichHoc({
   int? excludeId,
 }) async {
   try {
+    final batDauMoiPhut = chuyenGioSangPhut(gioBatDauMoi);
+    final ketThucMoiPhut = chuyenGioSangPhut(gioKetThucMoi);
+
+    // Validate khung thời gian mới (phải hợp lệ và start < end)
+    if (batDauMoiPhut == null ||
+        ketThucMoiPhut == null ||
+        batDauMoiPhut >= ketThucMoiPhut) {
+      developer.log(
+        '⚠️ Khung thời gian mới không hợp lệ: $gioBatDauMoi - $gioKetThucMoi',
+        name: 'kiemTraChongLanLichHoc',
+      );
+      return true; // Fail-closed: coi như conflict/reject
+    }
+
     String whereClause = 'id_lop = ? AND $cotNgay = ?';
     List<dynamic> whereArgs = [idLop, giaTriNgay];
 
@@ -55,36 +93,48 @@ Future<bool> kiemTraChongLanLichHoc({
       whereArgs.add(excludeId);
     }
 
+    final columns = tenBang == 'lich_hoc_chung'
+        ? const ['id', 'gio_bat_dau', 'gio_ket_thuc']
+        : const ['id', 'gioBatDau', 'gioKetThuc'];
+
     final existingSchedules = await db.query(
       tenBang,
+      columns: columns,
       where: whereClause,
       whereArgs: whereArgs,
     );
 
-    final batDauMoiPhut = chuyenGioSangPhut(gioBatDauMoi);
-    final ketThucMoiPhut = chuyenGioSangPhut(gioKetThucMoi);
-
     for (var schedule in existingSchedules) {
-      final batDauCuPhut = chuyenGioSangPhut(
-        schedule['gio_bat_dau'] as String? ??
-            schedule['gioBatDau'] as String? ??
-            '',
-      );
-      final ketThucCuPhut = chuyenGioSangPhut(
-        schedule['gio_ket_thuc'] as String? ??
-            schedule['gioKetThuc'] as String? ??
-            '',
-      );
+      final rawBatDau =
+          schedule['gio_bat_dau'] as String? ??
+          schedule['gioBatDau'] as String? ??
+          '';
+      final rawKetThuc =
+          schedule['gio_ket_thuc'] as String? ??
+          schedule['gioKetThuc'] as String? ??
+          '';
 
-      // Điều kiện chồng lấn: (StartA < EndB) and (EndA > StartB)
+      final batDauCuPhut = chuyenGioSangPhut(rawBatDau);
+      final ketThucCuPhut = chuyenGioSangPhut(rawKetThuc);
+
+      if (batDauCuPhut == null ||
+          ketThucCuPhut == null ||
+          batDauCuPhut >= ketThucCuPhut) {
+        developer.log(
+          '⚠️ Lịch cũ trong DB không hợp lệ: $rawBatDau - $rawKetThuc',
+          name: 'kiemTraChongLanLichHoc',
+        );
+        return true; // Fail-closed
+      }
+
+      // Quy tắc chồng lấn: (startA < endB) && (endA > startB)
       if (batDauMoiPhut < ketThucCuPhut && ketThucMoiPhut > batDauCuPhut) {
         developer.log(
           '⚠️ Phát hiện chồng lấn lịch học',
           name: 'kiemTraChongLanLichHoc',
           error: {
             'lịch mới': '$gioBatDauMoi - $gioKetThucMoi',
-            'lịch cũ':
-                '${schedule['gio_bat_dau'] ?? schedule['gioBatDau']} - ${schedule['gio_ket_thuc'] ?? schedule['gioKetThuc']}',
+            'lịch cũ': '$rawBatDau - $rawKetThuc',
           },
         );
         return true; // Bị chồng lấn
@@ -98,6 +148,13 @@ Future<bool> kiemTraChongLanLichHoc({
       error: e,
       stackTrace: st,
     );
-    return true; // Mặc định là có chồng lấn để tránh lỗi dữ liệu
+    return true; // Fail-closed: Mặc định là có chồng lấn
   }
 }
+
+/// Chuyển đổi ngày (DateTime) thành giá trị thứ trong Database (`thuTrongTuan`):
+/// 1 = Chủ Nhật, 2 = Thứ Hai, 3 = Thứ Ba, 4 = Thứ Tư, 5 = Thứ Năm, 6 = Thứ Sáu, 7 = Thứ Bảy.
+int databaseWeekdayFromDate(DateTime date) {
+  return (date.weekday == 7) ? 1 : date.weekday + 1;
+}
+

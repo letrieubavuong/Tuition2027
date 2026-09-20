@@ -1,4 +1,3 @@
-
 // File: lib/screens/ds_lop.dart
 
 import 'package:flutter/material.dart';
@@ -10,7 +9,6 @@ import '../l10n/app_localizations.dart';
 import 'lop_detail.dart';
 import '../widgets/gui_thong_bao_hang_loat_dialog.dart';
 import '../utils/toast_helper.dart';
-import '../services/firebase_sync_service.dart';
 
 class DSLop extends StatefulWidget {
   final GlobalKey<MainScreenState> mainScreenKey;
@@ -53,11 +51,8 @@ class _DSLopState extends State<DSLop> {
   // Đọc/Tải Danh Sách Lớp (READ)
   Future<void> _taiDSLop() async {
     setState(() => _dangTai = true);
-    var ds = await _lopService.docTatCaLop();
-    if (ds.isEmpty) {
-      await FirebaseSyncService.instance.pullAllCloudDataToLocal();
-      ds = await _lopService.docTatCaLop();
-    }
+    final ds = await _lopService.docTatCaLop();
+    if (!mounted) return;
     setState(() {
       _danhSachLop = ds;
       _dangTai = false;
@@ -157,6 +152,7 @@ class _DSLopState extends State<DSLop> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
+        bool isSubmitting = false;
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             final String dialogTitle = isVi
@@ -210,13 +206,15 @@ class _DSLopState extends State<DSLop> {
                               isVi ? 'Chọn Khối' : 'Select Grade',
                               style: const TextStyle(color: Colors.white),
                             ),
-                            onChanged: (int? newValue) {
-                              if (newValue != null) {
-                                setStateDialog(() {
-                                  selectedKhoi = newValue;
-                                });
-                              }
-                            },
+                            onChanged: isSubmitting
+                                ? null
+                                : (int? newValue) {
+                                    if (newValue != null) {
+                                      setStateDialog(() {
+                                        selectedKhoi = newValue;
+                                      });
+                                    }
+                                  },
                             items: _danhSachKhoi.map<DropdownMenuItem<int>>((
                               int khoi,
                             ) {
@@ -241,6 +239,7 @@ class _DSLopState extends State<DSLop> {
                   // --- TextField Tên Lớp ---
                   TextField(
                     controller: tenLopController,
+                    enabled: !isSubmitting,
                     autofocus: true,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
@@ -270,31 +269,43 @@ class _DSLopState extends State<DSLop> {
               actionsAlignment: MainAxisAlignment.center, // Căn giữa các nút
               actions: [
                 ElevatedButton(
-                  onPressed: () async {
-                    final tenMoi = tenLopController.text.trim();
-                    if (tenMoi.isNotEmpty) {
-                      try {
-                        if (isEditing) {
-                          lop.ten = tenMoi;
-                          lop.khoi = selectedKhoi;
-                          await _lopService.capNhatLop(lop);
-                        } else {
-                          final lopMoi = Lop(ten: tenMoi, khoi: selectedKhoi);
-                          await _lopService.taoLop(lopMoi);
-                        }
-                        if (!context.mounted) return;
-                        Navigator.of(context).pop(true);
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        ToastHelper.showError(
-                          context,
-                          isVi
-                              ? 'Lỗi: Tên lớp đã tồn tại hoặc lỗi hệ thống.'
-                              : 'Error: Class name already exists or system error.',
-                        );
-                      }
-                    }
-                  },
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final tenMoi = tenLopController.text.trim();
+                          if (tenMoi.isNotEmpty) {
+                            setStateDialog(() => isSubmitting = true);
+                            try {
+                              if (isEditing) {
+                                final updatedLop = lop.copyWith(
+                                  ten: tenMoi,
+                                  khoi: selectedKhoi,
+                                );
+                                await _lopService.capNhatLop(updatedLop);
+                              } else {
+                                final lopMoi = Lop(
+                                  ten: tenMoi,
+                                  khoi: selectedKhoi,
+                                );
+                                await _lopService.taoLop(lopMoi);
+                              }
+                              if (!context.mounted) return;
+                              Navigator.of(context).pop(true);
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              ToastHelper.showError(
+                                context,
+                                isVi
+                                    ? 'Lỗi: Tên lớp đã tồn tại hoặc lỗi hệ thống.'
+                                    : 'Error: Class name already exists or system error.',
+                              );
+                            } finally {
+                              if (context.mounted) {
+                                setStateDialog(() => isSubmitting = false);
+                              }
+                            }
+                          }
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red, // Màu đỏ như nút Register
                     foregroundColor: Colors.white,
@@ -306,10 +317,19 @@ class _DSLopState extends State<DSLop> {
                       borderRadius: BorderRadius.circular(30.0), // Bo góc nút
                     ),
                   ),
-                  child: Text(
-                    buttonText,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          buttonText,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                 ),
                 // Có thể thêm nút "Hủy" nếu cần, nhưng thường thì đóng dialog khi người dùng click bên ngoài
                 // hoặc bạn có thể để nó nhỏ hơn và là TextButton
@@ -516,7 +536,9 @@ class _DSLopState extends State<DSLop> {
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      isVi ? 'Gửi thông báo lớp' : 'Class Notice',
+                                      isVi
+                                          ? 'Gửi thông báo lớp'
+                                          : 'Class Notice',
                                       style: TextStyle(color: lightText),
                                     ),
                                   ],

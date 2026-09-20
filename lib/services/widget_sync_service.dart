@@ -2,81 +2,15 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:home_widget/home_widget.dart';
-import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../utils/db.dart';
 import '../utils/vietqr_util.dart';
+import 'widget_snapshot_service.dart';
 
 class WidgetSyncService {
   static Future<void> syncTodaySchedule() async {
-    try {
-      final db = await DBHelper.instance.database;
-      final now = DateTime.now();
-      final int thuHienTai = now.weekday; // 1=Mon, ..., 7=Sun
-      final int thuTrongTuanDB = (thuHienTai == 7) ? 1 : thuHienTai + 1;
-
-      final List<Map<String, dynamic>> caHocHomNay = await db.rawQuery(
-        '''
-        SELECT L.ten as tenLop, LH.gioBatDau, LH.gioKetThuc
-        FROM ${DBHelper.tenBangLichHoc} LH
-        JOIN ${DBHelper.tenBangLop} L ON LH.id_lop = L.id
-        WHERE LH.thuTrongTuan = ?
-        ORDER BY LH.gioBatDau ASC
-        ''',
-        [thuTrongTuanDB],
-      );
-
-      final dateFormatted = DateFormat('dd/MM/yyyy').format(now);
-      final dayNames = {
-        1: 'Chủ Nhật',
-        2: 'Thứ Hai',
-        3: 'Thứ Ba',
-        4: 'Thứ Tư',
-        5: 'Thứ Năm',
-        6: 'Thứ Sáu',
-        7: 'Thứ Bảy',
-      };
-      final dayName = dayNames[thuTrongTuanDB] ?? 'Hôm nay';
-
-      await HomeWidget.saveWidgetData<String>(
-        'widget_date',
-        '$dayName ($dateFormatted)',
-      );
-
-      if (caHocHomNay.isEmpty) {
-        await HomeWidget.saveWidgetData<bool>('widget_empty', true);
-      } else {
-        await HomeWidget.saveWidgetData<bool>('widget_empty', false);
-
-        // Populate up to 8 slots
-        for (int i = 0; i < 8; i++) {
-          final slotIndex = i + 1;
-          if (i < caHocHomNay.length) {
-            final classItem = caHocHomNay[i];
-            var rawTime = classItem['gioBatDau'] as String;
-            if (rawTime.length >= 5) {
-              rawTime = rawTime.substring(0, 5);
-            }
-            final timeStr = rawTime;
-            final nameStr = classItem['tenLop'] as String;
-
-            await HomeWidget.saveWidgetData<String>('time_$slotIndex', timeStr);
-            await HomeWidget.saveWidgetData<String>('name_$slotIndex', nameStr);
-          } else {
-            await HomeWidget.saveWidgetData<String>('time_$slotIndex', '');
-            await HomeWidget.saveWidgetData<String>('name_$slotIndex', '');
-          }
-        }
-      }
-
-      await HomeWidget.updateWidget(
-        name: 'TuitionWidgetProvider',
-        androidName: 'TuitionWidgetProvider',
-      );
-    } catch (e) {
-      // Fail silently
-    }
+    await WidgetSnapshotService.instance.refresh();
   }
 
   static Future<void> syncBankQRWidget() async {
@@ -107,6 +41,7 @@ class WidgetSyncService {
         await HomeWidget.updateWidget(
           name: 'BankQRWidgetProvider',
           androidName: 'BankQRWidgetProvider',
+          qualifiedAndroidName: 'com.example.tuition2025.BankQRWidgetProvider',
         );
         return;
       }
@@ -147,6 +82,7 @@ class WidgetSyncService {
       await HomeWidget.updateWidget(
         name: 'BankQRWidgetProvider',
         androidName: 'BankQRWidgetProvider',
+        qualifiedAndroidName: 'com.example.tuition2025.BankQRWidgetProvider',
       );
     } catch (e) {
       // Fail silently

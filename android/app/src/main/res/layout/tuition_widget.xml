@@ -3,299 +3,311 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp"
+    android:padding="12dp"
     android:background="@drawable/widget_background">
 
-    <!-- Header Section -->
+    <!-- ─── 1. TOP HEADER (4×1) ─── -->
     <LinearLayout
+        android:id="@+id/widget_header_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="8dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widget_header_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="HÔM NAY — 17/09"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_header_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="4 ca • 87 HS"
+                android:textColor="#B0BEC5"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widget_header_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp"
+            android:background="@drawable/widget_badge_bg"
+            android:text="✓ 2/4 xong"
+            android:textColor="#81C784"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#33FFFFFF" />
+
+    <!-- ─── 2. ACTIVE / NEXT SESSION BOX (4×2) ─── -->
+    <LinearLayout
+        android:id="@+id/widget_session_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:layout_marginBottom="12dp">
+        android:paddingVertical="8dp">
 
         <TextView
-            android:id="@+id/widget_title"
+            android:id="@+id/widget_session_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="LỊCH DẠY HÔM NAY"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:gravity="center" />
+            android:text="🔴 CA HIỆN TẠI"
+            android:textColor="#FF5252"
+            android:textSize="11sp"
+            android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/widget_date"
+            android:id="@+id/widget_session_detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:text="17:30–19:00 • Vật lý 12A"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_session_attendance"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:text="Hôm nay"
-            android:textColor="#A0A0A0"
-            android:textSize="12sp"
-            android:gravity="center" />
+            android:text="28 HS • ○ Chưa điểm danh"
+            android:textColor="#CFD8DC"
+            android:textSize="12sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/widget_btn_diemdanh"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingVertical="6dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/widget_button_primary"
+                android:text="ĐIỂM DANH"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_btn_ketthuc"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingVertical="6dp"
+                android:background="@drawable/widget_button_outlined"
+                android:text="KẾT THÚC CA"
+                android:textColor="#FFAB40"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
     </LinearLayout>
 
-    <!-- Empty State View -->
-    <TextView
-        android:id="@+id/widget_empty_text"
+    <View
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-        android:text="Hôm nay không có ca dạy"
-        android:textColor="#80FFFFFF"
-        android:textSize="14sp"
-        android:visibility="gone" />
+        android:layout_height="1dp"
+        android:background="#33FFFFFF" />
 
-    <!-- Class List container -->
+    <!-- ─── 3. METRICS GRID 2×2 ─── -->
     <LinearLayout
-        android:id="@+id/widget_class_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingVertical="6dp">
+
+        <!-- Row 1 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:layout_marginBottom="4dp">
+
+            <!-- Box 1: Cần xử lý -->
+            <LinearLayout
+                android:id="@+id/widget_box_attention"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:padding="6dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/widget_tile_bg">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="⚠ CẦN XỬ LÝ"
+                    android:textColor="#FFCA28"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/widget_val_attention"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="6 việc"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Box 2: Học phí -->
+            <LinearLayout
+                android:id="@+id/widget_box_tuition"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:padding="6dp"
+                android:background="@drawable/widget_tile_bg">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="💰 HỌC PHÍ"
+                    android:textColor="#66BB6A"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/widget_val_tuition"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="3 PH cần nhắc"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Row 2 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <!-- Box 3: Phụ huynh -->
+            <LinearLayout
+                android:id="@+id/widget_box_parents"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:padding="6dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/widget_tile_bg">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📨 PHỤ HUYNH"
+                    android:textColor="#42A5F5"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/widget_val_parents"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="2 chưa liên hệ"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Box 4: Học sinh -->
+            <LinearLayout
+                android:id="@+id/widget_box_students"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:padding="6dp"
+                android:background="@drawable/widget_tile_bg">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="👨🎓 HỌC SINH"
+                    android:textColor="#AB47BC"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/widget_val_students"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="3 cần chú ý"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#33FFFFFF" />
+
+    <!-- ─── 4. FOOTER STATUS (4×1) ─── -->
+    <LinearLayout
+        android:id="@+id/widget_footer_layout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="6dp">
 
-        <!-- Table Header -->
-        <LinearLayout
-            android:id="@+id/widget_table_header"
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/widget_footer_brief"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingBottom="4dp"
-            android:layout_marginBottom="4dp">
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Tên lớp"
-                android:textColor="#00B0FF"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:gravity="center" />
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Giờ dạy"
-                android:textColor="#00B0FF"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:gravity="center" />
-        </LinearLayout>
+            android:layout_weight="1"
+            android:text="✓ Hôm nay ổn"
+            android:textColor="#80CBC4"
+            android:textSize="11sp"
+            android:singleLine="true" />
 
-        <!-- Class Item 1 -->
-        <LinearLayout
-            android:id="@+id/widget_item_1"
-            android:layout_width="match_parent"
+        <TextView
+            android:id="@+id/widget_footer_time"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingVertical="4dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/widget_name_1"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:singleLine="true"
-                android:gravity="center" />
-            <TextView
-                android:id="@+id/widget_time_1"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:gravity="center" />
-        </LinearLayout>
-
-        <!-- Class Item 2 -->
-        <LinearLayout
-            android:id="@+id/widget_item_2"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingVertical="4dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/widget_name_2"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:singleLine="true"
-                android:gravity="center" />
-            <TextView
-                android:id="@+id/widget_time_2"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:gravity="center" />
-        </LinearLayout>
-
-        <!-- Class Item 3 -->
-        <LinearLayout
-            android:id="@+id/widget_item_3"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingVertical="4dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/widget_name_3"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:singleLine="true"
-                android:gravity="center" />
-            <TextView
-                android:id="@+id/widget_time_3"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:gravity="center" />
-        </LinearLayout>
-
-        <!-- Class Item 4 -->
-        <LinearLayout
-            android:id="@+id/widget_item_4"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingVertical="4dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/widget_name_4"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:singleLine="true"
-                android:gravity="center" />
-            <TextView
-                android:id="@+id/widget_time_4"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:gravity="center" />
-        </LinearLayout>
-
-        <!-- Class Item 5 -->
-        <LinearLayout
-            android:id="@+id/widget_item_5"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingVertical="4dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/widget_name_5"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:singleLine="true"
-                android:gravity="center" />
-            <TextView
-                android:id="@+id/widget_time_5"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:gravity="center" />
-        </LinearLayout>
-
-        <!-- Class Item 6 -->
-        <LinearLayout
-            android:id="@+id/widget_item_6"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingVertical="4dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/widget_name_6"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:singleLine="true"
-                android:gravity="center" />
-            <TextView
-                android:id="@+id/widget_time_6"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:gravity="center" />
-        </LinearLayout>
-
-        <!-- Class Item 7 -->
-        <LinearLayout
-            android:id="@+id/widget_item_7"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingVertical="4dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/widget_name_7"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:singleLine="true"
-                android:gravity="center" />
-            <TextView
-                android:id="@+id/widget_time_7"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:gravity="center" />
-        </LinearLayout>
-
-        <!-- Class Item 8 -->
-        <LinearLayout
-            android:id="@+id/widget_item_8"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingVertical="4dp"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/widget_name_8"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:singleLine="true"
-                android:gravity="center" />
-            <TextView
-                android:id="@+id/widget_time_8"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:gravity="center" />
-        </LinearLayout>
-
+            android:text="• Cập nhật 21:35"
+            android:textColor="#90A4AE"
+            android:textSize="11sp" />
     </LinearLayout>
-
 </LinearLayout>

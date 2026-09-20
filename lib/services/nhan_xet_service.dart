@@ -1,5 +1,6 @@
 // File: lib/services/nhan_xet_service.dart
 
+import 'dart:developer' as developer;
 import 'package:sqflite/sqflite.dart';
 import '../models/hs_lop_view_model.dart';
 import '../models/nhan_xet_thang.dart';
@@ -7,6 +8,9 @@ import '../utils/db.dart';
 import 'diem_danh_service.dart';
 import 'danh_gia_buoi_hoc_service.dart';
 import 'firebase_sync_service.dart';
+
+import '../utils/attendance_calculator.dart';
+import '../utils/student_status.dart';
 
 class NhanXetService {
   final String _tenBang = DBHelper.tenBangNhanXetThang;
@@ -17,7 +21,33 @@ class NhanXetService {
     return await DBHelper.instance.database;
   }
 
-  // Lấy hoặc tạo mới một bản ghi nhận xét
+  /// Push log an toàn lên Firebase không nuốt exception lặng lẽ
+  void _pushFirebaseRecord(
+    String table,
+    String key,
+    Map<String, dynamic> data,
+  ) {
+    FirebaseSyncService.instance.pushRecordToCloud(table, key, data).catchError(
+      (e, st) {
+        developer.log(
+          'Firebase sync error [$table / $key]: $e',
+          error: e,
+          stackTrace: st,
+        );
+      },
+    );
+  }
+
+  /// Công thức điểm chuyên cần thống nhất (Single Source of Truth qua AttendanceCalculator)
+  static double tinhDiemChuyenCanFromCounts(int coMat, int nghiCP, int nghiKP) {
+    return AttendanceCalculator.tinhDiemChuyenCan(
+      coMat: coMat,
+      nghiCP: nghiCP,
+      nghiKP: nghiKP,
+    );
+  }
+
+  // Lấy hoặc tạo mới một bản ghi nhận xét (Draft mode - không tự động ghi DB trên câu lệnh đọc)
   Future<NhanXetThang> layHoacTaoNhanXet(
     int idHocSinh,
     int idLop,
@@ -33,13 +63,13 @@ class NhanXetService {
     if (maps.isNotEmpty) {
       return NhanXetThang.fromMap(maps.first);
     } else {
-      // Nếu chưa có, tạo một bản ghi mặc định
+      // Nếu chưa có trong DB, trả về một bản ghi mặc định trong bộ nhớ (Draft mode)
       final nhanXetMoi = NhanXetThang(
         idHocSinh: idHocSinh,
         idLop: idLop,
         thang: thang,
       );
-      // Tự động tính điểm chuyên cần lần đầu
+      // Tự động tính điểm chuyên cần lần đầu theo công thức chuẩn
       nhanXetMoi.diemChuyenCan = await _tinhDiemChuyenCan(
         idHocSinh,
         idLop,
@@ -47,37 +77,47 @@ class NhanXetService {
       );
       // Tính luôn xếp hạng
       nhanXetMoi.xepHang = _tinhToanXepHang(nhanXetMoi.diemTrungBinh);
-
-      final id = await db.insert(
-        _tenBang,
-        nhanXetMoi.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-      final created = nhanXetMoi.copyWith(id: id);
-      FirebaseSyncService.instance
-          .pushRecordToCloud(_tenBang, id.toString(), created.toMap())
-          .catchError((e) => null);
-      return created;
+      return nhanXetMoi;
     }
   }
 
-  // Cập nhật một bản ghi nhận xét
+  // Cập nhật hoặc lưu mới một bản ghi nhận xét (An toàn với manual override)
   Future<int> capNhatNhanXet(NhanXetThang nhanXet) async {
     final db = await _database;
+    // Đánh dấu đây là dữ liệu giáo viên nhập tay/chỉnh sửa trực tiếp
+    nhanXet.isManualOverride = true;
+    nhanXet.diemChuyenCan = nhanXet.diemChuyenCan.clamp(0.0, 10.0);
+    nhanXet.diemThaiDo = nhanXet.diemThaiDo.clamp(0.0, 10.0);
+    nhanXet.diemBaiTap = nhanXet.diemBaiTap.clamp(0.0, 10.0);
+    nhanXet.diemKiemTra = nhanXet.diemKiemTra.clamp(0.0, 10.0);
+
     // Tính lại xếp hạng trước khi lưu
     nhanXet.xepHang = _tinhToanXepHang(nhanXet.diemTrungBinh);
-    final result = await db.update(
-      _tenBang,
-      nhanXet.toMap(),
-      where: 'id = ?',
-      whereArgs: [nhanXet.id],
-    );
-    if (result > 0 && nhanXet.id != null) {
-      FirebaseSyncService.instance
-          .pushRecordToCloud(_tenBang, nhanXet.id.toString(), nhanXet.toMap())
-          .catchError((e) => null);
+    final mapData = nhanXet.toMap();
+
+    if (nhanXet.id != null) {
+      final result = await db.update(
+        _tenBang,
+        mapData,
+        where: 'id = ?',
+        whereArgs: [nhanXet.id],
+      );
+      if (result > 0) {
+        _pushFirebaseRecord(_tenBang, nhanXet.id.toString(), mapData);
+      }
+      return result;
+    } else {
+      final id = await db.insert(
+        _tenBang,
+        mapData,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      if (id > 0) {
+        nhanXet.id = id;
+        _pushFirebaseRecord(_tenBang, id.toString(), nhanXet.toMap());
+      }
+      return id;
     }
-    return result;
   }
 
   // Lấy tất cả nhận xét của một lớp trong một tháng
@@ -91,142 +131,176 @@ class NhanXetService {
     return maps.map((map) => NhanXetThang.fromMap(map)).toList();
   }
 
-  // HÀM MỚI: Tự động tổng hợp điểm từ các buổi học và cập nhật cho cả lớp
+  // Tự động tổng hợp điểm từ các buổi học và cập nhật cho cả lớp (High-Speed Batch Pipeline)
   Future<void> tongHopVaCapNhatNhanXetThang(
     List<HSLopViewModel> dsHocSinh,
     int idLop,
     String thang,
   ) async {
+    if (dsHocSinh.isEmpty || idLop <= 0) return;
+
     final db = await _database;
 
-    // Chuẩn bị chuỗi ngày để truy vấn (tháng này và đầu tháng sau)
     final parts = thang.split('-');
     final year = int.parse(parts[0]);
     final month = int.parse(parts[1]);
     final startDateStr = '$thang-01 00:00:00';
 
-    // Tính ngày đầu tháng sau
     final nextMonth = month == 12 ? 1 : month + 1;
     final nextYear = month == 12 ? year + 1 : year;
     final endDateStr =
         '$nextYear-${nextMonth.toString().padLeft(2, '0')}-01 00:00:00';
 
-    for (var hs in dsHocSinh) {
-      // 1. Lấy hoặc tạo bản ghi nhận xét tháng
-      final nhanXetThang = await layHoacTaoNhanXet(hs.id!, idLop, thang);
+    // 1. Prefetch tất cả nhận xét tháng hiện có của lớp trong tháng
+    final List<Map<String, dynamic>> existingNxMaps = await db.query(
+      _tenBang,
+      where: 'id_lop = ? AND thang = ?',
+      whereArgs: [idLop, thang],
+    );
+    final Map<int, NhanXetThang> existingNxMap = {
+      for (var m in existingNxMaps)
+        if (m['id_hoc_sinh'] != null)
+          (m['id_hoc_sinh'] as num).toInt(): NhanXetThang.fromMap(m),
+    };
 
-      // 2. Kiểm tra xem có buổi học nào không
-      final counts = await _diemDanhService.demSoBuoiTheoTrangThai(
-        hs.id!,
-        idLop,
-        thang,
+    // 2. Prefetch tất cả các điểm danh của lớp trong tháng
+    final List<Map<String, dynamic>> allSessions = await db.query(
+      DBHelper.tenBangDiemDanh,
+      columns: ['id', 'id_hoc_sinh', 'trang_thai', 'gio_diem_danh'],
+      where: 'id_lop = ? AND gio_diem_danh >= ? AND gio_diem_danh < ?',
+      whereArgs: [idLop, startDateStr, endDateStr],
+    );
+
+    // Group điểm danh theo id_hoc_sinh trong RAM
+    final Map<int, List<Map<String, dynamic>>> studentSessionsMap = {};
+    for (var sess in allSessions) {
+      final hsId = sess['id_hoc_sinh'] as int?;
+      if (hsId != null) {
+        studentSessionsMap.putIfAbsent(hsId, () => []).add(sess);
+      }
+    }
+
+    // 3. Prefetch danh sách id_diem_danh đã được đánh giá trong danh_gia_buoi_hoc (Chỉ 1 SQL IN query)
+    final List<int> allSessionIds = allSessions
+        .map((s) => s['id'] as int)
+        .toList();
+    final Set<int> evaluatedSessionIds = {};
+    if (allSessionIds.isNotEmpty) {
+      final placeholders = List.filled(allSessionIds.length, '?').join(',');
+      final List<Map<String, dynamic>> evalRows = await db.rawQuery(
+        'SELECT DISTINCT id_diem_danh FROM $_tenBangDGBH WHERE id_diem_danh IN ($placeholders)',
+        allSessionIds,
       );
-      final coMat = counts['coMat'] ?? 0;
-      final nghiCP = counts['nghiCoPhep'] ?? 0;
-      final nghiKP = counts['nghiKhongPhep'] ?? 0;
+      for (var r in evalRows) {
+        if (r['id_diem_danh'] != null) {
+          evaluatedSessionIds.add((r['id_diem_danh'] as num).toInt());
+        }
+      }
+    }
+
+    // 4. (No fake inserts for unevaluated sessions - preserving pure no-data semantics)
+
+    // 5. Query AVG điểm từ danh_gia_buoi_hoc theo id_hoc_sinh bằng 1 câu SQL GROUP BY duy nhất
+    final String sqlAvg =
+        '''
+      SELECT 
+        DD.id_hoc_sinh,
+        AVG(DGBH.diem_thai_do) as avg_thai_do,
+        AVG(DGBH.diem_hieu_bai) as avg_hieu_bai,
+        AVG(DGBH.diem_bai_tap) as avg_bai_tap
+      FROM $_tenBangDGBH DGBH
+      JOIN ${DBHelper.tenBangDiemDanh} DD ON DGBH.id_diem_danh = DD.id
+      WHERE DD.id_lop = ? 
+        AND DD.gio_diem_danh >= ? 
+        AND DD.gio_diem_danh < ? 
+        AND (DGBH.diem_thai_do IS NOT NULL OR DGBH.diem_hieu_bai IS NOT NULL OR DGBH.diem_bai_tap IS NOT NULL)
+      GROUP BY DD.id_hoc_sinh
+    ''';
+
+    final List<Map<String, dynamic>> avgResults = await db.rawQuery(sqlAvg, [
+      idLop,
+      startDateStr,
+      endDateStr,
+    ]);
+
+    final Map<int, Map<String, double>> studentAvgMap = {};
+    for (var row in avgResults) {
+      final hsId = (row['id_hoc_sinh'] as num).toInt();
+      studentAvgMap[hsId] = {
+        'avg_thai_do': (row['avg_thai_do'] as num?)?.toDouble() ?? 0.0,
+        'avg_hieu_bai': (row['avg_hieu_bai'] as num?)?.toDouble() ?? 0.0,
+        'avg_bai_tap': (row['avg_bai_tap'] as num?)?.toDouble() ?? 0.0,
+      };
+    }
+
+    // 6. Tính toán điểm cho tất cả học sinh trong RAM và Batch Upsert SQLite an toàn
+    final List<NhanXetThang> listToSave = [];
+
+    for (var hs in dsHocSinh) {
+      if (hs.id == null) continue;
+      final hsId = hs.id!;
+
+      final nhanXetThang =
+          existingNxMap[hsId] ??
+          NhanXetThang(idHocSinh: hsId, idLop: idLop, thang: thang);
+
+      final sessions = studentSessionsMap[hsId] ?? [];
+      int coMat = 0;
+      int nghiCP = 0;
+      int nghiKP = 0;
+
+      for (var s in sessions) {
+        final st = s['trang_thai'] as String?;
+        if (st == 'Có mặt') {
+          coMat++;
+        } else if (st == 'Nghỉ có phép') {
+          nghiCP++;
+        } else if (st == 'Nghỉ không phép') {
+          nghiKP++;
+        }
+      }
+
       final tongSoBuoi = coMat + nghiCP + nghiKP;
 
       if (tongSoBuoi == 0) {
-        // Nếu không có dữ liệu điểm danh, gán điểm về 0 và bỏ qua tính toán AVG
         nhanXetThang.diemChuyenCan = 0;
-        nhanXetThang.diemThaiDo = 0;
-        nhanXetThang.diemBaiTap = 0;
-        nhanXetThang.diemKiemTra = 0;
+        if (!nhanXetThang.isManualOverride) {
+          nhanXetThang.diemThaiDo = 0;
+          nhanXetThang.diemBaiTap = 0;
+          nhanXetThang.diemKiemTra = 0;
+        }
         nhanXetThang.xepHang = 'Chưa xếp hạng';
       } else {
-        // 3. Tính điểm chuyên cần: (Có mặt + Nghỉ có phép) / Tổng số buổi * 10
-        nhanXetThang.diemChuyenCan = ((coMat + nghiCP) / tongSoBuoi * 10.0);
+        nhanXetThang.diemChuyenCan = tinhDiemChuyenCanFromCounts(
+          coMat,
+          nghiCP,
+          nghiKP,
+        );
 
-        // 3.1 TỰ ĐỘNG ĐÁNH GIÁ TRƯỚC: Tạo các đánh giá mặc định (10.0) cho các buổi 'Có mặt' chưa được đánh giá
-        if (coMat > 0) {
-          final List<Map<String, dynamic>> sessions = await db.query(
-            DBHelper.tenBangDiemDanh,
-            where:
-                "id_hoc_sinh = ? AND id_lop = ? AND trang_thai = 'Có mặt' AND gio_diem_danh >= ? AND gio_diem_danh < ?",
-            whereArgs: [hs.id!, idLop, startDateStr, endDateStr],
-          );
-
-          for (var sess in sessions) {
-            final idDiemDanh = sess['id'] as int;
-            final List<Map<String, dynamic>> existEval = await db.query(
-              _tenBangDGBH,
-              where: 'id_diem_danh = ?',
-              whereArgs: [idDiemDanh],
+        if (!nhanXetThang.isManualOverride) {
+          final avgMap = studentAvgMap[hsId];
+          if (avgMap != null) {
+            nhanXetThang.diemThaiDo = (avgMap['avg_thai_do'] ?? 0.0).clamp(
+              0.0,
+              10.0,
             );
-            if (existEval.isEmpty) {
-              final autoComment = DanhGiaBuoiHocService().sinhNhanXetTuDong(
-                0.0,
-                0.0,
-                0.0,
-              );
-              final evalId = await db.insert(_tenBangDGBH, {
-                'id_diem_danh': idDiemDanh,
-                'diem_thai_do': 0.0,
-                'diem_hieu_bai': 0.0,
-                'diem_bai_tap': 0.0,
-                'nhan_xet': autoComment,
-              });
-              if (evalId > 0) {
-                FirebaseSyncService.instance.pushRecordToCloud(_tenBangDGBH, evalId.toString(), {
-                  'id': evalId,
-                  'id_diem_danh': idDiemDanh,
-                  'diem_thai_do': 0.0,
-                  'diem_hieu_bai': 0.0,
-                  'diem_bai_tap': 0.0,
-                  'nhan_xet': autoComment,
-                }).catchError((e) => null);
-              }
-            }
+            nhanXetThang.diemKiemTra = (avgMap['avg_hieu_bai'] ?? 0.0).clamp(
+              0.0,
+              10.0,
+            );
+            nhanXetThang.diemBaiTap = (avgMap['avg_bai_tap'] ?? 0.0).clamp(
+              0.0,
+              10.0,
+            );
+          } else {
+            nhanXetThang.diemThaiDo = 0.0;
+            nhanXetThang.diemBaiTap = 0.0;
+            nhanXetThang.diemKiemTra = 0.0;
           }
         }
 
-        // 4. TÍNH TOÁN ĐIỂM TRUNG BÌNH TỪ BẢNG `danh_gia_buoi_hoc` (Sau khi đã tự động đánh giá)
-        final String sql =
-            '''
-          SELECT 
-            AVG(DGBH.diem_thai_do) as avg_thai_do,
-            AVG(DGBH.diem_hieu_bai) as avg_hieu_bai,
-            AVG(DGBH.diem_bai_tap) as avg_bai_tap
-          FROM $_tenBangDGBH DGBH
-          JOIN ${DBHelper.tenBangDiemDanh} DD ON DGBH.id_diem_danh = DD.id
-          WHERE DD.id_hoc_sinh = ? 
-            AND DD.id_lop = ? 
-            AND DD.gio_diem_danh >= ? 
-            AND DD.gio_diem_danh < ? 
-            AND (DGBH.diem_thai_do IS NOT NULL OR DGBH.diem_hieu_bai IS NOT NULL OR DGBH.diem_bai_tap IS NOT NULL)
-        ''';
-
-        final List<Map<String, dynamic>> avgResult = await db.rawQuery(sql, [
-          hs.id!,
-          idLop,
-          startDateStr,
-          endDateStr,
-        ]);
-
-        if (avgResult.isNotEmpty &&
-            avgResult.first.values.any((v) => v != null)) {
-          final avgMap = avgResult.first;
-          nhanXetThang.diemThaiDo = avgMap['avg_thai_do'] != null
-              ? (avgMap['avg_thai_do'] as num).toDouble()
-              : 0.0;
-
-          nhanXetThang.diemBaiTap = avgMap['avg_bai_tap'] != null
-              ? (avgMap['avg_bai_tap'] as num).toDouble()
-              : 0.0;
-
-          nhanXetThang.diemKiemTra = avgMap['avg_hieu_bai'] != null
-              ? (avgMap['avg_hieu_bai'] as num).toDouble()
-              : 0.0;
-        } else {
-          nhanXetThang.diemThaiDo = 0.0;
-          nhanXetThang.diemBaiTap = 0.0;
-          nhanXetThang.diemKiemTra = 0.0;
-        }
-
-        // 5. Tính toán lại xếp hạng
         nhanXetThang.xepHang = _tinhToanXepHang(nhanXetThang.diemTrungBinh);
 
-        // 5.1 Tự động sinh nhận xét tháng nếu nhận xét cũ trống hoặc là nhận xét tự động mặc định
         if (nhanXetThang.nhanXetChung == null ||
             nhanXetThang.nhanXetChung!.isEmpty ||
             nhanXetThang.nhanXetChung == 'Con ngoan, học tập chăm chỉ.' ||
@@ -240,19 +314,26 @@ class NhanXetService {
         }
       }
 
-      // 6. Lưu lại bản ghi đã cập nhật
-      await db.update(
-        _tenBang,
-        nhanXetThang.toMap(),
-        where: 'id = ?',
-        whereArgs: [nhanXetThang.id],
-      );
-      if (nhanXetThang.id != null) {
-        FirebaseSyncService.instance
-            .pushRecordToCloud(_tenBang, nhanXetThang.id.toString(), nhanXetThang.toMap())
-            .catchError((e) => null);
-      }
+      listToSave.add(nhanXetThang);
     }
+
+    // 7. Thực hiện batch insert/update trong SQLite Transaction duy nhất (bảo toàn primary key ID)
+    await db.transaction((txn) async {
+      final batch = txn.batch();
+      for (var nx in listToSave) {
+        final mapData = nx.toMap();
+        if (nx.id != null) {
+          batch.update(_tenBang, mapData, where: 'id = ?', whereArgs: [nx.id]);
+        } else {
+          batch.insert(
+            _tenBang,
+            mapData,
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+        }
+      }
+      await batch.commit(noResult: true);
+    });
   }
 
   /// Tự động sinh nhận xét đánh giá tháng dựa trên điểm số chuyên cần, thái độ, hiểu bài, bài tập.
@@ -322,15 +403,15 @@ class NhanXetService {
     int idLop,
     String thang,
   ) async {
-    final soBuoiNghiKhongPhep = await _diemDanhService.demSoBuoiTheoThang(
+    final counts = await _diemDanhService.demSoBuoiTheoTrangThai(
       idHocSinh,
       idLop,
       thang,
-      'Nghỉ không phép',
     );
-    // Công thức: 10 điểm, mỗi buổi nghỉ không phép trừ 1 điểm, tối thiểu 0.
-    double diem = 10.0 - soBuoiNghiKhongPhep;
-    return diem < 0 ? 0 : diem;
+    final coMat = counts['coMat'] ?? 0;
+    final nghiCP = counts['nghiCoPhep'] ?? 0;
+    final nghiKP = counts['nghiKhongPhep'] ?? 0;
+    return tinhDiemChuyenCanFromCounts(coMat, nghiCP, nghiKP);
   }
 
   String tinhXepHang(double cc, double td, double kt, double bt) {
@@ -338,10 +419,10 @@ class NhanXetService {
     return _tinhToanXepHang(dtb);
   }
 
-  // Hàm tính toán xếp hạng theo game Liên Quân Mobile (Cập nhật: TB = 0.0 thì xếp hạng Vàng)
+  // Hàm tính toán xếp hạng theo game Liên Quân Mobile (Đặc tả: TB = 0.0 thì xếp hạng Vàng)
   String _tinhToanXepHang(double diemTrungBinh) {
     if (diemTrungBinh == 0.0) {
-      return 'Vàng'; // Tổng trung bình bằng 0.0 thì xếp hạng Vàng
+      return 'Vàng'; // Tổng trung bình bằng 0.0 thì xếp hạng Vàng (Giữ nguyên 100% theo đặc tả nghiệp vụ)
     }
 
     if (diemTrungBinh >= 8.5) {
@@ -376,16 +457,18 @@ class NhanXetService {
         HS.ten as ten_hoc_sinh,
         L.ten as ten_lop,
         L.id as id_lop,
-        NX.diem_chuyen_can,
-        NX.diem_thai_do,
-        NX.diem_bai_tap,
-        NX.diem_kiem_tra,
+        MAX(NX.diem_chuyen_can) as diem_chuyen_can,
+        MAX(NX.diem_thai_do) as diem_thai_do,
+        MAX(NX.diem_bai_tap) as diem_bai_tap,
+        MAX(NX.diem_kiem_tra) as diem_kiem_tra,
         NX.xep_hang
       FROM ${DBHelper.tenBangHS} HS
       JOIN ${DBHelper.tenBangLopHS} LHS ON HS.id = LHS.id_hoc_sinh
       JOIN ${DBHelper.tenBangLop} L ON LHS.id_lop = L.id
       LEFT JOIN $_tenBang NX ON HS.id = NX.id_hoc_sinh AND L.id = NX.id_lop AND NX.thang = ?
-      WHERE L.khoi = ? AND LHS.trang_thai = 'Dang hoc'
+      WHERE L.khoi = ? 
+        AND ${StudentStatus.activeSqlCondition}
+      GROUP BY HS.id
     ''',
       [thang, khoi],
     );
@@ -409,12 +492,231 @@ class NhanXetService {
       };
     }).toList();
 
-    // Sắp xếp theo điểm trung bình giảm dần
-    processed.sort(
-      (a, b) => (b['diem_trung_binh'] as double).compareTo(
+    // Sắp xếp theo điểm trung bình giảm dần, nếu bằng điểm sắp xếp phụ theo tên (A-Z)
+    processed.sort((a, b) {
+      final cmp = (b['diem_trung_binh'] as double).compareTo(
         a['diem_trung_binh'] as double,
-      ),
-    );
+      );
+      if (cmp != 0) return cmp;
+      final nameA = (a['ten_hoc_sinh'] as String?) ?? '';
+      final nameB = (b['ten_hoc_sinh'] as String?) ?? '';
+      return nameA.compareTo(nameB);
+    });
     return processed;
   }
+
+  /// High-speed Batch Summary for Class Evaluation Dashboard
+  Future<List<StudentEvaluationSummaryViewModel>>
+  getClassEvaluationBatchSummary({
+    required int classId,
+    required String month,
+    required List<HSLopViewModel> students,
+  }) async {
+    if (students.isEmpty) return [];
+
+    final db = await _database;
+    final parts = month.split('-');
+    final year = int.parse(parts[0]);
+    final m = int.parse(parts[1]);
+    final startDateStr = '$month-01 00:00:00';
+    final nextM = m == 12 ? 1 : m + 1;
+    final nextY = m == 12 ? year + 1 : year;
+    final endDateStr = '$nextY-${nextM.toString().padLeft(2, '0')}-01 00:00:00';
+
+    final studentIds = students.map((s) => s.id!).toList();
+    final placeholders = List.filled(studentIds.length, '?').join(',');
+
+    // 1. Query all attendance in month
+    final attendanceRows = await db.rawQuery(
+      '''
+      SELECT id, id_hoc_sinh, trang_thai, gio_diem_danh
+      FROM ${DBHelper.tenBangDiemDanh}
+      WHERE id_lop = ? AND id_hoc_sinh IN ($placeholders)
+        AND gio_diem_danh >= ? AND gio_diem_danh < ?
+      ORDER BY gio_diem_danh DESC
+    ''',
+      [classId, ...studentIds, startDateStr, endDateStr],
+    );
+
+    final Map<int, List<Map<String, dynamic>>> attByStudent = {};
+    for (var r in attendanceRows) {
+      final sId = r['id_hoc_sinh'] as int;
+      attByStudent.putIfAbsent(sId, () => []).add(r);
+    }
+
+    // 2. Query evaluation scores per session
+    final List<int> allAttIds = attendanceRows
+        .map((r) => r['id'] as int)
+        .toList();
+    final Map<int, Map<String, dynamic>> evalByAttId = {};
+    if (allAttIds.isNotEmpty) {
+      final attPlaceholders = List.filled(allAttIds.length, '?').join(',');
+      final evalRows = await db.rawQuery('''
+        SELECT id_diem_danh, diem_thai_do, diem_hieu_bai, diem_bai_tap, nhan_xet
+        FROM $_tenBangDGBH
+        WHERE id_diem_danh IN ($attPlaceholders)
+      ''', allAttIds);
+      for (var r in evalRows) {
+        final attId = r['id_diem_danh'] as int;
+        evalByAttId[attId] = r;
+      }
+    }
+
+    // 3. Query monthly evaluation overrides
+    final nxList = await layDanhSachNhanXet(classId, month);
+    final Map<int, NhanXetThang> nxMap = {
+      for (var nx in nxList) nx.idHocSinh: nx,
+    };
+
+    final List<StudentEvaluationSummaryViewModel> summaries = [];
+
+    for (var hs in students) {
+      final sId = hs.id!;
+      final records = attByStudent[sId] ?? [];
+
+      int presentCount = 0;
+      int lateCount = 0;
+      int excusedCount = 0;
+      int unexcusedCount = 0;
+
+      final List<String> recent5 = [];
+      int evalCount = 0;
+      double sumThaiDo = 0;
+      double sumHieuBai = 0;
+      double sumBaiTap = 0;
+      int missingHw = 0;
+
+      for (int i = 0; i < records.length; i++) {
+        final r = records[i];
+        final st = r['trang_thai'] as String? ?? '';
+        final attId = r['id'] as int;
+
+        if (i < 5) {
+          recent5.add(st);
+        }
+
+        if (st == 'Có mặt') {
+          presentCount++;
+        } else if (st.contains('Trễ') || st.contains('muộn')) {
+          presentCount++;
+          lateCount++;
+        } else if (st == 'Nghỉ có phép') {
+          excusedCount++;
+        } else if (st == 'Nghỉ không phép') {
+          unexcusedCount++;
+        }
+
+        final eval = evalByAttId[attId];
+        if (eval != null) {
+          final td = (eval['diem_thai_do'] as num?)?.toDouble();
+          final hb = (eval['diem_hieu_bai'] as num?)?.toDouble();
+          final bt = (eval['diem_bai_tap'] as num?)?.toDouble();
+
+          if (td != null || hb != null || bt != null) {
+            evalCount++;
+            if (td != null) sumThaiDo += td;
+            if (hb != null) sumHieuBai += hb;
+            if (bt != null) {
+              sumBaiTap += bt;
+              if (bt < 0) missingHw++;
+            }
+          }
+        }
+      }
+
+      final totalSessions = presentCount + excusedCount + unexcusedCount;
+      final attRate = totalSessions > 0
+          ? (presentCount / totalSessions) * 100.0
+          : 100.0;
+
+      final nxThang =
+          nxMap[sId] ??
+          NhanXetThang(idHocSinh: sId, idLop: classId, thang: month);
+      if (!nxThang.isManualOverride && totalSessions > 0) {
+        nxThang.diemChuyenCan = (attRate / 10.0).clamp(0.0, 10.0);
+      }
+
+      String? warning;
+      if (unexcusedCount > 0) {
+        warning = '⚠ Vắng $unexcusedCount buổi không phép';
+      } else if (lateCount > 0) {
+        warning = '⚠ $lateCount lần đi muộn';
+      } else if (missingHw > 0) {
+        warning = '⚠ Thiếu $missingHw lần BTVN';
+      }
+
+      final hasData = evalCount > 0 || totalSessions > 0;
+      final needsAttention =
+          unexcusedCount > 0 ||
+          lateCount >= 2 ||
+          missingHw >= 2 ||
+          attRate < 80;
+
+      summaries.add(
+        StudentEvaluationSummaryViewModel(
+          studentId: sId,
+          studentName: hs.ten,
+          attendanceRate: attRate,
+          totalSessions: totalSessions,
+          presentCount: presentCount,
+          lateCount: lateCount,
+          excusedAbsenceCount: excusedCount,
+          unexcusedAbsenceCount: unexcusedCount,
+          avgAttitudeScore: evalCount > 0 ? (sumThaiDo / evalCount) : null,
+          avgUnderstandingScore: evalCount > 0
+              ? (sumHieuBai / evalCount)
+              : null,
+          avgHomeworkScore: evalCount > 0 ? (sumBaiTap / evalCount) : null,
+          missingHomeworkCount: missingHw,
+          recent5Sessions: recent5,
+          warningBadge: warning,
+          hasEnoughData: hasData,
+          needsAttention: needsAttention,
+          nhanXetThang: nxThang,
+        ),
+      );
+    }
+
+    return summaries;
+  }
+}
+
+class StudentEvaluationSummaryViewModel {
+  final int studentId;
+  final String studentName;
+  final double attendanceRate;
+  final int totalSessions;
+  final int presentCount;
+  final int lateCount;
+  final int excusedAbsenceCount;
+  final int unexcusedAbsenceCount;
+  final double? avgAttitudeScore;
+  final double? avgUnderstandingScore;
+  final double? avgHomeworkScore;
+  final int missingHomeworkCount;
+  final List<String> recent5Sessions;
+  final String? warningBadge;
+  final bool hasEnoughData;
+  final bool needsAttention;
+  final NhanXetThang nhanXetThang;
+
+  StudentEvaluationSummaryViewModel({
+    required this.studentId,
+    required this.studentName,
+    required this.attendanceRate,
+    required this.totalSessions,
+    required this.presentCount,
+    required this.lateCount,
+    required this.excusedAbsenceCount,
+    required this.unexcusedAbsenceCount,
+    this.avgAttitudeScore,
+    this.avgUnderstandingScore,
+    this.avgHomeworkScore,
+    required this.missingHomeworkCount,
+    required this.recent5Sessions,
+    this.warningBadge,
+    required this.hasEnoughData,
+    required this.needsAttention,
+    required this.nhanXetThang,
+  });
 }

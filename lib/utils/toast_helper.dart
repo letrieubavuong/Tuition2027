@@ -4,27 +4,69 @@ import 'package:flutter/material.dart';
 enum ToastType { success, error, info, warning }
 
 class ToastHelper {
+  static OverlayEntry? _currentEntry;
+  static VoidCallback? _currentRemoveCallback;
+
+  /// Xóa ngay lập tức Toast hiện tại nếu đang hiển thị trên Overlay (không làm đọng stack)
+  static void dismissCurrent() {
+    if (_currentRemoveCallback != null) {
+      final callback = _currentRemoveCallback;
+      _currentRemoveCallback = null;
+      _currentEntry = null;
+      callback!();
+    } else if (_currentEntry != null) {
+      final entry = _currentEntry;
+      _currentEntry = null;
+      try {
+        entry?.remove();
+      } catch (_) {}
+    }
+  }
+
   static void show(
     BuildContext context,
     String message, {
     ToastType type = ToastType.info,
     Duration duration = const Duration(seconds: 3),
   }) {
-    final overlay = Overlay.of(context);
+    if (!context.mounted) return;
+    final overlayState = Overlay.maybeOf(context);
+    if (overlayState == null || !overlayState.mounted) return;
+
+    // 1 & 2 & 7: Loại bỏ Toast cũ ngay lập tức, không tạo stack overlay
+    dismissCurrent();
+
     late OverlayEntry entry;
+    bool isRemoved = false;
+
+    // 5: OverlayEntry chỉ remove 1 lần duy nhất
+    void removeEntry() {
+      if (!isRemoved) {
+        isRemoved = true;
+        if (_currentEntry == entry) {
+          _currentEntry = null;
+          _currentRemoveCallback = null;
+        }
+        try {
+          entry.remove();
+        } catch (_) {}
+      }
+    }
 
     entry = OverlayEntry(
       builder: (context) => _ToastWidget(
+        key: ValueKey('${DateTime.now().microsecondsSinceEpoch}_$message'),
         message: message,
         type: type,
         duration: duration,
-        onDismiss: () {
-          entry.remove();
-        },
+        onDismiss: removeEntry,
       ),
     );
 
-    overlay.insert(entry);
+    _currentEntry = entry;
+    _currentRemoveCallback = removeEntry;
+
+    overlayState.insert(entry);
   }
 
   static void showSuccess(
@@ -67,6 +109,7 @@ class _ToastWidget extends StatefulWidget {
   final VoidCallback onDismiss;
 
   const _ToastWidget({
+    super.key,
     required this.message,
     required this.type,
     required this.duration,
@@ -83,6 +126,7 @@ class _ToastWidgetState extends State<_ToastWidget>
   late Animation<Offset> _offsetAnimation;
   late Animation<double> _opacityAnimation;
   Timer? _timer;
+  bool _isDismissing = false;
 
   @override
   void initState() {
@@ -110,16 +154,33 @@ class _ToastWidgetState extends State<_ToastWidget>
   }
 
   void _dismiss() {
+    // 3: Guard _isDismissing chống gọi lặp
+    if (_isDismissing) return;
+    _isDismissing = true;
+
+    // 4: Cancel Timer khi dismiss thủ công hoặc hết hạn
+    _timer?.cancel();
+    _timer = null;
+
     if (mounted) {
-      _controller.reverse().then((_) {
-        widget.onDismiss();
-      });
+      _controller
+          .reverse()
+          .then((_) {
+            widget.onDismiss();
+          })
+          .catchError((_) {
+            widget.onDismiss();
+          });
+    } else {
+      widget.onDismiss();
     }
   }
 
   @override
   void dispose() {
+    _isDismissing = true;
     _timer?.cancel();
+    _timer = null;
     _controller.dispose();
     super.dispose();
   }
@@ -200,6 +261,7 @@ class _ToastWidgetState extends State<_ToastWidget>
                       ),
                       const SizedBox(width: 8.0),
                       GestureDetector(
+                        key: const ValueKey('toast_close_button'),
                         onTap: _dismiss,
                         child: Icon(
                           Icons.close_rounded,

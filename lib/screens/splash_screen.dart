@@ -204,20 +204,25 @@ class _SplashScreenState extends State<SplashScreen>
                           try {
                             final isPinEnabled = await CaiDatService()
                                 .layCaiDat('app_pin_enabled')
-                                .timeout(const Duration(milliseconds: 800),
-                                    onTimeout: () => null);
+                                .timeout(
+                                  const Duration(milliseconds: 800),
+                                  onTimeout: () => null,
+                                );
                             final savedPin = await CaiDatService()
                                 .layCaiDat('app_pin_code')
-                                .timeout(const Duration(milliseconds: 800),
-                                    onTimeout: () => null);
+                                .timeout(
+                                  const Duration(milliseconds: 800),
+                                  onTimeout: () => null,
+                                );
                             if (context.mounted) {
                               if (isPinEnabled == 'true' &&
                                   savedPin != null &&
                                   savedPin.isNotEmpty) {
                                 Navigator.of(context).pushReplacement(
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                        const PinLockScreen(isConfiguring: false),
+                                    builder: (context) => const PinLockScreen(
+                                      isConfiguring: false,
+                                    ),
                                   ),
                                 );
                                 return;

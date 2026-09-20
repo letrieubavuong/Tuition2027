@@ -12,7 +12,7 @@ class DBHelper {
   static Future<Database>? _initFuture;
 
   // current database version - tăng khi cần migration mới
-  static const int _dbVersion = 29;
+  static const int _dbVersion = 36;
 
   // Hằng số cho tên Bảng
   static const String tenBangHS = 'hoc_sinh';
@@ -34,13 +34,32 @@ class DBHelper {
   static const String tenBangDonNghiHoc = 'don_nghi_hoc';
   static const String tenBangKhoanThu = 'khoan_thu';
   static const String tenBangKhoanThuHocSinh = 'khoan_thu_hoc_sinh';
+  static const String tenBangSyncQueue = 'sync_queue';
+  static const String tenBangSyncMetadata = 'sync_metadata';
+  static const String tenBangStudentSignals = 'student_signals';
+  static const String tenBangAttentionItems = 'attention_items';
+  static const String tenBangStudentBusySchedules = 'student_busy_schedules';
+  static const String tenBangStudentScheduleAssignments =
+      'student_schedule_assignments';
+  static const String tenBangAttendanceChangeLog = 'attendance_change_log';
   DBHelper._init();
+
+  static bool _schemaIntegrityDone = false;
+
+  @visibleForTesting
+  static void setTestDatabase(Database? db) {
+    _database = db;
+    _schemaIntegrityDone = true;
+  }
 
   Future<Database> get database async {
     if (_database != null && _database!.isOpen) return _database!;
     _initFuture ??= _khoiTaoDB('quan_ly_hs.db');
     _database = await _initFuture!;
-    await _ensureSchemaIntegrity(_database!);
+    if (!_schemaIntegrityDone) {
+      await _ensureSchemaIntegrity(_database!);
+      _schemaIntegrityDone = true;
+    }
     return _database!;
   }
 
@@ -57,14 +76,15 @@ class DBHelper {
           ),
         );
       } catch (e) {
-        developer.log('Web IndexedDB open error: $e, fallback to in-memory DB', name: 'DBHelper');
+        developer.log(
+          '⚠️ Web IndexedDB open error: $e. Falling back to in-memory DB (Warning: transient session only)',
+          name: 'DBHelper',
+          error: e,
+        );
         databaseFactory = databaseFactoryFfiWeb;
         return await databaseFactory.openDatabase(
           inMemoryDatabasePath,
-          options: OpenDatabaseOptions(
-            version: _dbVersion,
-            onCreate: _taoDB,
-          ),
+          options: OpenDatabaseOptions(version: _dbVersion, onCreate: _taoDB),
         );
       }
     }
@@ -90,20 +110,322 @@ class DBHelper {
   Future<void> _ensureSchemaIntegrity(Database db) async {
     try {
       await _addColumnIfMissing(db, tenBangHS, 'facebook', 'TEXT');
-      await _addColumnIfMissing(db, tenBangHS, 'ca_hoc_truong', "TEXT NOT NULL DEFAULT 'Sáng'");
+      await _addColumnIfMissing(
+        db,
+        tenBangHS,
+        'ca_hoc_truong',
+        "TEXT NOT NULL DEFAULT 'Sáng'",
+      );
       await _addColumnIfMissing(db, tenBangHS, 'lich_can_mon_khac', 'TEXT');
-      await _addColumnIfMissing(db, tenBangHS, 'mien_giam', 'INTEGER NOT NULL DEFAULT 0');
-      await _addColumnIfMissing(db, tenBangHS, 'so_buoi_du', 'INTEGER NOT NULL DEFAULT 0');
+      await _addColumnIfMissing(
+        db,
+        tenBangHS,
+        'mien_giam',
+        'INTEGER NOT NULL DEFAULT 0',
+      );
+      await _addColumnIfMissing(
+        db,
+        tenBangHS,
+        'so_buoi_du',
+        'INTEGER NOT NULL DEFAULT 0',
+      );
+      await _addColumnIfMissing(db, tenBangHS, 'ten_phu_huynh', 'TEXT');
+      await _addColumnIfMissing(db, tenBangHS, 'sdt_phu_huynh', 'TEXT');
+      await _addColumnIfMissing(db, tenBangHS, 'sdt_hoc_sinh', 'TEXT');
+      await _addColumnIfMissing(db, tenBangHS, 'zalo_display_name', 'TEXT');
+      await _addColumnIfMissing(db, tenBangHS, 'zalo_phone', 'TEXT');
+      await _addColumnIfMissing(db, tenBangHS, 'zalo_profile_link', 'TEXT');
+      await _addColumnIfMissing(db, tenBangHS, 'zalo_note', 'TEXT');
+      await _addColumnIfMissing(
+        db,
+        tenBangHS,
+        'zalo_link_status',
+        "TEXT NOT NULL DEFAULT 'UNLINKED'",
+      );
       await _addColumnIfMissing(db, tenBangLopHS, 'ngay_tam_ngung', 'TEXT');
-      await _addColumnIfMissing(db, tenBangLopHS, 'ngay_du_kien_hoc_lai', 'TEXT');
-      await _addColumnIfMissing(db, tenBangLopHS, 'ngay_hoc_lai_thuc_te', 'TEXT');
+      await _addColumnIfMissing(
+        db,
+        tenBangLopHS,
+        'ngay_du_kien_hoc_lai',
+        'TEXT',
+      );
+      await _addColumnIfMissing(
+        db,
+        tenBangLopHS,
+        'ngay_hoc_lai_thuc_te',
+        'TEXT',
+      );
       await _addColumnIfMissing(db, tenBangLopHS, 'ly_do_tam_ngung', 'TEXT');
       await _addColumnIfMissing(db, tenBangLopHS, 'ngay_nghi_hoc', 'TEXT');
       await _addColumnIfMissing(db, tenBangLopHS, 'ly_do_nghi_hoc', 'TEXT');
-      await _addColumnIfMissing(db, tenBangLopHS, 'ngay_hoc_lai_sau_nghi', 'TEXT');
+      await _addColumnIfMissing(
+        db,
+        tenBangLopHS,
+        'ngay_hoc_lai_sau_nghi',
+        'TEXT',
+      );
+      await _addColumnIfMissing(
+        db,
+        tenBangNhanXetThang,
+        'is_manual_override',
+        'INTEGER NOT NULL DEFAULT 0',
+      );
+      await _addColumnIfMissing(
+        db,
+        tenBangLichHocChung,
+        'effective_from',
+        "TEXT NOT NULL DEFAULT '2000-01-01'",
+      );
+      await _addColumnIfMissing(
+        db,
+        tenBangLichHocChung,
+        'effective_to',
+        'TEXT',
+      );
+      await _addColumnIfMissing(db, tenBangDiemDanh, 'ngay_vang_goc', 'TEXT');
+      await _addColumnIfMissing(
+        db,
+        'payment_transactions',
+        'bank_code',
+        'TEXT',
+      );
+      await _addColumnIfMissing(
+        db,
+        'payment_transactions',
+        'raw_content',
+        'TEXT',
+      );
+      await _addColumnIfMissing(
+        db,
+        'payment_transactions',
+        'match_method',
+        'TEXT',
+      );
+      await _addColumnIfMissing(
+        db,
+        'payment_transactions',
+        'failure_reason',
+        'TEXT',
+      );
+      await _addColumnIfMissing(
+        db,
+        'payment_transactions',
+        'linked_payment_id',
+        'INTEGER',
+      );
+      await _addColumnIfMissing(
+        db,
+        'payment_transactions',
+        'raw_fingerprint',
+        'TEXT',
+      );
+      await _addColumnIfMissing(
+        db,
+        tenBangStudentScheduleAssignments,
+        'day_of_week',
+        'INTEGER',
+      );
+      await _addColumnIfMissing(
+        db,
+        tenBangStudentScheduleAssignments,
+        'start_time',
+        'TEXT',
+      );
+      await _addColumnIfMissing(
+        db,
+        tenBangStudentScheduleAssignments,
+        'end_time',
+        'TEXT',
+      );
+      await _addColumnIfMissing(
+        db,
+        tenBangStudentScheduleAssignments,
+        'priority',
+        'INTEGER NOT NULL DEFAULT 1',
+      );
+
+      // Create performance indices if missing for super-fast queries
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_thanh_toan_lop_thang ON $tenBangThanhToan (id_lop, thang)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_thanh_toan_hs_lop_thang ON $tenBangThanhToan (id_hoc_sinh, id_lop, thang)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_diem_danh_lop_gio ON $tenBangDiemDanh (id_lop, gio_diem_danh)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_diem_danh_hs ON $tenBangDiemDanh (id_hoc_sinh)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_lhcn_hs ON $tenBangLichHocCaNhan (id_hoc_sinh)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_lhcn_lhc ON $tenBangLichHocCaNhan (id_lich_hoc_chung)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_don_nghi_lop ON $tenBangDonNghiHoc (id_lop)',
+      );
+      await _createSyncTables(db);
+      await _createStudentSignalsTable(db);
+      await _createAttentionItemsTable(db);
+      await _createStudentBusySchedulesTable(db);
+      await _createStudentScheduleAssignmentsTable(db);
+      await _createAttendanceChangeLogTable(db);
+      await _createParentCommunicationsTable(db);
     } catch (e) {
       developer.log('Lỗi ensure schema integrity: $e', name: 'DBHelper');
     }
+  }
+
+  Future<void> _createParentCommunicationsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS parent_communications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_hoc_sinh INTEGER NOT NULL,
+        ten_hoc_sinh TEXT NOT NULL,
+        id_lop INTEGER NOT NULL,
+        ten_lop TEXT NOT NULL,
+        ngay_hoc TEXT NOT NULL,
+        gio_hoc TEXT NOT NULL,
+        sdt_phu_huynh TEXT,
+        ly_do TEXT NOT NULL,
+        loai_tin_nhan TEXT NOT NULL DEFAULT 'POST_SESSION_REVIEW',
+        noi_dung TEXT NOT NULL,
+        trang_thai TEXT NOT NULL DEFAULT 'READY',
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_parent_comm_hs_lop_session '
+      'ON parent_communications (id_hoc_sinh, id_lop, ngay_hoc, gio_hoc)',
+    );
+  }
+
+  Future<void> _createStudentBusySchedulesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tenBangStudentBusySchedules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        subject TEXT,
+        day_of_week TEXT,
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        effective_from TEXT NOT NULL,
+        effective_to TEXT,
+        recurrence_type TEXT NOT NULL DEFAULT 'WEEKLY',
+        priority INTEGER NOT NULL DEFAULT 1,
+        note TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_busy_student_dates ON $tenBangStudentBusySchedules (student_id, effective_from, effective_to)',
+    );
+  }
+
+  Future<void> _createStudentScheduleAssignmentsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tenBangStudentScheduleAssignments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL,
+        class_id INTEGER NOT NULL,
+        schedule_id INTEGER,
+        effective_from TEXT NOT NULL,
+        effective_to TEXT,
+        source TEXT NOT NULL DEFAULT 'MANUAL',
+        recurrence_type TEXT NOT NULL DEFAULT 'WEEKLY',
+        day_of_week INTEGER,
+        start_time TEXT,
+        end_time TEXT,
+        priority INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_assignment_student_dates ON $tenBangStudentScheduleAssignments (student_id, class_id, effective_from, effective_to)',
+    );
+  }
+
+  Future<void> _createAttentionItemsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tenBangAttentionItems (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        severity TEXT NOT NULL DEFAULT 'WARNING',
+        priority TEXT NOT NULL DEFAULT 'NORMAL',
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        title TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        student_id INTEGER,
+        student_name TEXT,
+        class_id INTEGER,
+        class_name TEXT,
+        session_id INTEGER,
+        source_type TEXT NOT NULL,
+        source_id TEXT,
+        created_at TEXT NOT NULL,
+        due_at TEXT,
+        snoozed_until TEXT,
+        action_type TEXT NOT NULL,
+        action_label TEXT NOT NULL,
+        metadata TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_attention_status ON $tenBangAttentionItems (status, priority, severity)',
+    );
+  }
+
+  Future<void> _createAttendanceChangeLogTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tenBangAttendanceChangeLog (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        attendance_id INTEGER,
+        student_id INTEGER,
+        session_id INTEGER,
+        class_id INTEGER NOT NULL,
+        action TEXT NOT NULL,
+        old_status TEXT,
+        new_status TEXT,
+        old_datetime TEXT,
+        new_datetime TEXT,
+        reason TEXT,
+        changed_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_change_log_session ON $tenBangAttendanceChangeLog (class_id, session_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_change_log_student ON $tenBangAttendanceChangeLog (student_id)',
+    );
+  }
+
+  Future<void> _createStudentSignalsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tenBangStudentSignals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL,
+        signal_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        severity TEXT NOT NULL DEFAULT 'WARNING',
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        snoozed_until TEXT,
+        metadata TEXT,
+        FOREIGN KEY (student_id) REFERENCES $tenBangHS (id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_student_signals_hs ON $tenBangStudentSignals (student_id, status)',
+    );
   }
 
   // onUpgrade sẽ gọi _migrate để áp dụng các bước nâng cấp theo phiên bản
@@ -435,14 +757,35 @@ class DBHelper {
             break;
           case 22:
             developer.log('Applying migration v22: student leave management');
-            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_tam_ngung', 'TEXT');
-            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_du_kien_hoc_lai', 'TEXT');
-            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_hoc_lai_thuc_te', 'TEXT');
-            await _addColumnIfMissing(db, tenBangLopHS, 'ly_do_tam_ngung', 'TEXT');
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ngay_tam_ngung',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ngay_du_kien_hoc_lai',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ngay_hoc_lai_thuc_te',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ly_do_tam_ngung',
+              'TEXT',
+            );
             await db.update(
               tenBangLopHS,
               {'trang_thai': 'DANG_HOC'},
-              where: "trang_thai = 'Dang hoc' OR trang_thai IS NULL OR trang_thai = ''",
+              where:
+                  "trang_thai = 'Dang hoc' OR trang_thai IS NULL OR trang_thai = ''",
             );
             await _createDonNghiHocTable(db);
             break;
@@ -475,24 +818,93 @@ class DBHelper {
             await _createKhoanThuTables(db);
             break;
           case 26:
-            developer.log('Applying migration v26: add school session & subject conflicts to $tenBangHS');
-            await _addColumnIfMissing(db, tenBangHS, 'ca_hoc_truong', "TEXT NOT NULL DEFAULT 'Sáng'");
-            await _addColumnIfMissing(db, tenBangHS, 'lich_can_mon_khac', 'TEXT');
+            developer.log(
+              'Applying migration v26: add school session & subject conflicts to $tenBangHS',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangHS,
+              'ca_hoc_truong',
+              "TEXT NOT NULL DEFAULT 'Sáng'",
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangHS,
+              'lich_can_mon_khac',
+              'TEXT',
+            );
             break;
           case 27:
-            developer.log('Applying migration v27: Ensure payment_transactions table & schema safety integrity');
+            developer.log(
+              'Applying migration v27: Ensure payment_transactions table & schema safety integrity',
+            );
             await _createPaymentTransactionsTable(db);
-            await _addColumnIfMissing(db, tenBangHS, 'ca_hoc_truong', "TEXT NOT NULL DEFAULT 'Sáng'");
-            await _addColumnIfMissing(db, tenBangHS, 'lich_can_mon_khac', 'TEXT');
-            await _addColumnIfMissing(db, tenBangHS, 'mien_giam', 'INTEGER NOT NULL DEFAULT 0');
-            await _addColumnIfMissing(db, tenBangHS, 'so_buoi_du', 'INTEGER NOT NULL DEFAULT 0');
-            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_tam_ngung', 'TEXT');
-            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_du_kien_hoc_lai', 'TEXT');
-            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_hoc_lai_thuc_te', 'TEXT');
-            await _addColumnIfMissing(db, tenBangLopHS, 'ly_do_tam_ngung', 'TEXT');
-            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_nghi_hoc', 'TEXT');
-            await _addColumnIfMissing(db, tenBangLopHS, 'ly_do_nghi_hoc', 'TEXT');
-            await _addColumnIfMissing(db, tenBangLopHS, 'ngay_hoc_lai_sau_nghi', 'TEXT');
+            await _addColumnIfMissing(
+              db,
+              tenBangHS,
+              'ca_hoc_truong',
+              "TEXT NOT NULL DEFAULT 'Sáng'",
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangHS,
+              'lich_can_mon_khac',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangHS,
+              'mien_giam',
+              'INTEGER NOT NULL DEFAULT 0',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangHS,
+              'so_buoi_du',
+              'INTEGER NOT NULL DEFAULT 0',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ngay_tam_ngung',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ngay_du_kien_hoc_lai',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ngay_hoc_lai_thuc_te',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ly_do_tam_ngung',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ngay_nghi_hoc',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ly_do_nghi_hoc',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLopHS,
+              'ngay_hoc_lai_sau_nghi',
+              'TEXT',
+            );
             await _createDonNghiHocTable(db);
             await _createKhoanThuTables(db);
             break;
@@ -501,9 +913,129 @@ class DBHelper {
             await _addColumnIfMissing(db, tenBangHS, 'facebook', 'TEXT');
             break;
           case 29:
-            developer.log('Applying migration v29: ensure facebook and schema integrity in $tenBangHS');
+            developer.log(
+              'Applying migration v29: ensure facebook and schema integrity in $tenBangHS',
+            );
             await _addColumnIfMissing(db, tenBangHS, 'facebook', 'TEXT');
             await _ensureSchemaIntegrity(db);
+            break;
+          case 30:
+            developer.log(
+              'Applying migration v30: add effective dates to $tenBangLichHocChung and ngay_vang_goc to $tenBangDiemDanh',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLichHocChung,
+              'effective_from',
+              "TEXT NOT NULL DEFAULT '2000-01-01'",
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangLichHocChung,
+              'effective_to',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangDiemDanh,
+              'ngay_vang_goc',
+              'TEXT',
+            );
+            await _ensureSchemaIntegrity(db);
+            break;
+          case 31:
+            developer.log(
+              'Applying migration v31: add bank_code, raw_content, match_method, failure_reason, linked_payment_id, raw_fingerprint to payment_transactions',
+            );
+            await _addColumnIfMissing(
+              db,
+              'payment_transactions',
+              'bank_code',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              'payment_transactions',
+              'raw_content',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              'payment_transactions',
+              'match_method',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              'payment_transactions',
+              'failure_reason',
+              'TEXT',
+            );
+            await _addColumnIfMissing(
+              db,
+              'payment_transactions',
+              'linked_payment_id',
+              'INTEGER',
+            );
+            await _addColumnIfMissing(
+              db,
+              'payment_transactions',
+              'raw_fingerprint',
+              'TEXT',
+            );
+            break;
+          case 32:
+            developer.log(
+              'Applying migration v32: add loai_nghi to $tenBangDonNghiHoc',
+            );
+            await _addColumnIfMissing(
+              db,
+              tenBangDonNghiHoc,
+              'loai_nghi',
+              "TEXT NOT NULL DEFAULT 'CANHAN'",
+            );
+            break;
+          case 33:
+            developer.log(
+              'Applying migration v33: create sync_queue and sync_metadata tables',
+            );
+            await _createSyncTables(db);
+            break;
+          case 34:
+            developer.log(
+              'Applying migration v34: add parent & zalo contact fields to $tenBangHS',
+            );
+            await _ensureSchemaIntegrity(db);
+            break;
+          case 35:
+            developer.log(
+              'Applying migration v35: create student_signals table for rule-based automatic monitoring',
+            );
+            await _createStudentSignalsTable(db);
+            break;
+          case 36:
+            developer.log(
+              'Applying migration v36: create attendance_change_log table for safe attendance corrections',
+            );
+            await db.execute('''
+              CREATE TABLE IF NOT EXISTS session_completion_ledger (
+                id TEXT PRIMARY KEY,
+                class_id INTEGER NOT NULL,
+                session_id INTEGER,
+                session_date TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'COMPLETED',
+                session_status TEXT NOT NULL DEFAULT 'ACTIVE',
+                warnings TEXT,
+                completed_at TEXT NOT NULL
+              )
+            ''');
+            await _createAttendanceChangeLogTable(db);
+            await _addColumnIfMissing(
+              db,
+              'session_completion_ledger',
+              'session_status',
+              "TEXT NOT NULL DEFAULT 'ACTIVE'",
+            );
             break;
           // Thêm case tiếp theo cho các version sau
           default:
@@ -585,6 +1117,7 @@ class DBHelper {
             gio_diem_danh TEXT NOT NULL, 
             trang_thai TEXT NOT NULL, 
             ghi_chu TEXT,
+            ngay_vang_goc TEXT,
             FOREIGN KEY(id_hoc_sinh) REFERENCES $tenBangHS(id) ON DELETE CASCADE,
             FOREIGN KEY(id_lop) REFERENCES $tenBangLop(id) ON DELETE CASCADE,
             UNIQUE(id_hoc_sinh, gio_diem_danh)
@@ -601,6 +1134,8 @@ class DBHelper {
           gio_bat_dau $textType NOT NULL,      -- Ví dụ: '18:00'
           gio_ket_thuc $textType NOT NULL,     -- Ví dụ: '20:00',
           created_at $nullableText,
+          effective_from TEXT NOT NULL DEFAULT '2000-01-01',
+          effective_to TEXT,
           FOREIGN KEY(id_lop) REFERENCES $tenBangLop(id)
       )
   ''');
@@ -700,7 +1235,13 @@ class DBHelper {
         status $textType,
         transaction_id $nullableText,
         created_at $textType,
-        updated_at $nullableText
+        updated_at $nullableText,
+        bank_code $nullableText,
+        raw_content $nullableText,
+        match_method $nullableText,
+        failure_reason $nullableText,
+        linked_payment_id INTEGER,
+        raw_fingerprint $nullableText
       )
     ''');
     await db.execute(
@@ -805,6 +1346,7 @@ class DBHelper {
         den_ngay TEXT NOT NULL,
         ly_do TEXT,
         created_at TEXT NOT NULL,
+        loai_nghi TEXT NOT NULL DEFAULT 'CANHAN',
         FOREIGN KEY(id_hoc_sinh) REFERENCES $tenBangHS(id) ON DELETE CASCADE,
         FOREIGN KEY(id_lop) REFERENCES $tenBangLop(id) ON DELETE CASCADE
       )
@@ -824,6 +1366,40 @@ class DBHelper {
     final columns = await db.rawQuery('PRAGMA table_info($table)');
     if (columns.any((row) => row['name'] == column)) return;
     await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
+  }
+
+  Future<void> _createSyncTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tenBangSyncQueue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type TEXT NOT NULL,
+        record_key TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        payload_json TEXT,
+        created_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'DIRTY',
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT
+      )
+    ''');
+
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON $tenBangSyncQueue (status, created_at)',
+    );
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tenBangSyncMetadata (
+        entity_type TEXT NOT NULL,
+        record_key TEXT NOT NULL,
+        local_version INTEGER NOT NULL DEFAULT 1,
+        cloud_version INTEGER NOT NULL DEFAULT 0,
+        local_updated_at TEXT NOT NULL,
+        last_synced_at TEXT,
+        content_hash TEXT NOT NULL,
+        sync_status TEXT NOT NULL DEFAULT 'DIRTY',
+        PRIMARY KEY (entity_type, record_key)
+      )
+    ''');
   }
 
   Future<void> _createKhoanThuTables(Database db) async {
@@ -890,6 +1466,7 @@ class DBHelper {
         diem_kiem_tra $realType DEFAULT 10.0,
         nhan_xet_chung $nullableText,
         xep_hang $nullableText,
+        is_manual_override INTEGER NOT NULL DEFAULT 0,
         UNIQUE(id_hoc_sinh, id_lop, thang)
       )
     ''');

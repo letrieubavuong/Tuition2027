@@ -17,11 +17,7 @@ class LichDayPage extends StatefulWidget {
   final GlobalKey<MainScreenState>? mainScreenKey;
   final int? selectedIndex;
 
-  const LichDayPage({
-    super.key,
-    this.mainScreenKey,
-    this.selectedIndex,
-  });
+  const LichDayPage({super.key, this.mainScreenKey, this.selectedIndex});
 
   @override
   State<LichDayPage> createState() => _LichDayPageState();
@@ -629,10 +625,12 @@ class _LichDayPageState extends State<LichDayPage> {
                                           vertical: 2,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: Colors.orange
-                                              .withValues(alpha: 0.15),
-                                          borderRadius:
-                                              BorderRadius.circular(4),
+                                          color: Colors.orange.withValues(
+                                            alpha: 0.15,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
                                         ),
                                         child: Text(
                                           'Học ${hs.caHocTruong}',
@@ -707,13 +705,15 @@ class _LichDayPageState extends State<LichDayPage> {
                                       color: selectedKhoi == null
                                           ? accentColor
                                           : (isDark
-                                              ? Colors.white24
-                                              : Colors.black12),
+                                                ? Colors.white24
+                                                : Colors.black12),
                                     ),
                                     checkmarkColor: Colors.white,
                                     onSelected: (val) {
                                       if (val) {
-                                        setSheetState(() => selectedKhoi = null);
+                                        setSheetState(
+                                          () => selectedKhoi = null,
+                                        );
                                       }
                                     },
                                   ),
@@ -744,8 +744,8 @@ class _LichDayPageState extends State<LichDayPage> {
                                           color: selectedKhoi == k
                                               ? accentColor
                                               : (isDark
-                                                  ? Colors.white24
-                                                  : Colors.black12),
+                                                    ? Colors.white24
+                                                    : Colors.black12),
                                         ),
                                         checkmarkColor: Colors.white,
                                         onSelected: (val) {
@@ -766,8 +766,8 @@ class _LichDayPageState extends State<LichDayPage> {
 
                       // List các ca dạy được xếp hạng gợi ý
                       Expanded(
-                        child: snapshot.connectionState ==
-                                ConnectionState.waiting
+                        child:
+                            snapshot.connectionState == ConnectionState.waiting
                             ? Center(
                                 child: CircularProgressIndicator(
                                   color: accentColor,
@@ -791,18 +791,12 @@ class _LichDayPageState extends State<LichDayPage> {
 
                                   final startClean =
                                       item.lichHoc.gioBatDau.length >= 5
-                                          ? item.lichHoc.gioBatDau.substring(
-                                              0,
-                                              5,
-                                            )
-                                          : item.lichHoc.gioBatDau;
+                                      ? item.lichHoc.gioBatDau.substring(0, 5)
+                                      : item.lichHoc.gioBatDau;
                                   final endClean =
                                       item.lichHoc.gioKetThuc.length >= 5
-                                          ? item.lichHoc.gioKetThuc.substring(
-                                              0,
-                                              5,
-                                            )
-                                          : item.lichHoc.gioKetThuc;
+                                      ? item.lichHoc.gioKetThuc.substring(0, 5)
+                                      : item.lichHoc.gioKetThuc;
 
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 10),
@@ -811,9 +805,10 @@ class _LichDayPageState extends State<LichDayPage> {
                                       color: goiY.hasConflict
                                           ? Colors.red.withValues(alpha: 0.08)
                                           : (goiY.isBestChoice
-                                              ? Colors.green
-                                                  .withValues(alpha: 0.1)
-                                              : cardColor),
+                                                ? Colors.green.withValues(
+                                                    alpha: 0.1,
+                                                  )
+                                                : cardColor),
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
                                         color: goiY.hasConflict
@@ -821,11 +816,12 @@ class _LichDayPageState extends State<LichDayPage> {
                                                 alpha: 0.4,
                                               )
                                             : (goiY.isBestChoice
-                                                ? Colors.green.withValues(
-                                                    alpha: 0.5,
-                                                  )
-                                                : Colors.white12),
-                                        width: (goiY.isBestChoice ||
+                                                  ? Colors.green.withValues(
+                                                      alpha: 0.5,
+                                                    )
+                                                  : Colors.white12),
+                                        width:
+                                            (goiY.isBestChoice ||
                                                 goiY.hasConflict)
                                             ? 1.5
                                             : 1,
@@ -928,14 +924,14 @@ class _LichDayPageState extends State<LichDayPage> {
                                                   color: goiY.hasConflict
                                                       ? Colors.orangeAccent
                                                       : (goiY.isBestChoice
-                                                          ? Colors.greenAccent
-                                                          : secondaryText),
+                                                            ? Colors.greenAccent
+                                                            : secondaryText),
                                                   fontSize: 11,
                                                   fontWeight:
                                                       (goiY.isBestChoice ||
-                                                              goiY.hasConflict)
-                                                          ? FontWeight.bold
-                                                          : FontWeight.normal,
+                                                          goiY.hasConflict)
+                                                      ? FontWeight.bold
+                                                      : FontWeight.normal,
                                                 ),
                                               ),
                                             ],
@@ -947,21 +943,27 @@ class _LichDayPageState extends State<LichDayPage> {
                                             backgroundColor: goiY.hasConflict
                                                 ? Colors.orange.shade800
                                                 : (goiY.isBestChoice
-                                                    ? Colors.green
-                                                    : accentColor),
+                                                      ? Colors.green
+                                                      : accentColor),
                                             foregroundColor: Colors.white,
                                             padding: const EdgeInsets.symmetric(
                                               horizontal: 12,
                                               vertical: 8,
                                             ),
-                                            elevation: goiY.isBestChoice ? 2 : 0,
+                                            elevation: goiY.isBestChoice
+                                                ? 2
+                                                : 0,
                                             shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                             ),
                                           ),
                                           onPressed: () {
                                             Navigator.pop(sheetCtx);
-                                            final String hsText = selectedHocSinh != null ? ' cho học sinh ${selectedHocSinh!.ten}' : '';
+                                            final String hsText =
+                                                selectedHocSinh != null
+                                                ? ' cho học sinh ${selectedHocSinh!.ten}'
+                                                : '';
                                             ToastHelper.showSuccess(
                                               context,
                                               'Đã chọn ca ${_getThuLabel(item.lichHoc.thuTrongTuan)} ($startClean - $endClean) của ${item.tenLop}$hsText!',
@@ -1044,8 +1046,10 @@ class _LichDayPageState extends State<LichDayPage> {
   }
 
   Widget _buildSummaryCard() {
-    final int totalClassesWithSchedule =
-        _allSchedules.map((s) => s.lichHoc.idLop).toSet().length;
+    final int totalClassesWithSchedule = _allSchedules
+        .map((s) => s.lichHoc.idLop)
+        .toSet()
+        .length;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1250,9 +1254,7 @@ class _LichDayPageState extends State<LichDayPage> {
               decoration: BoxDecoration(
                 color: accentColor.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: accentColor.withValues(alpha: 0.4),
-                ),
+                border: Border.all(color: accentColor.withValues(alpha: 0.4)),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1354,7 +1356,10 @@ class _LichDayPageState extends State<LichDayPage> {
                       color: Colors.blueAccent,
                       tooltip: 'Thêm vào Google Calendar / Lịch máy',
                       onPressed: () async {
-                        final ok = await CalendarSyncService.themCaHocVaoCalendar(item);
+                        final ok =
+                            await CalendarSyncService.themCaHocVaoCalendar(
+                              item,
+                            );
                         if (context.mounted) {
                           if (ok) {
                             ToastHelper.showSuccess(
@@ -1391,6 +1396,8 @@ class _LichDayPageState extends State<LichDayPage> {
                       MaterialPageRoute(
                         builder: (ctx) => DiemDanhPage(
                           selectedLopId: item.lichHoc.idLop,
+                          selectedDate: DateTime.now(),
+                          selectedScheduleId: item.lichHoc.id,
                         ),
                       ),
                     );
@@ -1465,17 +1472,25 @@ class _LichDayPageState extends State<LichDayPage> {
             : null,
         actions: [
           PopupMenuButton<String>(
-            icon: const Icon(Icons.edit_calendar_rounded, color: Colors.blueAccent),
+            icon: const Icon(
+              Icons.edit_calendar_rounded,
+              color: Colors.blueAccent,
+            ),
             tooltip: 'Đồng bộ Google Calendar',
             onSelected: (val) async {
               if (val == 'sync_all') {
                 if (_allSchedules.isEmpty) {
-                  ToastHelper.showWarning(context, 'Chưa có ca dạy nào để đồng bộ!');
+                  ToastHelper.showWarning(
+                    context,
+                    'Chưa có ca dạy nào để đồng bộ!',
+                  );
                   return;
                 }
                 int count = 0;
                 for (var sched in _allSchedules) {
-                  final ok = await CalendarSyncService.themCaHocVaoCalendar(sched);
+                  final ok = await CalendarSyncService.themCaHocVaoCalendar(
+                    sched,
+                  );
                   if (ok) count++;
                 }
                 if (context.mounted) {
@@ -1486,12 +1501,21 @@ class _LichDayPageState extends State<LichDayPage> {
                 }
               } else if (val == 'export_ics') {
                 if (_allSchedules.isEmpty) {
-                  ToastHelper.showWarning(context, 'Chưa có ca dạy nào để xuất!');
+                  ToastHelper.showWarning(
+                    context,
+                    'Chưa có ca dạy nào để xuất!',
+                  );
                   return;
                 }
-                final path = await CalendarSyncService.xuatDanhSachLichDaySangICS(_allSchedules);
+                final path =
+                    await CalendarSyncService.xuatDanhSachLichDaySangICS(
+                      _allSchedules,
+                    );
                 if (context.mounted && path != null) {
-                  ToastHelper.showSuccess(context, 'Đã khởi tạo file .ics thành công!');
+                  ToastHelper.showSuccess(
+                    context,
+                    'Đã khởi tạo file .ics thành công!',
+                  );
                 }
               }
             },
@@ -1500,9 +1524,16 @@ class _LichDayPageState extends State<LichDayPage> {
                 value: 'sync_all',
                 child: Row(
                   children: [
-                    Icon(Icons.edit_calendar_rounded, color: Colors.blue, size: 18),
+                    Icon(
+                      Icons.edit_calendar_rounded,
+                      color: Colors.blue,
+                      size: 18,
+                    ),
                     SizedBox(width: 8),
-                    Text('Đồng bộ vào Lịch điện thoại', style: TextStyle(fontSize: 13)),
+                    Text(
+                      'Đồng bộ vào Lịch điện thoại',
+                      style: TextStyle(fontSize: 13),
+                    ),
                   ],
                 ),
               ),
@@ -1512,7 +1543,10 @@ class _LichDayPageState extends State<LichDayPage> {
                   children: [
                     Icon(Icons.ios_share_rounded, color: Colors.teal, size: 18),
                     SizedBox(width: 8),
-                    Text('Xuất file Lịch (.ics)', style: TextStyle(fontSize: 13)),
+                    Text(
+                      'Xuất file Lịch (.ics)',
+                      style: TextStyle(fontSize: 13),
+                    ),
                   ],
                 ),
               ),

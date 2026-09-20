@@ -6,6 +6,8 @@ import '../models/su_kien_hoc_tap.dart';
 import '../utils/db.dart';
 import 'firebase_sync_service.dart';
 
+import 'danh_gia_buoi_hoc_service.dart';
+
 class SuKienHocTapService {
   final String _tenBang = DBHelper.tenBangSuKienHocTap;
 
@@ -25,7 +27,7 @@ class SuKienHocTapService {
     return maps.map((map) => SuKienHocTap.fromMap(map)).toList();
   }
 
-  /// Thêm một sự kiện mới
+  /// Thêm một sự kiện mới và tự động cập nhật điểm đánh giá buổi học
   Future<int> themSuKien(SuKienHocTap suKien) async {
     final db = await _database;
     final id = await db.insert(
@@ -38,18 +40,50 @@ class SuKienHocTapService {
       FirebaseSyncService.instance
           .pushRecordToCloud(_tenBang, id.toString(), created.toMap())
           .catchError((e) => null);
+
+      // Tự động tính toán & cập nhật điểm đánh giá buổi học
+      try {
+        await DanhGiaBuoiHocService().capNhatDiemTuSuKien(suKien.idDiemDanh);
+      } catch (e) {
+        // Log safe exception without corrupting event persistence
+      }
     }
     return id;
   }
 
-  /// Xóa một sự kiện
+  /// Xóa một sự kiện và tự động cập nhật điểm đánh giá buổi học
   Future<int> xoaSuKien(int idSuKien) async {
     final db = await _database;
-    final result = await db.delete(_tenBang, where: 'id = ?', whereArgs: [idSuKien]);
+
+    // Tìm id_diem_danh trước khi xóa để recalculate điểm
+    final existing = await db.query(
+      _tenBang,
+      columns: ['id_diem_danh'],
+      where: 'id = ?',
+      whereArgs: [idSuKien],
+      limit: 1,
+    );
+    final int? idDiemDanh = existing.isNotEmpty
+        ? (existing.first['id_diem_danh'] as num?)?.toInt()
+        : null;
+
+    final result = await db.delete(
+      _tenBang,
+      where: 'id = ?',
+      whereArgs: [idSuKien],
+    );
     if (result > 0) {
       FirebaseSyncService.instance
           .deleteRecordFromCloud(_tenBang, idSuKien.toString())
           .catchError((e) => null);
+
+      if (idDiemDanh != null) {
+        try {
+          await DanhGiaBuoiHocService().capNhatDiemTuSuKien(idDiemDanh);
+        } catch (e) {
+          // Log safe exception
+        }
+      }
     }
     return result;
   }

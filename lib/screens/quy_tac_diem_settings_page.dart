@@ -25,6 +25,7 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
   final QuyTacDiemService _quyTacDiemService = QuyTacDiemService();
   late Future<List<QuyTacDiem>> _congDiemFuture;
   late Future<List<QuyTacDiem>> _truDiemFuture;
+  bool _isProcessing = false;
 
   @override
   void initState() {
@@ -47,6 +48,9 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
     );
     String loaiQuyTac = quyTac?.loaiQuyTac ?? 'CONG_DIEM';
     String hangMuc = quyTac?.hangMuc ?? 'THAI_DO';
+    String? moTaError;
+    String? diemError;
+    bool isSaving = false;
 
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
 
@@ -155,6 +159,7 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
                     decoration: InputDecoration(
                       labelText: isVi ? 'Nội dung quy tắc' : 'Rule Description',
                       labelStyle: TextStyle(color: secondaryText),
+                      errorText: moTaError,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -172,6 +177,7 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
                     decoration: InputDecoration(
                       labelText: isVi ? 'Điểm cộng/trừ' : 'Points to change',
                       labelStyle: TextStyle(color: secondaryText),
+                      errorText: diemError,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -186,54 +192,90 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: isSaving ? null : () => Navigator.of(ctx).pop(),
             child: Text(
               isVi ? 'Hủy' : 'Cancel',
               style: TextStyle(color: secondaryText),
             ),
           ),
           ElevatedButton(
-            onPressed: () async {
-              final moTa = moTaController.text.trim();
-              final diemThayDoiValue = double.tryParse(
-                diemThayDoiController.text.trim(),
-              );
+            onPressed: isSaving
+                ? null
+                : () async {
+                    final moTa = moTaController.text.trim();
+                    final diemThayDoiValue = double.tryParse(
+                      diemThayDoiController.text.trim(),
+                    );
 
-              if (moTa.isEmpty || diemThayDoiValue == null) {
-                return;
-              }
+                    String? newMoTaError;
+                    String? newDiemError;
+                    if (moTa.isEmpty) {
+                      newMoTaError = isVi
+                          ? 'Vui lòng nhập nội dung quy tắc'
+                          : 'Please enter description';
+                    }
+                    if (diemThayDoiValue == null) {
+                      newDiemError = isVi
+                          ? 'Điểm số không hợp lệ'
+                          : 'Invalid point value';
+                    }
 
-              final newDiemThayDoi =
-                  loaiQuyTac == 'TRU_DIEM' && diemThayDoiValue > 0
-                  ? -diemThayDoiValue
-                  : (loaiQuyTac == 'CONG_DIEM' && diemThayDoiValue < 0
-                        ? -diemThayDoiValue
-                        : diemThayDoiValue);
+                    if (newMoTaError != null || newDiemError != null) {
+                      (ctx as Element).markNeedsBuild();
+                      moTaError = newMoTaError;
+                      diemError = newDiemError;
+                      return;
+                    }
 
-              if (isEditing) {
-                await _quyTacDiemService.capNhatQuyTacDiem(
-                  quyTac.copyWith(
-                    loaiQuyTac: loaiQuyTac,
-                    hangMuc: hangMuc,
-                    moTa: moTa,
-                    diemThayDoi: newDiemThayDoi,
-                  ),
-                );
-              } else {
-                await _quyTacDiemService.taoQuyTacDiem(
-                  QuyTacDiem(
-                    loaiQuyTac: loaiQuyTac,
-                    hangMuc: hangMuc,
-                    moTa: moTa,
-                    diemThayDoi: newDiemThayDoi,
-                  ),
-                );
-              }
-              if (ctx.mounted) {
-                Navigator.of(ctx).pop();
-                _taiDuLieu();
-              }
-            },
+                    isSaving = true;
+
+                    final double val = diemThayDoiValue!;
+                    final double newDiemThayDoi =
+                        loaiQuyTac == 'TRU_DIEM' && val > 0
+                        ? -val
+                        : (loaiQuyTac == 'CONG_DIEM' && val < 0 ? -val : val);
+
+                    try {
+                      if (isEditing) {
+                        await _quyTacDiemService.capNhatQuyTacDiem(
+                          quyTac.copyWith(
+                            loaiQuyTac: loaiQuyTac,
+                            hangMuc: hangMuc,
+                            moTa: moTa,
+                            diemThayDoi: newDiemThayDoi,
+                          ),
+                        );
+                      } else {
+                        await _quyTacDiemService.taoQuyTacDiem(
+                          QuyTacDiem(
+                            loaiQuyTac: loaiQuyTac,
+                            hangMuc: hangMuc,
+                            moTa: moTa,
+                            diemThayDoi: newDiemThayDoi,
+                          ),
+                        );
+                      }
+                      if (ctx.mounted) {
+                        Navigator.of(ctx).pop();
+                      }
+                      if (mounted) {
+                        _taiDuLieu();
+                      }
+                    } catch (e) {
+                      isSaving = false;
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              isVi
+                                  ? 'Lỗi khi lưu quy tắc điểm!'
+                                  : 'Error saving rule!',
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  },
             style: ElevatedButton.styleFrom(
               backgroundColor: accentColor,
               foregroundColor: darkBackground,
@@ -292,84 +334,83 @@ class _QuyTacDiemSettingsPageState extends State<QuyTacDiemSettingsPage> {
   }
 
   Future<void> _tuDongChiaDiem() async {
+    if (_isProcessing) return;
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
 
-    // 1. Đọc toàn bộ quy tắc điểm
-    final listQuyTac = await _quyTacDiemService.docTatCaQuyTacDiem();
-    if (listQuyTac.isEmpty) {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cardColor,
+        title: Text(
+          isVi ? 'Xác nhận phân bổ điểm' : 'Confirm Rebalance',
+          style: TextStyle(color: accentColor, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          isVi
+              ? 'Bạn có chắc chắn muốn phân bổ lại toàn bộ quy tắc điểm về tổng chuẩn (Cộng = +10, Trừ = -5)?'
+              : 'Rebalance all rule points to standard totals (Plus = +10, Minus = -5)?',
+          style: TextStyle(color: lightText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              isVi ? 'Hủy' : 'Cancel',
+              style: TextStyle(color: secondaryText),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accentColor,
+              foregroundColor: darkBackground,
+            ),
+            child: Text(isVi ? 'Phân bổ' : 'Rebalance'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      await _quyTacDiemService.tuDongChiaDiemAtomic();
+      _taiDuLieu();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               isVi
-                  ? 'Chưa có quy tắc nào để chia điểm!'
-                  : 'No rules defined yet!',
+                  ? 'Đã chia điểm nguyên tố: Tổng cộng = 10đ, Tổng trừ = -5đ!'
+                  : 'Points distributed atomically: Total plus = 10, Total minus = -5!',
             ),
+            backgroundColor: Colors.green,
           ),
         );
       }
-      return;
-    }
-
-    final positiveRules = listQuyTac
-        .where((r) => r.loaiQuyTac == 'CONG_DIEM')
-        .toList();
-    final negativeRules = listQuyTac
-        .where((r) => r.loaiQuyTac == 'TRU_DIEM')
-        .toList();
-
-    // 2. Tính điểm phân phối và cập nhật
-    if (positiveRules.isNotEmpty) {
-      double sumAllocated = 0.0;
-      for (int i = 0; i < positiveRules.length; i++) {
-        double share;
-        if (i == positiveRules.length - 1) {
-          share = 10.0 - sumAllocated;
-        } else {
-          share = double.parse(
-            (10.0 / positiveRules.length).toStringAsFixed(2),
-          );
-          sumAllocated += share;
-        }
-        share = double.parse(share.toStringAsFixed(2));
-        await _quyTacDiemService.capNhatQuyTacDiem(
-          positiveRules[i].copyWith(diemThayDoi: share),
-        );
-      }
-    }
-
-    if (negativeRules.isNotEmpty) {
-      double sumAllocated = 0.0;
-      for (int i = 0; i < negativeRules.length; i++) {
-        double share;
-        if (i == negativeRules.length - 1) {
-          share = -5.0 - sumAllocated;
-        } else {
-          share = double.parse(
-            (-5.0 / negativeRules.length).toStringAsFixed(2),
-          );
-          sumAllocated += share;
-        }
-        share = double.parse(share.toStringAsFixed(2));
-        await _quyTacDiemService.capNhatQuyTacDiem(
-          negativeRules[i].copyWith(diemThayDoi: share),
-        );
-      }
-    }
-
-    // 3. Tải lại dữ liệu và thông báo
-    _taiDuLieu();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isVi
-                ? 'Đã chia điểm: Tổng cộng = 10đ, Tổng trừ = -5đ!'
-                : 'Points distributed: Total plus = 10, Total minus = -5!',
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isVi
+                  ? 'Lỗi khi phân bổ điểm tự động!'
+                  : 'Error distributing points!',
+            ),
+            backgroundColor: deleteColor,
           ),
-          backgroundColor: Colors.green,
-        ),
-      );
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
     }
   }
 

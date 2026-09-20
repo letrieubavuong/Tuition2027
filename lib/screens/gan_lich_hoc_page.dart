@@ -56,8 +56,23 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
     super.dispose();
   }
 
+  String _normalizeString(String text) {
+    const vietnamese =
+        'aAàÀảẢãÃáÁạẠăĂằẰẳẲẵẴắẮặẶâÂầẦẩẨẫẪấẤậẬbBcCdDđĐeEèÈẻẺẽẼéÉẹẸêÊềỀểỂễỄếẾệỆfFgGhHiIìÌỉỈĩĨíÍịỊjJkKlLmMnNoOòÒỏỎõÕóÓọỌôÔồỒổỔỗỖốỐộỘơƠờỜởỞỡỠớỚợỢpPqQrRsStTuUùÙủỦũŨúÚụỤưƯừỪửỬữỮứỨựỰvVwWxXyYỳỲỷỶỹỸýÝỵỴzZ';
+    const latin =
+        'aAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaBbCcDdDdeEeEeEeEeEeEeEeEeEeEeEeFfGgHhIiIiIiIiIiJjKkLlMmNnOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoPpQqRrSsTtUuUuUuUuUuUuUuUuUuUuUuVvWwXxYyYyYyYyYyZz';
+    String result = text;
+    final maxLen = vietnamese.length < latin.length
+        ? vietnamese.length
+        : latin.length;
+    for (int i = 0; i < maxLen; i++) {
+      result = result.replaceAll(vietnamese[i], latin[i]);
+    }
+    return result.toLowerCase();
+  }
+
   void _applyFilters() {
-    final query = _searchController.text.toLowerCase().trim();
+    final query = _normalizeString(_searchController.text.trim());
     List<HSLopViewModel> tempFilteredList = widget.danhSachHocSinh;
 
     // 1. Lọc theo trạng thái gán
@@ -74,7 +89,7 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
     // 2. Lọc theo tên tìm kiếm
     if (query.isNotEmpty) {
       tempFilteredList = tempFilteredList.where((hs) {
-        return hs.ten.toLowerCase().contains(query);
+        return _normalizeString(hs.ten).contains(query);
       }).toList();
     }
 
@@ -86,45 +101,40 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
   Future<void> _loadDanhSachDaGan() async {
     setState(() => _isLoading = true);
     try {
-      for (var hs in widget.danhSachHocSinh) {
-        if (hs.id != null) {
-          final daGan = await _service.kiemTraHocSinhCoLichHoc(
-            hs.id!,
-            widget.lichHocChung.id!,
-          );
-          if (daGan) {
-            _selectedHocSinhIds.add(hs.id!);
-          }
-        }
+      if (widget.lichHocChung.id != null) {
+        final assignedIds = await _service.layDanhSachHocSinhDaGan(
+          widget.lichHocChung.id!,
+        );
+        _selectedHocSinhIds.clear();
+        _selectedHocSinhIds.addAll(assignedIds);
+      }
+    } catch (e) {
+      if (mounted) {
+        final isVi = Localizations.localeOf(context).languageCode == 'vi';
+        ToastHelper.showError(
+          context,
+          isVi
+              ? 'Không thể tải danh sách gán lịch: $e'
+              : 'Failed to load schedule assignments: $e',
+        );
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
-        _applyFilters(); // Áp dụng bộ lọc ban đầu sau khi tải xong
+        _applyFilters();
       }
     }
   }
 
   Future<void> _luuThayDoi() async {
+    if (_isSaving || _isLoading || widget.lichHocChung.id == null) return;
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
     setState(() => _isSaving = true);
     try {
-      for (var hs in widget.danhSachHocSinh) {
-        if (hs.id == null) continue;
-        final isSelected = _selectedHocSinhIds.contains(hs.id!);
-        final daGan = await _service.kiemTraHocSinhCoLichHoc(
-          hs.id!,
-          widget.lichHocChung.id!,
-        );
-        if (isSelected && !daGan) {
-          await _service.ganLichHocChoHocSinh(hs.id!, widget.lichHocChung.id!);
-        } else if (!isSelected && daGan) {
-          await _service.huyGanLichHocChoHocSinh(
-            hs.id!,
-            widget.lichHocChung.id!,
-          );
-        }
-      }
+      await _service.luuPhanCongLichHocHangLoat(
+        idLichHocChung: widget.lichHocChung.id!,
+        desiredHocSinhIds: _selectedHocSinhIds,
+      );
       if (mounted) {
         ToastHelper.showSuccess(
           context,
@@ -136,7 +146,12 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
       }
     } catch (e) {
       if (mounted) {
-        ToastHelper.showError(context, isVi ? 'Lỗi: $e' : 'Error: $e');
+        ToastHelper.showError(
+          context,
+          isVi
+              ? 'Không thể cập nhật lịch học: $e'
+              : 'Failed to update schedule: $e',
+        );
       }
     } finally {
       if (mounted) {
@@ -172,7 +187,7 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
                 )
               : IconButton(
                   icon: const Icon(Icons.save, color: accentColor),
-                  onPressed: _luuThayDoi,
+                  onPressed: _isLoading ? null : _luuThayDoi,
                   tooltip: isVi ? 'Lưu thay đổi' : 'Save changes',
                 ),
         ],
@@ -209,15 +224,17 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
                         margin: const EdgeInsets.only(bottom: 8),
                         child: CheckboxListTile(
                           value: isSelected,
-                          onChanged: (value) {
-                            setState(() {
-                              if (value == true && hs.id != null) {
-                                _selectedHocSinhIds.add(hs.id!);
-                              } else if (hs.id != null) {
-                                _selectedHocSinhIds.remove(hs.id!);
-                              }
-                            });
-                          },
+                          onChanged: (_isSaving || _isLoading || hs.id == null)
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      _selectedHocSinhIds.add(hs.id!);
+                                    } else {
+                                      _selectedHocSinhIds.remove(hs.id!);
+                                    }
+                                  });
+                                },
                           title: Text(
                             hs.ten,
                             style: const TextStyle(color: lightText),
@@ -285,6 +302,7 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
 
   Widget _buildSearchAndActions() {
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
+    final isDisabled = _isSaving || _isLoading;
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -292,6 +310,7 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
           // Thanh tìm kiếm
           TextField(
             controller: _searchController,
+            enabled: !isDisabled,
             style: const TextStyle(color: lightText),
             decoration: InputDecoration(
               hintText: isVi ? 'Tìm kiếm học sinh...' : 'Search student...',
@@ -323,12 +342,14 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
               ),
             ],
             selected: {_filterStatus},
-            onSelectionChanged: (Set<FilterStatus> newSelection) {
-              setState(() {
-                _filterStatus = newSelection.first;
-                _applyFilters();
-              });
-            },
+            onSelectionChanged: isDisabled
+                ? null
+                : (Set<FilterStatus> newSelection) {
+                    setState(() {
+                      _filterStatus = newSelection.first;
+                      _applyFilters();
+                    });
+                  },
             style: SegmentedButton.styleFrom(
               backgroundColor: cardColor,
               foregroundColor: secondaryText,
@@ -347,28 +368,39 @@ class _GanLichHocPageState extends State<GanLichHocPage> {
               Row(
                 children: [
                   TextButton(
-                    onPressed: () {
-                      setState(() {
-                        // Chỉ chọn tất cả các học sinh đang được hiển thị
-                        _selectedHocSinhIds.addAll(
-                          _filteredHocSinh.map((hs) => hs.id!),
-                        );
-                      });
-                    },
+                    onPressed: isDisabled
+                        ? null
+                        : () {
+                            setState(() {
+                              // Chỉ chọn tất cả các học sinh đang được hiển thị và khác null
+                              _selectedHocSinhIds.addAll(
+                                _filteredHocSinh
+                                    .where((hs) => hs.id != null)
+                                    .map((hs) => hs.id!),
+                              );
+                            });
+                          },
                     child: Text(
                       isVi ? 'Chọn tất cả' : 'Select all',
-                      style: const TextStyle(color: accentColor),
+                      style: TextStyle(
+                        color: isDisabled ? Colors.grey : accentColor,
+                      ),
                     ),
                   ),
                   TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _selectedHocSinhIds.clear();
-                      });
-                    },
+                    onPressed: isDisabled
+                        ? null
+                        : () {
+                            setState(() {
+                              // Phương án B: Bỏ chọn tất cả học sinh
+                              _selectedHocSinhIds.clear();
+                            });
+                          },
                     child: Text(
                       isVi ? 'Bỏ chọn tất cả' : 'Deselect all',
-                      style: const TextStyle(color: accentColor),
+                      style: TextStyle(
+                        color: isDisabled ? Colors.grey : accentColor,
+                      ),
                     ),
                   ),
                 ],

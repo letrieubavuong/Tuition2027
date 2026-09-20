@@ -1,8 +1,7 @@
-// File: lib/services/lop_service.dart
-
 import 'package:sqflite/sqflite.dart';
 import '../utils/db.dart'; // Import DBHelper
 import '../models/lop.dart'; // Import Model Lop
+import '../utils/student_status.dart';
 import 'dart:developer' as developer;
 import 'firebase_sync_service.dart';
 
@@ -22,18 +21,22 @@ class LopService {
     );
     // Trả về đối tượng Lop với ID mới được gán
     final savedLop = lop.copyWith(id: id);
-    FirebaseSyncService.instance.pushRecordToCloud(tenBang, id.toString(), savedLop.toMap());
+    FirebaseSyncService.instance.pushRecordToCloud(
+      tenBang,
+      id.toString(),
+      savedLop.toMap(),
+    );
     return savedLop;
   }
 
   // 2. Doc Tat Ca Lop (Read All)
   Future<List<Lop>> docTatCaLop() async {
     final db = await dbHelper.database;
-    // SỬA: Dùng rawQuery để JOIN ép kiểu mềm và đếm sĩ số chuẩn xác
+    // Dùng rawQuery để JOIN ép kiểu mềm (bảo vệ dữ liệu legacy CAST) và đếm sĩ số học sinh đang học chuẩn xác
     final result = await db.rawQuery('''
       SELECT 
         L.*, 
-        COUNT(DISTINCT CASE WHEN (LHS.trang_thai IS NULL OR (UPPER(LHS.trang_thai) != 'NGHI_HOC' AND UPPER(LHS.trang_thai) != 'DA_NGHI')) THEN LHS.id_hoc_sinh END) as si_so
+        COUNT(DISTINCT CASE WHEN ${StudentStatus.activeSqlCondition} THEN LHS.id_hoc_sinh END) as si_so
       FROM $tenBang L
       LEFT JOIN ${DBHelper.tenBangLopHS} LHS ON (L.id = LHS.id_lop OR CAST(L.id AS TEXT) = CAST(LHS.id_lop AS TEXT))
       GROUP BY L.id
@@ -42,6 +45,8 @@ class LopService {
     // Chuyển kết quả Map List sang Lop List
     return result.map((json) => Lop.fromMap(json)).toList();
   }
+
+  Future<List<Lop>> docDanhSachLop() => docTatCaLop();
 
   Future<int> capNhatLop(Lop lop) async {
     final db = await dbHelper.database;
@@ -52,7 +57,11 @@ class LopService {
       whereArgs: [lop.id],
     );
     if (res > 0 && lop.id != null) {
-      FirebaseSyncService.instance.pushRecordToCloud(tenBang, lop.id.toString(), lop.toMap());
+      FirebaseSyncService.instance.pushRecordToCloud(
+        tenBang,
+        lop.id.toString(),
+        lop.toMap(),
+      );
     }
     return res;
   }
@@ -78,7 +87,22 @@ class LopService {
           whereArgs: [id],
         );
 
-        // Các bảng cũ không khai báo khóa ngoại id_lop nên cần dọn rõ ràng.
+        // Xóa đánh giá buổi học và các bản ghi điểm danh thuộc về lớp
+        await txn.rawDelete(
+          '''
+          DELETE FROM ${DBHelper.tenBangDanhGiaBuoiHoc}
+          WHERE id_diem_danh IN (
+            SELECT id FROM ${DBHelper.tenBangDiemDanh} WHERE id_lop = ?
+          )
+          ''',
+          [id],
+        );
+        await txn.delete(
+          DBHelper.tenBangDiemDanh,
+          where: 'id_lop = ?',
+          whereArgs: [id],
+        );
+
         await txn.delete(
           DBHelper.tenBangThanhToan,
           where: 'id_lop = ?',
@@ -104,7 +128,10 @@ class LopService {
         return txn.delete(tenBang, where: 'id = ?', whereArgs: [id]);
       });
       if (res > 0) {
-        FirebaseSyncService.instance.deleteRecordFromCloud(tenBang, id.toString());
+        FirebaseSyncService.instance.deleteRecordFromCloud(
+          tenBang,
+          id.toString(),
+        );
       }
       return res;
     } catch (error, stackTrace) {

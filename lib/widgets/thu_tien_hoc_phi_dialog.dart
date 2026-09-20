@@ -11,10 +11,12 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../models/hoc_phi_tong_hop.dart';
-import '../services/diem_danh_service.dart';
+import '../models/hs.dart';
 import '../services/thanh_toan_service.dart';
 import '../services/caidat_service.dart';
 import '../services/lop_service.dart';
+import '../services/hoc_sinh_service.dart';
+import '../services/zalo_contact_service.dart';
 import '../utils/vietqr_util.dart';
 import '../utils/toast_helper.dart';
 
@@ -50,7 +52,6 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
   final ThanhToanService _ttService = ThanhToanService();
   final CaiDatService _caiDatService = CaiDatService();
   final LopService _lopService = LopService();
-  final DiemDanhService _diemDanhService = DiemDanhService();
   final formatCurrency = NumberFormat('#,##0', 'vi_VN');
 
   late int _soTienThuThem;
@@ -62,6 +63,7 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
   int _khoanThuKhac = 0;
   String _lyDoThuKhac = '';
   String _tenLop = '';
+  HS? _hocSinhFull;
 
   @override
   void initState() {
@@ -75,6 +77,14 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
         _gioiHanThanhToanThucTe - widget.soTienDaDongHienTai;
     _soTienThuThem = conNoThucTe > 0 ? conNoThucTe : 0;
     _soTienDaDongMoi = widget.soTienDaDongHienTai + _soTienThuThem;
+
+    HocSinhService().docHocSinhTheoId(widget.hocSinh.idHocSinh).then((hs) {
+      if (hs != null && mounted) {
+        setState(() {
+          _hocSinhFull = hs;
+        });
+      }
+    });
 
     _lopService.docLop(widget.idLop).then((lop) {
       if (lop != null && mounted) {
@@ -146,6 +156,7 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
   }
 
   Future<void> _handleThanhToan() async {
+    if (_isLoading) return;
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
@@ -195,6 +206,17 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
 
   void _hienThiMaQR() async {
     final isVi = Localizations.localeOf(context).languageCode == 'vi';
+
+    if (_soTienThuThem <= 0) {
+      ToastHelper.showInfo(
+        context,
+        isVi
+            ? 'Học sinh đã hoàn thành học phí!'
+            : 'Student has completed tuition fees!',
+      );
+      return;
+    }
+
     final String bankId =
         (await _caiDatService.layCaiDat('bank_id')) ?? 'sacombank';
     final String accountNo =
@@ -205,7 +227,8 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
     final String studentNameNoAccent = VietQRUtil.removeVietnameseAccents(
       widget.hocSinh.tenHocSinh,
     );
-    final String description = 'Hoc phi $studentNameNoAccent thang ${widget.thang}';
+    final String description =
+        'Hoc phi $studentNameNoAccent thang ${widget.thang}';
     final String qrPayload = VietQRUtil.generateVietQRPayload(
       bankId: bankId,
       accountNo: accountNo,
@@ -215,8 +238,6 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
 
     final GlobalKey qrKey = GlobalKey();
     if (!mounted) return;
-
-
 
     showDialog(
       context: context,
@@ -543,11 +564,7 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
     );
   }
 
-  Widget _buildBankRow(
-    String label,
-    String value, {
-    bool isBoldValue = false,
-  }) {
+  Widget _buildBankRow(String label, String value, {bool isBoldValue = false}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -615,9 +632,7 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
     final file = File('${dir.path}/$fileName');
     await file.writeAsBytes(bytes);
 
-    await SharePlus.instance.share(
-      ShareParams(files: [XFile(file.path)]),
-    );
+    await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
   }
 
   @override
@@ -629,11 +644,27 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
       backgroundColor: cardColor,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Center(
-        child: Text(
-          widget.hocSinh.tenHocSinh,
-          style: TextStyle(color: lightText, fontWeight: FontWeight.bold),
-        ),
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            widget.hocSinh.tenHocSinh,
+            style: TextStyle(color: lightText, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(width: 8),
+          ZaloContactService.instance.buildZaloQuickButton(
+            context,
+            _hocSinhFull ??
+                HS(
+                  id: widget.hocSinh.idHocSinh,
+                  ten: widget.hocSinh.tenHocSinh,
+                  sdt: widget.hocSinh.sdt,
+                  sdtPhuHuynh: widget.hocSinh.sdt,
+                ),
+            preparedMessage:
+                'Chào phụ huynh, em xin thông báo học phí tháng ${widget.thang} của cháu ${widget.hocSinh.tenHocSinh} là ${formatCurrency.format(conNoConLai)}đ.',
+          ),
+        ],
       ),
       content: SizedBox(
         width: MediaQuery.of(context).size.width * 0.9,
@@ -667,9 +698,7 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 6),
-                          side: BorderSide(
-                            color: accentColor.withOpacity(0.5),
-                          ),
+                          side: BorderSide(color: accentColor.withOpacity(0.5)),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -679,7 +708,8 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
                                 setState(() {
                                   _soTienThuThem = conNoConLai;
                                   _soTienDaDongMoi =
-                                      widget.soTienDaDongHienTai + _soTienThuThem;
+                                      widget.soTienDaDongHienTai +
+                                      _soTienThuThem;
                                 });
                               }
                             : null,
@@ -707,19 +737,22 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
                         ),
                         onPressed: conNoConLai > 0
                             ? () {
+                                final halfFee =
+                                    (widget.hocSinh.soTienCanNop / 2).round();
+                                final amountToThu = halfFee > conNoConLai
+                                    ? conNoConLai
+                                    : halfFee;
                                 setState(() {
-                                  _soTienThuThem = (conNoConLai / 2).round();
+                                  _soTienThuThem = amountToThu;
                                   _soTienDaDongMoi =
-                                      widget.soTienDaDongHienTai + _soTienThuThem;
+                                      widget.soTienDaDongHienTai +
+                                      _soTienThuThem;
                                 });
                               }
                             : null,
                         child: Text(
                           isVi ? 'Nửa tháng (50%)' : 'Half (50%)',
-                          style: TextStyle(
-                            color: lightText,
-                            fontSize: 11.5,
-                          ),
+                          style: TextStyle(color: lightText, fontSize: 11.5),
                         ),
                       ),
                     ),
@@ -866,7 +899,7 @@ class _ThuTienHocPhiDialogState extends State<ThuTienHocPhiDialog> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: _isLoading ? null : () => Navigator.pop(context),
                   child: Text(
                     isVi ? 'Hủy' : 'Cancel',
                     style: TextStyle(color: secondaryText, fontSize: 13),

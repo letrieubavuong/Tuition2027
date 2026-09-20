@@ -7,7 +7,7 @@ part of 'lop_detail_controller.dart';
 // **************************************************************************
 
 String _$lopDetailControllerHash() =>
-    r'6820b1c6668e4ff04cfdd2f804bcfccc885b9253';
+    r'4596248df56bde4b9955c63323537c671a21613d';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -32,9 +32,9 @@ class _SystemHash {
 
 abstract class _$LopDetailController
     extends BuildlessAutoDisposeAsyncNotifier<LopDetailState> {
-  late final Lop initialLop;
+  late final int lopId;
 
-  FutureOr<LopDetailState> build(Lop initialLop);
+  FutureOr<LopDetailState> build(int lopId);
 }
 
 /// See also [LopDetailController].
@@ -47,15 +47,15 @@ class LopDetailControllerFamily extends Family<AsyncValue<LopDetailState>> {
   const LopDetailControllerFamily();
 
   /// See also [LopDetailController].
-  LopDetailControllerProvider call(Lop initialLop) {
-    return LopDetailControllerProvider(initialLop);
+  LopDetailControllerProvider call(int lopId) {
+    return LopDetailControllerProvider(lopId);
   }
 
   @override
   LopDetailControllerProvider getProviderOverride(
     covariant LopDetailControllerProvider provider,
   ) {
-    return call(provider.initialLop);
+    return call(provider.lopId);
   }
 
   static const Iterable<ProviderOrFamily>? _dependencies = null;
@@ -81,9 +81,9 @@ class LopDetailControllerProvider
           LopDetailState
         > {
   /// See also [LopDetailController].
-  LopDetailControllerProvider(Lop initialLop)
+  LopDetailControllerProvider(int lopId)
     : this._internal(
-        () => LopDetailController()..initialLop = initialLop,
+        () => LopDetailController()..lopId = lopId,
         from: lopDetailControllerProvider,
         name: r'lopDetailControllerProvider',
         debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -92,7 +92,7 @@ class LopDetailControllerProvider
         dependencies: LopDetailControllerFamily._dependencies,
         allTransitiveDependencies:
             LopDetailControllerFamily._allTransitiveDependencies,
-        initialLop: initialLop,
+        lopId: lopId,
       );
 
   LopDetailControllerProvider._internal(
@@ -102,16 +102,16 @@ class LopDetailControllerProvider
     required super.allTransitiveDependencies,
     required super.debugGetCreateSourceHash,
     required super.from,
-    required this.initialLop,
+    required this.lopId,
   }) : super.internal();
 
-  final Lop initialLop;
+  final int lopId;
 
   @override
   FutureOr<LopDetailState> runNotifierBuild(
     covariant LopDetailController notifier,
   ) {
-    return notifier.build(initialLop);
+    return notifier.build(lopId);
   }
 
   @override
@@ -119,13 +119,13 @@ class LopDetailControllerProvider
     return ProviderOverride(
       origin: this,
       override: LopDetailControllerProvider._internal(
-        () => create()..initialLop = initialLop,
+        () => create()..lopId = lopId,
         from: from,
         name: null,
         dependencies: null,
         allTransitiveDependencies: null,
         debugGetCreateSourceHash: null,
-        initialLop: initialLop,
+        lopId: lopId,
       ),
     );
   }
@@ -138,14 +138,13 @@ class LopDetailControllerProvider
 
   @override
   bool operator ==(Object other) {
-    return other is LopDetailControllerProvider &&
-        other.initialLop == initialLop;
+    return other is LopDetailControllerProvider && other.lopId == lopId;
   }
 
   @override
   int get hashCode {
     var hash = _SystemHash.combine(0, runtimeType.hashCode);
-    hash = _SystemHash.combine(hash, initialLop.hashCode);
+    hash = _SystemHash.combine(hash, lopId.hashCode);
 
     return _SystemHash.finish(hash);
   }
@@ -155,8 +154,8 @@ class LopDetailControllerProvider
 // ignore: unused_element
 mixin LopDetailControllerRef
     on AutoDisposeAsyncNotifierProviderRef<LopDetailState> {
-  /// The parameter `initialLop` of this provider.
-  Lop get initialLop;
+  /// The parameter `lopId` of this provider.
+  int get lopId;
 }
 
 class _LopDetailControllerProviderElement
@@ -169,7 +168,7 @@ class _LopDetailControllerProviderElement
   _LopDetailControllerProviderElement(super.provider);
 
   @override
-  Lop get initialLop => (origin as LopDetailControllerProvider).initialLop;
+  int get lopId => (origin as LopDetailControllerProvider).lopId;
 }
 
 // ignore_for_file: type=lint

@@ -8,6 +8,8 @@ import '../models/hs.dart'; // Sử dụng model HS mới
 import 'firebase_sync_service.dart';
 import 'tuition_event_service.dart';
 
+import 'student_event_service.dart';
+
 class HocSinhService {
   final dbHelper = DBHelper.instance;
   final String tenBang = DBHelper.tenBangHS;
@@ -23,8 +25,13 @@ class HocSinhService {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
     final savedHs = hs.copyWith(id: id);
-    FirebaseSyncService.instance.pushRecordToCloud(tenBang, id.toString(), savedHs.toMap());
+    FirebaseSyncService.instance.pushRecordToCloud(
+      tenBang,
+      id.toString(),
+      savedHs.toMap(),
+    );
     TuitionEventService().notifyTuitionChanged();
+    StudentEventService().notifyStudentCreated(savedHs);
     return savedHs;
   }
 
@@ -38,6 +45,40 @@ class HocSinhService {
     return result.map((json) => HS.fromMap(json)).toList();
   }
 
+  Future<HS?> docHocSinhTheoId(int id) async {
+    final db = await dbHelper.database;
+    final result = await db.query(tenBang, where: 'id = ?', whereArgs: [id]);
+    if (result.isNotEmpty) {
+      return HS.fromMap(result.first);
+    }
+    return null;
+  }
+
+  /// Lấy danh sách ID các học sinh đang học trong ít nhất một lớp
+  Future<Set<int>> docDanhSachIdHocSinhDangHoc() async {
+    try {
+      final db = await database;
+      final rows = await db.rawQuery('''
+        SELECT DISTINCT id_hoc_sinh 
+        FROM ${DBHelper.tenBangLopHS}
+        WHERE (trang_thai IS NULL OR UPPER(trang_thai) NOT IN ('NGHI_HOC', 'DA_NGHI', 'TAM_NGUNG'))
+      ''');
+      return rows
+          .map((r) => r['id_hoc_sinh'])
+          .whereType<num>()
+          .map((n) => n.toInt())
+          .toSet();
+    } catch (e, st) {
+      developer.log(
+        'Lỗi lấy danh sách ID học sinh đang học: $e',
+        name: 'HocSinhService',
+        error: e,
+        stackTrace: st,
+      );
+      return {};
+    }
+  }
+
   // 3. Cap Nhat Hoc Sinh (Update)
   Future<int> capNhatHocSinh(HS hs) async {
     final db = await dbHelper.database;
@@ -48,39 +89,69 @@ class HocSinhService {
       whereArgs: [hs.id],
     );
     if (res > 0 && hs.id != null) {
-      FirebaseSyncService.instance.pushRecordToCloud(tenBang, hs.id.toString(), hs.toMap());
+      FirebaseSyncService.instance.pushRecordToCloud(
+        tenBang,
+        hs.id.toString(),
+        hs.toMap(),
+      );
       TuitionEventService().notifyTuitionChanged();
+      StudentEventService().notifyStudentUpdated(hs);
     }
     return res;
   }
 
-  Future<HS?> docHocSinhTheoId(int id) async {
-    final db = await dbHelper.database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      tenBang,
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-
-    if (maps.isNotEmpty) {
-      // Trả về Model HS
-      return HS.fromMap(maps.first);
-    } else {
-      return null;
-    }
-  }
-
   Future<int> xoaHocSinh(int id) async {
     final db = await dbHelper.database;
-    // Sử dụng transaction để đảm bảo tính toàn vẹn
+    // Sử dụng transaction và dọn dẹp thủ công các bảng con để chống mồ côi dữ liệu (orphan records)
     final res = await db.transaction((txn) async {
-      // ON DELETE CASCADE sẽ tự động xóa các bản ghi liên quan trong
-      // lop_hoc_sinh, diem_danh, thanh_toan, lich_hoc_ca_nhan, nhiem_vu_hoc_sinh
+      await txn.delete(
+        DBHelper.tenBangLopHS,
+        where: 'id_hoc_sinh = ?',
+        whereArgs: [id],
+      );
+      await txn.rawDelete(
+        '''
+        DELETE FROM ${DBHelper.tenBangDanhGiaBuoiHoc}
+        WHERE id_diem_danh IN (
+          SELECT id FROM ${DBHelper.tenBangDiemDanh} WHERE id_hoc_sinh = ?
+        )
+        ''',
+        [id],
+      );
+      await txn.delete(
+        DBHelper.tenBangDiemDanh,
+        where: 'id_hoc_sinh = ?',
+        whereArgs: [id],
+      );
+      await txn.delete(
+        DBHelper.tenBangThanhToan,
+        where: 'id_hoc_sinh = ?',
+        whereArgs: [id],
+      );
+      await txn.delete(
+        DBHelper.tenBangKhoanThuHocSinh,
+        where: 'id_hoc_sinh = ?',
+        whereArgs: [id],
+      );
+      await txn.delete(
+        DBHelper.tenBangLichHocCaNhan,
+        where: 'id_hoc_sinh = ?',
+        whereArgs: [id],
+      );
+      await txn.delete(
+        DBHelper.tenBangNhiemVuHocSinh,
+        where: 'id_hoc_sinh = ?',
+        whereArgs: [id],
+      );
       return await txn.delete(tenBang, where: 'id = ?', whereArgs: [id]);
     });
     if (res > 0) {
-      FirebaseSyncService.instance.deleteRecordFromCloud(tenBang, id.toString());
+      FirebaseSyncService.instance.deleteRecordFromCloud(
+        tenBang,
+        id.toString(),
+      );
       TuitionEventService().notifyTuitionChanged();
+      StudentEventService().notifyStudentDeleted(id);
     }
     return res;
   }
@@ -95,10 +166,11 @@ class HocSinhService {
         whereArgs: [idHocSinh],
       );
       if (res > 0) {
-        final hs = await docHocSinhTheoId(idHocSinh);
-        if (hs != null) {
-          FirebaseSyncService.instance.pushRecordToCloud(tenBang, idHocSinh.toString(), hs.toMap());
-        }
+        FirebaseSyncService.instance.pushRecordToCloud(
+          tenBang,
+          idHocSinh.toString(),
+          {'id': idHocSinh, 'so_buoi_du': soBuoiMoi},
+        );
         TuitionEventService().notifyTuitionChanged();
       }
       return res;

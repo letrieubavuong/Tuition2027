@@ -7,6 +7,7 @@ import 'su_kien_hoc_tap_service.dart';
 import '../models/danh_gia_buoi_hoc.dart';
 import '../utils/db.dart';
 import 'firebase_sync_service.dart';
+import 'student_signal_service.dart';
 
 class DanhGiaBuoiHocService {
   final String _tenBang = DBHelper.tenBangDanhGiaBuoiHoc;
@@ -54,10 +55,33 @@ class DanhGiaBuoiHocService {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
     if (id > 0) {
-      final recordKey = danhGia.id != null ? danhGia.id.toString() : id.toString();
+      final recordKey = danhGia.id != null
+          ? danhGia.id.toString()
+          : id.toString();
       FirebaseSyncService.instance
-          .pushRecordToCloud(_tenBang, recordKey, danhGia.copyWith(id: id).toMap())
+          .pushRecordToCloud(
+            _tenBang,
+            recordKey,
+            danhGia.copyWith(id: id).toMap(),
+          )
           .catchError((e) => null);
+
+      try {
+        final attRows = await db.query(
+          DBHelper.tenBangDiemDanh,
+          columns: ['id_hoc_sinh'],
+          where: 'id = ?',
+          whereArgs: [danhGia.idDiemDanh],
+          limit: 1,
+        );
+        if (attRows.isNotEmpty) {
+          final hsId = attRows.first['id_hoc_sinh'] as int?;
+          if (hsId != null) {
+            final StudentSignalService signalService = StudentSignalService();
+            await signalService.recomputeSignalsForStudent(hsId);
+          }
+        }
+      } catch (_) {}
     }
     return id;
   }
@@ -66,66 +90,63 @@ class DanhGiaBuoiHocService {
   Future<void> capNhatDiemTuSuKien(int idDiemDanh) async {
     final suKienService = SuKienHocTapService();
     final dsSuKien = await suKienService.laySuKienTheoBuoiHoc(idDiemDanh);
+    final danhGia = await layHoacTaoDanhGia(idDiemDanh);
 
-    // 1. Phân loại sự kiện và tính tổng điểm thay đổi cho mỗi tiêu chí
+    if (dsSuKien.isEmpty) {
+      // If no events exist, keep scores as NULL (no-data semantics) unless manually set
+      if (danhGia.nhanXet != null && danhGia.nhanXet!.isNotEmpty) {
+        await luuDanhGia(danhGia);
+      }
+      return;
+    }
+
+    // 1. Classify events and sum point changes
     double diemThayDoiThaiDo = 0;
     double diemThayDoiHieuBai = 0;
     double diemThayDoiBaiTap = 0;
+    bool hasThaiDo = false;
+    bool hasHieuBai = false;
+    bool hasBaiTap = false;
 
     for (var suKien in dsSuKien) {
       final diem = suKien.diemThayDoi;
 
-      // Phân bổ điểm dựa trên trường loaiSuKien đã được lưu
-      if (suKien.loaiSuKien == LoaiSuKien.thaiDo) {
+      if (suKien.loaiSuKien == LoaiSuKien.thaiDo ||
+          suKien.loaiSuKien == LoaiSuKien.tichCuc ||
+          suKien.loaiSuKien == LoaiSuKien.tieuCuc) {
         diemThayDoiThaiDo += diem;
+        hasThaiDo = true;
       } else if (suKien.loaiSuKien == LoaiSuKien.hieuBai) {
         diemThayDoiHieuBai += diem;
+        hasHieuBai = true;
       } else if (suKien.loaiSuKien == LoaiSuKien.baiTap) {
         diemThayDoiBaiTap += diem;
-      } else if (suKien.loaiSuKien == LoaiSuKien.tichCuc) {
-        // Fallback cho dữ liệu cũ: tichCuc mặc định vào Thái độ
-        diemThayDoiThaiDo += diem;
-      } else if (suKien.loaiSuKien == LoaiSuKien.tieuCuc) {
-        // Fallback cho dữ liệu cũ: tieuCuc mặc định vào Thái độ
-        diemThayDoiThaiDo += diem;
+        hasBaiTap = true;
       }
     }
 
-    // 2. Tính điểm cuối cùng (bắt đầu từ 0.0 và cộng/trừ)
-    // Giới hạn điểm trong khoảng từ -10 đến 10
-    final diemThaiDo = (0.0 + diemThayDoiThaiDo).clamp(-10.0, 10.0);
-    final diemHieuBai = (0.0 + diemThayDoiHieuBai).clamp(-10.0, 10.0);
-    final diemBaiTap = (0.0 + diemThayDoiBaiTap).clamp(-10.0, 10.0);
+    if (hasThaiDo) {
+      danhGia.diemThaiDo = diemThayDoiThaiDo.clamp(-10.0, 10.0);
+    }
+    if (hasHieuBai) {
+      danhGia.diemHieuBai = diemThayDoiHieuBai.clamp(-10.0, 10.0);
+    }
+    if (hasBaiTap) {
+      danhGia.diemBaiTap = diemThayDoiBaiTap.clamp(-10.0, 10.0);
+    }
 
-    // 3. Lấy hoặc tạo bản ghi đánh giá buổi học
-    final danhGia = await layHoacTaoDanhGia(idDiemDanh);
-
-    // 4. Cập nhật điểm
-    danhGia.diemThaiDo = diemThaiDo;
-    danhGia.diemHieuBai = diemHieuBai;
-    danhGia.diemBaiTap = diemBaiTap;
-
-    // Tự động sinh nhận xét nếu nhận xét cũ trống hoặc là nhận xét tự động mặc định
     if (danhGia.nhanXet == null ||
         danhGia.nhanXet!.isEmpty ||
         danhGia.nhanXet == 'Tự động đánh giá' ||
         danhGia.nhanXet!.startsWith('Em ')) {
-      danhGia.nhanXet = sinhNhanXetTuDong(diemThaiDo, diemHieuBai, diemBaiTap);
+      danhGia.nhanXet = sinhNhanXetTuDong(
+        danhGia.diemThaiDo ?? 0.0,
+        danhGia.diemHieuBai ?? 0.0,
+        danhGia.diemBaiTap ?? 0.0,
+      );
     }
 
-    // 5. Lưu lại vào CSDL
-    final db = await _database;
-    final id = await db.insert(
-      _tenBang,
-      danhGia.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-    if (id > 0) {
-      final recordKey = danhGia.id != null ? danhGia.id.toString() : id.toString();
-      FirebaseSyncService.instance
-          .pushRecordToCloud(_tenBang, recordKey, danhGia.copyWith(id: id).toMap())
-          .catchError((e) => null);
-    }
+    await luuDanhGia(danhGia);
   }
 
   /// Tự động sinh nhận xét buổi học dựa trên điểm thái độ, hiểu bài, bài tập.

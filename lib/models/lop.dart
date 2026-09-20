@@ -25,7 +25,8 @@ class Lop {
 
   // Tạo đối tượng Lop từ Map (đọc từ database)
   factory Lop.fromMap(Map<String, dynamic> map) {
-    int? parseInt(dynamic v) => v == null ? null : (v is int ? v : int.tryParse(v.toString()));
+    int? parseInt(dynamic v) =>
+        v == null ? null : (v is int ? v : int.tryParse(v.toString()));
     return Lop(
       id: parseInt(map['id']),
       ten: map['ten']?.toString() ?? '',
@@ -52,4 +53,3 @@ class Lop {
   @override
   int get hashCode => id.hashCode;
 }
-

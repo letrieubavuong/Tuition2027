@@ -26,7 +26,8 @@ class LopHocSinh {
   }
 
   factory LopHocSinh.fromMap(Map<String, dynamic> map) {
-    int? parseInt(dynamic v) => v == null ? null : (v is int ? v : int.tryParse(v.toString()));
+    int? parseInt(dynamic v) =>
+        v == null ? null : (v is int ? v : int.tryParse(v.toString()));
     return LopHocSinh(
       id: parseInt(map['id']),
       idLop: parseInt(map['id_lop']) ?? 0,

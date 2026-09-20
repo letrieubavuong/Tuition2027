@@ -18,11 +18,13 @@ class TruongService {
       truong.toMap(),
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
-    final created = truong.copyWith(id: id);
-    FirebaseSyncService.instance
-        .pushRecordToCloud(tenBang, id.toString(), created.toMap())
-        .catchError((e) => null);
-    return created;
+    final savedTruong = truong.copyWith(id: id > 0 ? id : truong.id);
+    if (id > 0) {
+      FirebaseSyncService.instance
+          .pushRecordToCloud(tenBang, id.toString(), savedTruong.toMap())
+          .catchError((e) => null);
+    }
+    return savedTruong;
   }
 
   // 2. Doc Tat Ca Truong

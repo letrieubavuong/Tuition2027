@@ -18,7 +18,9 @@ import 'services/notification_service.dart'; // Import dịch vụ thông báo
 import 'services/widget_sync_service.dart';
 import 'services/bank_notification_service.dart';
 import 'services/tuition_event_service.dart';
-import 'services/firebase_sync_service.dart';
+
+import 'services/notification_router.dart';
+import 'utils/test_database_seeder.dart';
 
 // Tạo một GlobalKey để truy cập State của MainScreen từ bên ngoài
 final GlobalKey<MainScreenState> mainScreenKey = GlobalKey<MainScreenState>();
@@ -30,7 +32,7 @@ class MainScreen extends StatefulWidget {
   const MainScreen({super.key}); // Constructor đã nhận key
 
   @override
-  State<MainScreen> createState() => MainScreenState(); 
+  State<MainScreen> createState() => MainScreenState();
 }
 
 class MainScreenState extends State<MainScreen> {
@@ -48,6 +50,9 @@ class MainScreenState extends State<MainScreen> {
       DSHocSinh(mainScreenKey: mainScreenKey, selectedIndex: 2),
       HocPhiPage(mainScreenKey: mainScreenKey, selectedIndex: 3),
     ];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationRouter.processPendingLaunchPayload();
+    });
   }
 
   void onItemTapped(int index) {
@@ -110,14 +115,18 @@ void main() async {
   Future.microtask(() async {
     try {
       if (!kIsWeb) {
+        await TestDatabaseSeeder.seedTestData();
         await NotificationService.instance.initialize();
         await NotificationService.instance.requestPermissions();
         await NotificationService.instance.syncAllClassReminders();
         await WidgetSyncService.syncTodaySchedule();
         await WidgetSyncService.syncBankQRWidget();
+        NotificationRouter.setupWidgetDeepLinks();
         BankNotificationService.instance;
       }
-      debugPrint('✅ Local SQLite Services initialized successfully');
+      debugPrint(
+        '✅ Local SQLite Services & Database Seeder initialized successfully',
+      );
     } catch (e) {
       debugPrint('Error starting background services: $e');
     }
@@ -132,6 +141,7 @@ class MyApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     final locale = ref.watch(localeProvider); // SỬA: Lắng nghe locale provider
     return MaterialApp(
+      navigatorKey: NotificationRouter.navigatorKey,
       title: 'QLHS App',
       debugShowCheckedModeBanner: false, // SỬA: Ẩn banner debug
       theme: AppThemes.lightTheme,

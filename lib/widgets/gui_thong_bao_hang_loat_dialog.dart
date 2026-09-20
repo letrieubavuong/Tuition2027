@@ -56,7 +56,9 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
   bool _isLoading = true;
 
   // Controllers cho mẫu thông báo
-  final _ngayNghiController = TextEditingController(text: 'Thứ Hai (15/09/2026)');
+  final _ngayNghiController = TextEditingController(
+    text: 'Thứ Hai (15/09/2026)',
+  );
   final _lyDoNghiController = TextEditingController(
     text: 'Nghỉ lễ theo quy định nhà trường',
   );
@@ -64,15 +66,22 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
     text: 'Học sinh ôn bài tập ở nhà và đi học lại đúng giờ vào tuần sau.',
   );
 
-  final _buoiCuController = TextEditingController(text: 'Thứ Hai 17:30 - 19:00');
-  final _buoiMoiController = TextEditingController(text: 'Thứ Tư 18:00 - 19:30');
+  final _buoiCuController = TextEditingController(
+    text: 'Thứ Hai 17:30 - 19:00',
+  );
+  final _buoiMoiController = TextEditingController(
+    text: 'Thứ Tư 18:00 - 19:30',
+  );
   final _ghiChuDoiLichController = TextEditingController(
     text: 'Do trùng lịch thi ở trường.',
   );
 
-  final _tieuDeCustomController = TextEditingController(text: 'THÔNG BÁO TỪ GIÁO VIÊN');
+  final _tieuDeCustomController = TextEditingController(
+    text: 'THÔNG BÁO TỪ GIÁO VIÊN',
+  );
   final _noiDungCustomController = TextEditingController(
-    text: 'Kính gửi quý phụ huynh, xin lưu ý theo dõi tình hình học tập và chuẩn bị bài của học sinh.',
+    text:
+        'Kính gửi quý phụ huynh, xin lưu ý theo dõi tình hình học tập và chuẩn bị bài của học sinh.',
   );
 
   // Bank Info cho học phí
@@ -82,7 +91,7 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
 
   // Danh sách tất cả học sinh thỏa mãn điều kiện
   List<_StudentNotifyItem> _allStudents = [];
-  Set<int> _selectedStudentIds = {};
+  Set<String> _selectedStudentIds = {};
 
   @override
   void initState() {
@@ -91,12 +100,12 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
     _onlyUnpaid = widget.initialOnlyUnpaid;
 
     final types = widget.allowedTypes ?? NotificationType.values;
-    _selectedType = widget.initialType ??
+    _selectedType =
+        widget.initialType ??
         (types.isNotEmpty ? types.first : NotificationType.hocPhi);
 
     final now = DateTime.now();
-    _selectedThang =
-        widget.initialThang ?? DateFormat('yyyy-MM').format(now);
+    _selectedThang = widget.initialThang ?? DateFormat('yyyy-MM').format(now);
 
     _taiDuLieuBanDau();
   }
@@ -121,7 +130,8 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
     try {
       final dsLop = await _lopService.docTatCaLop();
       final bankId = await _caiDatService.layCaiDat('bank_id') ?? 'sacombank';
-      final accountNo = await _caiDatService.layCaiDat('account_no') ?? '0905073175';
+      final accountNo =
+          await _caiDatService.layCaiDat('account_no') ?? '0905073175';
       final accountName =
           await _caiDatService.layCaiDat('account_name') ?? 'LE TRIEU BA VUONG';
 
@@ -158,6 +168,7 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
         final report = await _reportService.layBaoCaoHocPhiThang(
           lop.id!,
           _selectedThang,
+          persist: false,
         );
 
         final Set<int> unpaidHsIds = {};
@@ -234,7 +245,9 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
 
       case NotificationType.baoNghiHoc:
         final StringBuffer sb = StringBuffer();
-        sb.writeln('Kính gửi phụ huynh học sinh ${item.tenHocSinh} (Lớp ${item.tenLop}),');
+        sb.writeln(
+          'Kính gửi phụ huynh học sinh ${item.tenHocSinh} (Lớp ${item.tenLop}),',
+        );
         sb.writeln('📢 GIÁO VIÊN THÔNG BÁO NGHỈ HỌC:');
         sb.writeln('- Thời gian nghỉ: ${_ngayNghiController.text.trim()}');
         sb.writeln('- Lý do: ${_lyDoNghiController.text.trim()}');
@@ -246,19 +259,27 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
 
       case NotificationType.baoDoiLich:
         final StringBuffer sb = StringBuffer();
-        sb.writeln('Kính gửi phụ huynh học sinh ${item.tenHocSinh} (Lớp ${item.tenLop}),');
+        sb.writeln(
+          'Kính gửi phụ huynh học sinh ${item.tenHocSinh} (Lớp ${item.tenLop}),',
+        );
         sb.writeln('⏰ GIÁO VIÊN THÔNG BÁO ĐỔI LỊCH DẠY:');
         sb.writeln('- Lịch cũ: ${_buoiCuController.text.trim()}');
-        sb.writeln('- Lịch học mới (thay thế): ${_buoiMoiController.text.trim()}');
+        sb.writeln(
+          '- Lịch học mới (thay thế): ${_buoiMoiController.text.trim()}',
+        );
         if (_ghiChuDoiLichController.text.trim().isNotEmpty) {
           sb.writeln('- Ghi chú: ${_ghiChuDoiLichController.text.trim()}');
         }
-        sb.writeln('\nKính mong quý phụ huynh nhắc nhở học sinh đi học đúng giờ mới. Xin cảm ơn!');
+        sb.writeln(
+          '\nKính mong quý phụ huynh nhắc nhở học sinh đi học đúng giờ mới. Xin cảm ơn!',
+        );
         return sb.toString();
 
       case NotificationType.custom:
         final StringBuffer sb = StringBuffer();
-        sb.writeln('Kính gửi phụ huynh học sinh ${item.tenHocSinh} (Lớp ${item.tenLop}),');
+        sb.writeln(
+          'Kính gửi phụ huynh học sinh ${item.tenHocSinh} (Lớp ${item.tenLop}),',
+        );
         sb.writeln('📌 ${_tieuDeCustomController.text.trim().toUpperCase()}:');
         sb.writeln(_noiDungCustomController.text.trim());
         sb.writeln('\nTrân trọng!');
@@ -282,7 +303,10 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
     }
     if (cleanSdt.isEmpty) {
       if (mounted) {
-        ToastHelper.showWarning(context, 'Số điện thoại phụ huynh không hợp lệ!');
+        ToastHelper.showWarning(
+          context,
+          'Số điện thoại phụ huynh không hợp lệ!',
+        );
       }
       return;
     }
@@ -293,9 +317,15 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
     bool launched = false;
     try {
       if (await canLaunchUrl(zaloUri)) {
-        launched = await launchUrl(zaloUri, mode: LaunchMode.externalApplication);
+        launched = await launchUrl(
+          zaloUri,
+          mode: LaunchMode.externalApplication,
+        );
       } else {
-        launched = await launchUrl(zaloUri, mode: LaunchMode.externalApplication);
+        launched = await launchUrl(
+          zaloUri,
+          mode: LaunchMode.externalApplication,
+        );
       }
     } catch (_) {
       try {
@@ -319,8 +349,9 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
   }
 
   void _guiZaloHangLoat() {
-    final selectedItems =
-        _allStudents.where((item) => _selectedStudentIds.contains(item.uniqueKey)).toList();
+    final selectedItems = _allStudents
+        .where((item) => _selectedStudentIds.contains(item.uniqueKey))
+        .toList();
 
     if (selectedItems.isEmpty) {
       ToastHelper.showWarning(context, 'Vui lòng chọn ít nhất 1 phụ huynh!');
@@ -337,7 +368,9 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
           final currentMsg = _buildMessageForStudent(currentItem);
 
           return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             title: Row(
               children: [
                 const Icon(Icons.chat_bubble_rounded, color: Color(0xFF0068FF)),
@@ -345,7 +378,10 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
                 Expanded(
                   child: Text(
                     'Gửi Zalo (${currentIndex + 1}/${selectedItems.length})',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -365,12 +401,18 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
                     children: [
                       Text(
                         'Học sinh: ${currentItem.tenHocSinh} (Lớp ${currentItem.tenLop})',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'SĐT: ${currentItem.sdt.isNotEmpty ? currentItem.sdt : "Chưa có"}',
-                        style: const TextStyle(fontSize: 12, color: Colors.blueAccent),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.blueAccent,
+                        ),
                       ),
                     ],
                   ),
@@ -378,7 +420,11 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
                 const SizedBox(height: 10),
                 const Text(
                   'Bấm nút dưới đây để copy tin nhắn và mở ứng dụng Zalo:',
-                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.grey,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Container(
@@ -465,8 +511,9 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
   }
 
   void _chiaSeHangLoat() {
-    final selectedItems =
-        _allStudents.where((item) => _selectedStudentIds.contains(item.uniqueKey)).toList();
+    final selectedItems = _allStudents
+        .where((item) => _selectedStudentIds.contains(item.uniqueKey))
+        .toList();
 
     if (selectedItems.isEmpty) {
       ToastHelper.showWarning(context, 'Vui lòng chọn ít nhất 1 phụ huynh!');
@@ -477,7 +524,9 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
     sb.writeln('=== TỔNG HỢP THÔNG BÁO TỪ GIÁO VIÊN ===\n');
     for (var i = 0; i < selectedItems.length; i++) {
       final item = selectedItems[i];
-      sb.writeln('--- [${i + 1}/${selectedItems.length}] ${item.tenHocSinh} - Lớp ${item.tenLop} ---');
+      sb.writeln(
+        '--- [${i + 1}/${selectedItems.length}] ${item.tenHocSinh} - Lớp ${item.tenLop} ---',
+      );
       sb.writeln(_buildMessageForStudent(item));
       sb.writeln('\n');
     }
@@ -491,9 +540,10 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
     final totalCount = _allStudents.length;
     final allowedTypes = widget.allowedTypes ?? NotificationType.values;
     final String defaultTitle =
-        allowedTypes.length == 1 && allowedTypes.first == NotificationType.hocPhi
-            ? 'Gửi Nhắc Học Phí Hàng Loạt'
-            : 'Gửi Thông Báo Lớp Học';
+        allowedTypes.length == 1 &&
+            allowedTypes.first == NotificationType.hocPhi
+        ? 'Gửi Nhắc Học Phí Hàng Loạt'
+        : 'Gửi Thông Báo Lớp Học';
     final String titleText = widget.dialogTitle ?? defaultTitle;
     final theme = Theme.of(context);
     final primaryColor = theme.primaryColor;
@@ -610,7 +660,10 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
                       fillColor: theme.brightness == Brightness.dark
                           ? Colors.white.withValues(alpha: 0.05)
                           : Colors.grey.withValues(alpha: 0.08),
-                      prefixIcon: const Icon(Icons.filter_list_rounded, size: 20),
+                      prefixIcon: const Icon(
+                        Icons.filter_list_rounded,
+                        size: 20,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -625,12 +678,18 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
                     items: [
                       const DropdownMenuItem<int?>(
                         value: null,
-                        child: Text('Tất cả các lớp', style: TextStyle(fontSize: 13)),
+                        child: Text(
+                          'Tất cả các lớp',
+                          style: TextStyle(fontSize: 13),
+                        ),
                       ),
                       ..._danhSachLop.map(
                         (l) => DropdownMenuItem<int?>(
                           value: l.id,
-                          child: Text(l.ten, style: const TextStyle(fontSize: 13)),
+                          child: Text(
+                            l.ten,
+                            style: const TextStyle(fontSize: 13),
+                          ),
                         ),
                       ),
                     ],
@@ -645,7 +704,9 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
                 const SizedBox(width: 8),
                 FilterChip(
                   avatar: Icon(
-                    _onlyUnpaid ? Icons.money_off_rounded : Icons.people_outline_rounded,
+                    _onlyUnpaid
+                        ? Icons.money_off_rounded
+                        : Icons.people_outline_rounded,
                     size: 16,
                     color: _onlyUnpaid ? Colors.orange.shade700 : primaryColor,
                   ),
@@ -653,7 +714,9 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
                     _onlyUnpaid ? 'Chỉ chưa đóng' : 'Tất cả HS',
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: _onlyUnpaid ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: _onlyUnpaid
+                          ? FontWeight.bold
+                          : FontWeight.normal,
                     ),
                   ),
                   selected: _onlyUnpaid,
@@ -677,7 +740,10 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: primaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -685,7 +751,11 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.check_circle_outline, size: 14, color: primaryColor),
+                        Icon(
+                          Icons.check_circle_outline,
+                          size: 14,
+                          color: primaryColor,
+                        ),
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
@@ -706,15 +776,19 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
                 TextButton(
                   onPressed: () {
                     setState(() {
-                      _selectedStudentIds =
-                          _allStudents.map((e) => e.uniqueKey).toSet();
+                      _selectedStudentIds = _allStudents
+                          .map((e) => e.uniqueKey)
+                          .toSet();
                     });
                   },
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                   ),
-                  child: const Text('Chọn tất cả', style: TextStyle(fontSize: 12)),
+                  child: const Text(
+                    'Chọn tất cả',
+                    style: TextStyle(fontSize: 12),
+                  ),
                 ),
                 TextButton(
                   onPressed: () {
@@ -737,342 +811,363 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _allStudents.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.person_search_outlined,
-                                size: 48,
-                                color: theme.hintColor.withValues(alpha: 0.5),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Không tìm thấy học sinh phù hợp với bộ lọc.',
-                                style: TextStyle(color: theme.hintColor),
-                              ),
-                            ],
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.person_search_outlined,
+                            size: 48,
+                            color: theme.hintColor.withValues(alpha: 0.5),
                           ),
-                        )
-                      : ListView.builder(
-                          itemCount: _allStudents.length,
-                          itemBuilder: (ctx, index) {
-                            final item = _allStudents[index];
-                            final isSelected =
-                                _selectedStudentIds.contains(item.uniqueKey);
-                            final message = _buildMessageForStudent(item);
+                          const SizedBox(height: 8),
+                          Text(
+                            'Không tìm thấy học sinh phù hợp với bộ lọc.',
+                            style: TextStyle(color: theme.hintColor),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _allStudents.length,
+                      itemBuilder: (ctx, index) {
+                        final item = _allStudents[index];
+                        final isSelected = _selectedStudentIds.contains(
+                          item.uniqueKey,
+                        );
+                        final message = _buildMessageForStudent(item);
 
-                            return Container(
-                              margin: const EdgeInsets.symmetric(vertical: 5),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? theme.cardColor
-                                    : theme.cardColor.withValues(alpha: 0.4),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? primaryColor.withValues(alpha: 0.4)
-                                      : theme.dividerColor.withValues(alpha: 0.15),
-                                  width: isSelected ? 1.5 : 1,
-                                ),
-                                boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: primaryColor.withValues(alpha: 0.06),
-                                          blurRadius: 8,
-                                          offset: const Offset(0, 3),
-                                        ),
-                                      ]
-                                    : [],
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(10.0),
-                                child: Column(
+                        return Container(
+                          margin: const EdgeInsets.symmetric(vertical: 5),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? theme.cardColor
+                                : theme.cardColor.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isSelected
+                                  ? primaryColor.withValues(alpha: 0.4)
+                                  : theme.dividerColor.withValues(alpha: 0.15),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: primaryColor.withValues(
+                                        alpha: 0.06,
+                                      ),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ]
+                                : [],
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(10.0),
+                            child: Column(
+                              children: [
+                                Row(
                                   children: [
-                                    Row(
-                                      children: [
-                                        SizedBox(
-                                          width: 28,
-                                          height: 28,
-                                          child: Checkbox(
-                                            value: isSelected,
-                                            activeColor: primaryColor,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
-                                            onChanged: (val) {
-                                              setState(() {
-                                                if (val == true) {
-                                                  _selectedStudentIds.add(
-                                                    item.uniqueKey,
-                                                  );
-                                                } else {
-                                                  _selectedStudentIds.remove(
-                                                    item.uniqueKey,
-                                                  );
-                                                }
-                                              });
-                                            },
+                                    SizedBox(
+                                      width: 28,
+                                      height: 28,
+                                      child: Checkbox(
+                                        value: isSelected,
+                                        activeColor: primaryColor,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            4,
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          width: 36,
-                                          height: 36,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            gradient: LinearGradient(
-                                              colors: item.isDaHoanThanh
-                                                  ? [Colors.teal, Colors.green.shade600]
-                                                  : [
-                                                      Colors.indigo,
-                                                      Colors.blue.shade600,
-                                                    ],
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
-                                            ),
-                                          ),
-                                          alignment: Alignment.center,
-                                          child: Text(
-                                            item.tenHocSinh.isNotEmpty
-                                                ? item.tenHocSinh[0].toUpperCase()
-                                                : '?',
+                                        onChanged: (val) {
+                                          setState(() {
+                                            if (val == true) {
+                                              _selectedStudentIds.add(
+                                                item.uniqueKey,
+                                              );
+                                            } else {
+                                              _selectedStudentIds.remove(
+                                                item.uniqueKey,
+                                              );
+                                            }
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: LinearGradient(
+                                          colors: item.isDaHoanThanh
+                                              ? [
+                                                  Colors.teal,
+                                                  Colors.green.shade600,
+                                                ]
+                                              : [
+                                                  Colors.indigo,
+                                                  Colors.blue.shade600,
+                                                ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        item.tenHocSinh.isNotEmpty
+                                            ? item.tenHocSinh[0].toUpperCase()
+                                            : '?',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item.tenHocSinh,
                                             style: const TextStyle(
-                                              fontSize: 14,
                                               fontWeight: FontWeight.bold,
-                                              color: Colors.white,
+                                              fontSize: 14,
                                             ),
                                           ),
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
+                                          const SizedBox(height: 2),
+                                          Row(
                                             children: [
-                                              Text(
-                                                item.tenHocSinh,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 14,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Row(
-                                                children: [
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
                                                       horizontal: 6,
                                                       vertical: 1.5,
                                                     ),
-                                                    decoration: BoxDecoration(
-                                                      color: primaryColor.withValues(
-                                                        alpha: 0.1,
-                                                      ),
-                                                      borderRadius:
-                                                          BorderRadius.circular(6),
-                                                    ),
-                                                    child: Text(
-                                                      'Lớp ${item.tenLop}',
-                                                      style: TextStyle(
-                                                        color: primaryColor,
-                                                        fontWeight: FontWeight.w600,
-                                                        fontSize: 11,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  Expanded(
-                                                    child: Text(
-                                                      item.sdt.isNotEmpty
-                                                          ? item.sdt
-                                                          : '(Chưa có SĐT)',
-                                                      overflow: TextOverflow.ellipsis,
-                                                      style: TextStyle(
-                                                        color: item.sdt.isNotEmpty
-                                                            ? theme.hintColor
-                                                            : Colors.amber.shade700,
-                                                        fontSize: 11,
-                                                        fontStyle: item.sdt.isEmpty
-                                                            ? FontStyle.italic
-                                                            : FontStyle.normal,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        if (item.isDaHoanThanh)
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.green.withValues(alpha: 0.15),
-                                              borderRadius: BorderRadius.circular(20),
-                                              border: Border.all(
-                                                color: Colors.green.withValues(alpha: 0.3),
-                                              ),
-                                            ),
-                                            child: const Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  Icons.check_circle_rounded,
-                                                  size: 12,
-                                                  color: Colors.green,
+                                                decoration: BoxDecoration(
+                                                  color: primaryColor
+                                                      .withValues(alpha: 0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
                                                 ),
-                                                SizedBox(width: 4),
-                                                Text(
-                                                  'Đã đóng',
+                                                child: Text(
+                                                  'Lớp ${item.tenLop}',
                                                   style: TextStyle(
-                                                    color: Colors.green,
-                                                    fontWeight: FontWeight.bold,
+                                                    color: primaryColor,
+                                                    fontWeight: FontWeight.w600,
                                                     fontSize: 11,
                                                   ),
                                                 ),
-                                              ],
-                                            ),
-                                          )
-                                        else
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.red.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(20),
-                                              border: Border.all(
-                                                color: Colors.red.withValues(alpha: 0.3),
                                               ),
+                                              const SizedBox(width: 6),
+                                              Expanded(
+                                                child: Text(
+                                                  item.sdt.isNotEmpty
+                                                      ? item.sdt
+                                                      : '(Chưa có SĐT)',
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: item.sdt.isNotEmpty
+                                                        ? theme.hintColor
+                                                        : Colors.amber.shade700,
+                                                    fontSize: 11,
+                                                    fontStyle: item.sdt.isEmpty
+                                                        ? FontStyle.italic
+                                                        : FontStyle.normal,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    if (item.isDaHoanThanh)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withValues(
+                                            alpha: 0.15,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.green.withValues(
+                                              alpha: 0.3,
                                             ),
-                                            child: Text(
-                                              'Nợ ${NumberFormat('#,##0').format(item.soTienConNo)}đ',
-                                              style: const TextStyle(
-                                                color: Colors.redAccent,
+                                          ),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.check_circle_rounded,
+                                              size: 12,
+                                              color: Colors.green,
+                                            ),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Đã đóng',
+                                              style: TextStyle(
+                                                color: Colors.green,
                                                 fontWeight: FontWeight.bold,
                                                 fontSize: 11,
                                               ),
                                             ),
+                                          ],
+                                        ),
+                                      )
+                                    else
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red.withValues(
+                                            alpha: 0.12,
                                           ),
-                                      ],
-                                    ),
-                                    if (isSelected) ...[
-                                      const SizedBox(height: 8),
-                                      Divider(
-                                        height: 1,
-                                        color: theme.dividerColor.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: Colors.red.withValues(
+                                              alpha: 0.3,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Nợ ${NumberFormat('#,##0').format(item.soTienConNo)}đ',
+                                          style: const TextStyle(
+                                            color: Colors.redAccent,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 11,
+                                          ),
+                                        ),
                                       ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.end,
-                                        children: [
-                                          // Nút Zalo
-                                          ElevatedButton.icon(
-                                            onPressed: () => _moZalo(
-                                              item.sdt,
-                                              message,
-                                            ),
-                                            icon: const Icon(
-                                              Icons.chat_bubble_rounded,
-                                              size: 14,
-                                            ),
-                                            label: const Text(
-                                              'Zalo',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFF0068FF),
-                                              foregroundColor: Colors.white,
-                                              elevation: 0,
-                                              visualDensity: VisualDensity.compact,
-                                              shape: const StadiumBorder(),
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 4,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-
-                                          // Nút SMS
-                                          ElevatedButton.icon(
-                                            onPressed: () => _moSMS(
-                                              item.sdt,
-                                              message,
-                                            ),
-                                            icon: const Icon(
-                                              Icons.sms_rounded,
-                                              size: 14,
-                                            ),
-                                            label: const Text(
-                                              'SMS',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.teal.shade600,
-                                              foregroundColor: Colors.white,
-                                              elevation: 0,
-                                              visualDensity: VisualDensity.compact,
-                                              shape: const StadiumBorder(),
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 4,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-
-                                          // Nút Copy
-                                          OutlinedButton.icon(
-                                            onPressed: () async {
-                                              await Clipboard.setData(
-                                                ClipboardData(text: message),
-                                              );
-                                              if (context.mounted) {
-                                                ToastHelper.showSuccess(
-                                                  context,
-                                                  'Đã copy tin nhắn của ${item.tenHocSinh}!',
-                                                );
-                                              }
-                                            },
-                                            icon: const Icon(
-                                              Icons.copy_rounded,
-                                              size: 14,
-                                            ),
-                                            label: const Text(
-                                              'Copy',
-                                              style: TextStyle(fontSize: 12),
-                                            ),
-                                            style: OutlinedButton.styleFrom(
-                                              visualDensity: VisualDensity.compact,
-                                              shape: const StadiumBorder(),
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 12,
-                                                vertical: 4,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
                                   ],
                                 ),
-                              ),
-                            );
-                          },
-                        ),
+                                if (isSelected) ...[
+                                  const SizedBox(height: 8),
+                                  Divider(
+                                    height: 1,
+                                    color: theme.dividerColor.withValues(
+                                      alpha: 0.15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      // Nút Zalo
+                                      ElevatedButton.icon(
+                                        onPressed: () =>
+                                            _moZalo(item.sdt, message),
+                                        icon: const Icon(
+                                          Icons.chat_bubble_rounded,
+                                          size: 14,
+                                        ),
+                                        label: const Text(
+                                          'Zalo',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(
+                                            0xFF0068FF,
+                                          ),
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          visualDensity: VisualDensity.compact,
+                                          shape: const StadiumBorder(),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 4,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+
+                                      // Nút SMS
+                                      ElevatedButton.icon(
+                                        onPressed: () =>
+                                            _moSMS(item.sdt, message),
+                                        icon: const Icon(
+                                          Icons.sms_rounded,
+                                          size: 14,
+                                        ),
+                                        label: const Text(
+                                          'SMS',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.teal.shade600,
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          visualDensity: VisualDensity.compact,
+                                          shape: const StadiumBorder(),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 4,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+
+                                      // Nút Copy
+                                      OutlinedButton.icon(
+                                        onPressed: () async {
+                                          await Clipboard.setData(
+                                            ClipboardData(text: message),
+                                          );
+                                          if (context.mounted) {
+                                            ToastHelper.showSuccess(
+                                              context,
+                                              'Đã copy tin nhắn của ${item.tenHocSinh}!',
+                                            );
+                                          }
+                                        },
+                                        icon: const Icon(
+                                          Icons.copy_rounded,
+                                          size: 14,
+                                        ),
+                                        label: const Text(
+                                          'Copy',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          shape: const StadiumBorder(),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 4,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
             const SizedBox(height: 12),
 
@@ -1158,8 +1253,8 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
           color: isSelected
               ? activeColor.withValues(alpha: 0.18)
               : theme.brightness == Brightness.dark
-                  ? Colors.white.withValues(alpha: 0.05)
-                  : Colors.grey.withValues(alpha: 0.08),
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.grey.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
@@ -1180,7 +1275,9 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? activeColor : theme.textTheme.bodyMedium?.color,
+                color: isSelected
+                    ? activeColor
+                    : theme.textTheme.bodyMedium?.color,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 fontSize: 12,
               ),
@@ -1212,10 +1309,7 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: theme.primaryColor,
-          width: 1.5,
-        ),
+        borderSide: BorderSide(color: theme.primaryColor, width: 1.5),
       ),
     );
 
@@ -1226,9 +1320,7 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
           decoration: BoxDecoration(
             color: Colors.amber.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.amber.withValues(alpha: 0.3),
-            ),
+            border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
           ),
           child: Row(
             children: [
@@ -1248,9 +1340,7 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
               Expanded(
                 child: Text(
                   'Tin nhắn nhắc nợ học phí tự động chèn Tên HS, Lớp, Số tiền nợ, Số buổi dư và cú pháp CK VietQR ngân hàng.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    height: 1.3,
-                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(height: 1.3),
                 ),
               ),
             ],
@@ -1298,7 +1388,10 @@ class _GuiThongBaoHangLoatDialogState extends State<GuiThongBaoHangLoatDialog> {
               style: const TextStyle(fontSize: 13),
               decoration: inputDecoration.copyWith(
                 labelText: 'Buổi học cũ',
-                prefixIcon: const Icon(Icons.history_toggle_off_rounded, size: 18),
+                prefixIcon: const Icon(
+                  Icons.history_toggle_off_rounded,
+                  size: 18,
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -1376,5 +1469,5 @@ class _StudentNotifyItem {
     required this.isDaHoanThanh,
   });
 
-  int get uniqueKey => id * 100000 + idLop;
+  String get uniqueKey => '${id}_$idLop';
 }

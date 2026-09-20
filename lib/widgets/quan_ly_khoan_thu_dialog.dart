@@ -48,19 +48,36 @@ class _QuanLyKhoanThuDialogState extends State<QuanLyKhoanThuDialog> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Thêm khoản thu'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: name, decoration: const InputDecoration(labelText: 'Tên khoản thu')),
-          TextField(
-            controller: amount,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(labelText: 'Số tiền mỗi học sinh'),
-          ),
-          TextField(controller: note, decoration: const InputDecoration(labelText: 'Ghi chú')),
-        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: name,
+              decoration: const InputDecoration(labelText: 'Tên khoản thu'),
+            ),
+            TextField(
+              controller: amount,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                labelText: 'Số tiền mỗi học sinh',
+              ),
+            ),
+            TextField(
+              controller: note,
+              decoration: const InputDecoration(labelText: 'Ghi chú'),
+            ),
+          ],
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Tạo')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Tạo'),
+          ),
         ],
       ),
     );
@@ -75,7 +92,9 @@ class _QuanLyKhoanThuDialogState extends State<QuanLyKhoanThuDialog> {
       );
       if (mounted) setState(_reload);
     }
-    name.dispose(); amount.dispose(); note.dispose();
+    name.dispose();
+    amount.dispose();
+    note.dispose();
   }
 
   Future<void> _thuTien(KhoanThu charge, KhoanThuHocSinh student) async {
@@ -94,8 +113,14 @@ class _QuanLyKhoanThuDialogState extends State<QuanLyKhoanThuDialog> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Lưu')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Lưu'),
+          ),
         ],
       ),
     );
@@ -119,55 +144,135 @@ class _QuanLyKhoanThuDialogState extends State<QuanLyKhoanThuDialog> {
       child: Scaffold(
         appBar: AppBar(
           title: Text('Khoản thu khác - ${widget.thang}'),
-          leading: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-          actions: [IconButton(onPressed: _themKhoanThu, icon: const Icon(Icons.add))],
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.pop(context),
+          ),
+          actions: [
+            IconButton(onPressed: _themKhoanThu, icon: const Icon(Icons.add)),
+          ],
         ),
-        body: Column(children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: DropdownButtonFormField<int>(
-              initialValue: _lopId,
-              decoration: const InputDecoration(labelText: 'Lớp'),
-              items: widget.lops.map((lop) => DropdownMenuItem(value: lop.id, child: Text(lop.ten))).toList(),
-              onChanged: (value) => setState(() { _lopId = value; _reload(); }),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: DropdownButtonFormField<int>(
+                initialValue: _lopId,
+                decoration: const InputDecoration(labelText: 'Lớp'),
+                items: widget.lops
+                    .map(
+                      (lop) =>
+                          DropdownMenuItem(value: lop.id, child: Text(lop.ten)),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() {
+                  _lopId = value;
+                  _reload();
+                }),
+              ),
             ),
-          ),
-          Expanded(
-            child: FutureBuilder<List<KhoanThu>>(
-              future: _future,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                final charges = snapshot.data!;
-                if (charges.isEmpty) return const Center(child: Text('Chưa có khoản thu khác trong tháng này.'));
-                return ListView.builder(
-                  itemCount: charges.length,
-                  itemBuilder: (context, index) {
-                    final charge = charges[index];
-                    return ExpansionTile(
-                      title: Text(charge.ten),
-                      subtitle: Text(
-                        'Phải thu ${_money.format(charge.tongPhaiThu)}đ • Đã thu ${_money.format(charge.tongDaThu)}đ • Còn nợ ${_money.format(charge.tongConNo)}đ',
+            Expanded(
+              child: FutureBuilder<List<KhoanThu>>(
+                future: _future,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Lỗi: ${snapshot.error}'),
+                          const SizedBox(height: 8),
+                          ElevatedButton(
+                            onPressed: () => setState(_reload),
+                            child: const Text('Thử lại'),
+                          ),
+                        ],
                       ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () async { await _service.xoaKhoanThu(charge.id); if (mounted) setState(_reload); },
-                      ),
-                      children: charge.hocSinhs.map((student) {
-                        final debt = charge.soTien - student.daDong;
-                        return ListTile(
-                          title: Text(student.tenHocSinh),
-                          subtitle: Text('Đã thu ${_money.format(student.daDong)}đ • Còn nợ ${_money.format(debt)}đ'),
-                          trailing: Icon(debt == 0 ? Icons.check_circle : Icons.payments_outlined),
-                          onTap: () => _thuTien(charge, student),
-                        );
-                      }).toList(),
                     );
-                  },
-                );
-              },
+                  }
+                  if (!snapshot.hasData)
+                    return const Center(child: CircularProgressIndicator());
+                  final charges = snapshot.data!;
+                  if (charges.isEmpty)
+                    return const Center(
+                      child: Text('Chưa có khoản thu khác trong tháng này.'),
+                    );
+                  return ListView.builder(
+                    itemCount: charges.length,
+                    itemBuilder: (context, index) {
+                      final charge = charges[index];
+                      return ExpansionTile(
+                        title: Text(charge.ten),
+                        subtitle: Text(
+                          'Phải thu ${_money.format(charge.tongPhaiThu)}đ • Đã thu ${_money.format(charge.tongDaThu)}đ • Còn nợ ${_money.format(charge.tongConNo)}đ',
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () async {
+                            final isVi =
+                                Localizations.localeOf(context).languageCode ==
+                                'vi';
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: Text(
+                                  isVi
+                                      ? 'Xác nhận xóa khoản thu'
+                                      : 'Confirm Delete Charge',
+                                ),
+                                content: Text(
+                                  isVi
+                                      ? 'Bạn có chắc chắn muốn xóa khoản thu "${charge.ten}"?\n\n'
+                                            'Tổng đã thu: ${_money.format(charge.tongDaThu)} VNĐ'
+                                      : 'Are you sure you want to delete "${charge.ten}"?\n\n'
+                                            'Total collected: ${_money.format(charge.tongDaThu)} VND',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: Text(isVi ? 'Hủy' : 'Cancel'),
+                                  ),
+                                  FilledButton(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: Theme.of(
+                                        context,
+                                      ).colorScheme.error,
+                                    ),
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: Text(isVi ? 'Xóa' : 'Delete'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              await _service.xoaKhoanThu(charge.id);
+                              if (mounted) setState(_reload);
+                            }
+                          },
+                        ),
+                        children: charge.hocSinhs.map((student) {
+                          final debt = charge.soTien - student.daDong;
+                          return ListTile(
+                            title: Text(student.tenHocSinh),
+                            subtitle: Text(
+                              'Đã thu ${_money.format(student.daDong)}đ • Còn nợ ${_money.format(debt)}đ',
+                            ),
+                            trailing: Icon(
+                              debt == 0
+                                  ? Icons.check_circle
+                                  : Icons.payments_outlined,
+                            ),
+                            onTap: () => _thuTien(charge, student),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }

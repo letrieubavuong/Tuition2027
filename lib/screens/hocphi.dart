@@ -21,6 +21,8 @@ import '../main.dart';
 import '../widgets/main_drawer.dart';
 import '../widgets/thu_tien_hoc_phi_dialog.dart';
 import '../widgets/gui_thong_bao_hang_loat_dialog.dart';
+import '../widgets/xuat_bao_cao_pdf_dialog.dart';
+import '../models/report_models.dart';
 import '../l10n/app_localizations.dart';
 import '../services/tuition_event_service.dart';
 import '../utils/vietqr_util.dart';
@@ -42,12 +44,17 @@ class LopHocPhiViewModel {
 // MÀN HÌNH CHÍNH: HocPhiPage (TOP-LEVEL TAB)
 // =======================================================
 class HocPhiPage extends StatefulWidget {
-  final GlobalKey<MainScreenState> mainScreenKey;
-  final int selectedIndex; // SỬA: Thêm tham số
+  final GlobalKey<MainScreenState>? mainScreenKey;
+  final int selectedIndex;
+  final int? selectedLopId;
+  final String? selectedMonth;
+
   const HocPhiPage({
     super.key,
-    required this.mainScreenKey,
-    required this.selectedIndex, // SỬA: Thêm tham số
+    this.mainScreenKey,
+    this.selectedIndex = 0,
+    this.selectedLopId,
+    this.selectedMonth,
   });
 
   @override
@@ -113,7 +120,7 @@ class HocPhiPageState extends State<HocPhiPage> {
     });
   }
 
-  // Hàm tải dữ liệu tổng hợp cho TẤT CẢ các lớp trong tháng
+  // Hàm tải dữ liệu tổng hợp cho TẤT CẢ các lớp trong tháng (Read-only)
   Future<List<LopHocPhiViewModel>> _taiDuLieuTongHop(String thang) async {
     final List<Lop> lopList = await _lopService.docTatCaLop();
     final List<Future<LopHocPhiViewModel?>> tasks = lopList.map((lop) async {
@@ -121,6 +128,7 @@ class HocPhiPageState extends State<HocPhiPage> {
         final report = await _reportService.layBaoCaoHocPhiThang(
           lop.id!,
           thang,
+          persist: false,
         );
         return LopHocPhiViewModel(lop: lop, report: report);
       }
@@ -159,12 +167,8 @@ class HocPhiPageState extends State<HocPhiPage> {
       ),
     );
 
-    // Nếu thanh toán thành công (hoặc quay lại từ trang chi tiết)
+    // Nếu thanh toán thành công (TuitionEventService đã tự động trigger lamMoiDuLieu)
     if (result == true) {
-      // Tải lại dữ liệu cho tháng hiện tại để cập nhật báo cáo
-      setState(() {
-        _tongHopFuture = _taiDuLieuTongHop(_selectedMonthYear);
-      });
       if (!mounted) return;
       final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
       showDialog(
@@ -197,6 +201,17 @@ class HocPhiPageState extends State<HocPhiPage> {
 
   void _chiaSeNoCaNhan(HocSinhNoHocPhi hs, int idLop, String tenLop) async {
     final isVi = AppLocalizations.of(context)?.locale.languageCode == 'vi';
+
+    if (hs.soTienConNo <= 0) {
+      ToastHelper.showInfo(
+        context,
+        isVi
+            ? 'Học sinh đã hoàn thành học phí!'
+            : 'Student has completed tuition fees!',
+      );
+      return;
+    }
+
     final caiDatService = CaiDatService();
 
     // Đọc thông tin ngân hàng từ cài đặt
@@ -207,7 +222,7 @@ class HocPhiPageState extends State<HocPhiPage> {
     final String accountName =
         (await caiDatService.layCaiDat('account_name')) ?? 'LE TRIEU BA VUONG';
 
-    final int amount = hs.soTienConNo > 0 ? hs.soTienConNo : hs.soTienCanNop;
+    final int amount = hs.soTienConNo;
     final String studentNameNoAccent = VietQRUtil.removeVietnameseAccents(
       hs.tenHocSinh,
     );
@@ -293,8 +308,13 @@ class HocPhiPageState extends State<HocPhiPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 onPressed: () async {
                   final bytes = await _captureCardPng(cardKey);
@@ -310,15 +330,23 @@ class HocPhiPageState extends State<HocPhiPage> {
                 icon: const Icon(Icons.share, size: 16),
                 label: Text(
                   isVi ? 'Chia sẻ ảnh' : 'Share Image',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: lightText,
                   side: BorderSide(color: secondaryText.withValues(alpha: 0.5)),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 onPressed: () async {
                   final bytes = await _captureCardPng(cardKey);
@@ -341,8 +369,13 @@ class HocPhiPageState extends State<HocPhiPage> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: lightText,
                   side: BorderSide(color: secondaryText.withValues(alpha: 0.5)),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 onPressed: () async {
                   await Clipboard.setData(ClipboardData(text: message));
@@ -580,7 +613,10 @@ class HocPhiPageState extends State<HocPhiPage> {
                         bankId.toUpperCase(),
                       ),
                       const SizedBox(height: 4),
-                      _buildBankRowCard(isVi ? 'Số TK' : 'Account No', accountNo),
+                      _buildBankRowCard(
+                        isVi ? 'Số TK' : 'Account No',
+                        accountNo,
+                      ),
                       const SizedBox(height: 4),
                       _buildBankRowCard(
                         isVi ? 'Chủ TK' : 'Account Name',
@@ -688,9 +724,7 @@ class HocPhiPageState extends State<HocPhiPage> {
     final file = File('${dir.path}/$fileName');
     await file.writeAsBytes(bytes);
 
-    await SharePlus.instance.share(
-      ShareParams(files: [XFile(file.path)]),
-    );
+    await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
   }
 
   void _moZaloPhuHuynh(String sdt) async {
@@ -1064,10 +1098,12 @@ class HocPhiPageState extends State<HocPhiPage> {
         ],
       ),
       // SỬA: Thêm drawer vào Scaffold để nút menu hoạt động
-      drawer: MainDrawer(
-        mainScreenKey: widget.mainScreenKey,
-        selectedIndex: widget.selectedIndex, // SỬA: Truyền tham số
-      ),
+      drawer: widget.mainScreenKey != null
+          ? MainDrawer(
+              mainScreenKey: widget.mainScreenKey!,
+              selectedIndex: widget.selectedIndex,
+            )
+          : null,
       body: Column(
         children: [
           // THANH TRƯỢT CHỌN THÁNG/NĂM
@@ -1080,334 +1116,351 @@ class HocPhiPageState extends State<HocPhiPage> {
                 await _tongHopFuture;
               },
               child: FutureBuilder<List<LopHocPhiViewModel>>(
-              future: _tongHopFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(
-                    child: CircularProgressIndicator(color: accentColor),
-                  );
-                }
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      isVi
-                          ? 'Lỗi tải dữ liệu: ${snapshot.error}'
-                          : 'Error loading data: ${snapshot.error}',
-                      style: TextStyle(color: deleteColor),
-                    ),
-                  );
-                }
-
-                final List<LopHocPhiViewModel> dataList = snapshot.data ?? [];
-
-                if (dataList.isEmpty) {
-                  return Center(
-                    child: Text(
-                      isVi
-                          ? 'Chưa có lớp nào được tạo.'
-                          : 'No classes created yet.',
-                      style: TextStyle(color: secondaryText),
-                    ),
-                  );
-                }
-
-                // Lọc danh sách lớp còn nợ
-                final List<LopHocPhiViewModel> classesWithDebt = dataList
-                    .where((item) => item.report.tongSoTienConNo > 0)
-                    .toList();
-
-                // Tính toán lớp đang được chọn
-                int? activeId = _selectedLopId;
-                if (classesWithDebt.isNotEmpty) {
-                  if (activeId == null ||
-                      !classesWithDebt.any((x) => x.lop.id == activeId)) {
-                    activeId = classesWithDebt.first.lop.id;
+                future: _tongHopFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(
+                      child: CircularProgressIndicator(color: accentColor),
+                    );
                   }
-                } else {
-                  activeId = null;
-                }
-
-                // Tìm viewModel tương ứng với lớp đang được chọn
-                final activeViewModel = activeId != null
-                    ? classesWithDebt.firstWhere((x) => x.lop.id == activeId)
-                    : null;
-
-                int tongTienCanThu = 0;
-                int tongTienDaThu = 0;
-                int tongTienConNo = 0;
-                for (var item in dataList) {
-                  tongTienCanThu += item.report.tongSoTienCanThu;
-                  tongTienDaThu += item.report.tongSoTienDaThu;
-                  tongTienConNo += item.report.tongSoTienConNo;
-                }
-                final double tileHoanThanh = tongTienCanThu > 0
-                    ? (tongTienDaThu / tongTienCanThu).clamp(0.0, 1.0)
-                    : 1.0;
-                final Color deptColor = tongTienConNo > 0
-                    ? deleteColor
-                    : secondaryText;
-
-                return Column(
-                  children: [
-                    // Vùng Tổng kết toàn bộ với thanh tiến trình hoàn thành
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.08),
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        isVi
+                            ? 'Lỗi tải dữ liệu: ${snapshot.error}'
+                            : 'Error loading data: ${snapshot.error}',
+                        style: TextStyle(color: deleteColor),
                       ),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              _buildTotalSummaryItem(
-                                isVi ? 'PHẢI THU' : 'DUE',
-                                '${formatCurrency.format(tongTienCanThu)}đ',
-                                secondaryText,
-                                Icons.account_balance_wallet_outlined,
-                              ),
-                              Container(
-                                height: 26,
-                                width: 1,
-                                color: Colors.white12,
-                              ),
-                              _buildTotalSummaryItem(
-                                isVi ? 'ĐÃ THU' : 'COLLECTED',
-                                '${formatCurrency.format(tongTienDaThu)}đ',
-                                const Color(0xFF10B981),
-                                Icons.check_circle_outline,
-                              ),
-                              Container(
-                                height: 26,
-                                width: 1,
-                                color: Colors.white12,
-                              ),
-                              _buildTotalSummaryItem(
-                                isVi ? 'CÒN NỢ' : 'DEBT',
-                                '${formatCurrency.format(tongTienConNo)}đ',
-                                deptColor,
-                                Icons.error_outline_rounded,
-                              ),
-                            ],
+                    );
+                  }
+
+                  final List<LopHocPhiViewModel> dataList = snapshot.data ?? [];
+
+                  if (dataList.isEmpty) {
+                    return Center(
+                      child: Text(
+                        isVi
+                            ? 'Chưa có lớp nào được tạo.'
+                            : 'No classes created yet.',
+                        style: TextStyle(color: secondaryText),
+                      ),
+                    );
+                  }
+
+                  // Lọc danh sách lớp còn nợ
+                  final List<LopHocPhiViewModel> classesWithDebt = dataList
+                      .where((item) => item.report.tongSoTienConNo > 0)
+                      .toList();
+
+                  // Tính toán lớp đang được chọn
+                  int? activeId = _selectedLopId;
+                  if (classesWithDebt.isNotEmpty) {
+                    if (activeId == null ||
+                        !classesWithDebt.any((x) => x.lop.id == activeId)) {
+                      activeId = classesWithDebt.first.lop.id;
+                    }
+                  } else {
+                    activeId = null;
+                  }
+
+                  // Tìm viewModel tương ứng với lớp đang được chọn
+                  final activeViewModel = activeId != null
+                      ? classesWithDebt.firstWhere((x) => x.lop.id == activeId)
+                      : null;
+
+                  int tongTienCanThu = 0;
+                  int tongTienDaThu = 0;
+                  int tongTienConNo = 0;
+                  for (var item in dataList) {
+                    tongTienCanThu += item.report.tongSoTienCanThu;
+                    tongTienDaThu += item.report.tongSoTienDaThu;
+                    tongTienConNo += item.report.tongSoTienConNo;
+                  }
+                  final double tileHoanThanh = tongTienCanThu > 0
+                      ? (tongTienDaThu / tongTienCanThu).clamp(0.0, 1.0)
+                      : 1.0;
+                  final Color deptColor = tongTienConNo > 0
+                      ? deleteColor
+                      : secondaryText;
+
+                  return Column(
+                    children: [
+                      // Vùng Tổng kết toàn bộ với thanh tiến trình hoàn thành
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.08),
                           ),
-                          const SizedBox(height: 10),
-                          // Thanh tiến trình hoàn thành học phí
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: LinearProgressIndicator(
-                              value: tileHoanThanh,
-                              minHeight: 6,
-                              backgroundColor: Colors.white10,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                tileHoanThanh == 1.0
-                                    ? const Color(0xFF10B981)
-                                    : accentColor,
-                              ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                isVi ? 'Tỷ lệ hoàn thành' : 'Completion Rate',
-                                style: TextStyle(
-                                  color: secondaryText,
-                                  fontSize: 10,
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                _buildTotalSummaryItem(
+                                  isVi ? 'PHẢI THU' : 'DUE',
+                                  '${formatCurrency.format(tongTienCanThu)}đ',
+                                  secondaryText,
+                                  Icons.account_balance_wallet_outlined,
                                 ),
-                              ),
-                              Text(
-                                '${(tileHoanThanh * 100).toStringAsFixed(1)}%',
-                                style: TextStyle(
-                                  color: tileHoanThanh == 1.0
+                                Container(
+                                  height: 26,
+                                  width: 1,
+                                  color: Colors.white12,
+                                ),
+                                _buildTotalSummaryItem(
+                                  isVi ? 'ĐÃ THU' : 'COLLECTED',
+                                  '${formatCurrency.format(tongTienDaThu)}đ',
+                                  const Color(0xFF10B981),
+                                  Icons.check_circle_outline,
+                                ),
+                                Container(
+                                  height: 26,
+                                  width: 1,
+                                  color: Colors.white12,
+                                ),
+                                _buildTotalSummaryItem(
+                                  isVi ? 'CÒN NỢ' : 'DEBT',
+                                  '${formatCurrency.format(tongTienConNo)}đ',
+                                  deptColor,
+                                  Icons.error_outline_rounded,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            // Thanh tiến trình hoàn thành học phí
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: LinearProgressIndicator(
+                                value: tileHoanThanh,
+                                minHeight: 6,
+                                backgroundColor: Colors.white10,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  tileHoanThanh == 1.0
                                       ? const Color(0xFF10B981)
                                       : accentColor,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    if (classesWithDebt.isEmpty)
-                      Expanded(
-                        child: Center(
-                          child: Text(
-                            isVi
-                                ? 'Tất cả các lớp đã hoàn thành học phí!'
-                                : 'All classes completed tuition fees!',
-                            style: TextStyle(
-                              color: accentColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
                             ),
-                          ),
-                        ),
-                      )
-                    else ...[
-                      // Combobox chọn lớp còn nợ
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8.0,
-                          vertical: 4.0,
-                        ),
-                        child: DropdownButtonFormField<int>(
-                          value: activeId,
-                          dropdownColor: cardColor,
-                          style: TextStyle(color: lightText, fontSize: 14),
-                          decoration: InputDecoration(
-                            labelText: isVi
-                                ? 'Lớp học còn nợ'
-                                : 'Class with debt',
-                            labelStyle: TextStyle(
-                              color: accentColor,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            filled: true,
-                            fillColor: cardColor,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Colors.white24,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Colors.white12,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: accentColor,
-                                width: 1.5,
-                              ),
-                            ),
-                          ),
-                          items: classesWithDebt.map((item) {
-                            return DropdownMenuItem<int>(
-                              value: item.lop.id,
-                              child: Text(
-                                '${item.lop.ten} (Còn nợ: ${formatCurrency.format(item.report.tongSoTienConNo)}đ)',
-                                style: TextStyle(color: lightText),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (newId) {
-                            setState(() {
-                              _selectedLopId = newId;
-                            });
-                          },
-                        ),
-                      ),
-
-                      // Danh sách học sinh nợ của lớp được chọn
-                      if (activeViewModel != null) ...[
-                        Builder(
-                          builder: (context) {
-                            final filteredList = activeViewModel.report.dsHocSinhConNo;
-
-                            return Expanded(
-                              child: Column(
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 4,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          isVi
-                                              ? 'Học sinh chưa hoàn thành học phí (${filteredList.length}):'
-                                              : 'Unpaid students (${filteredList.length}):',
-                                          style: TextStyle(
-                                            color: secondaryText,
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        // Nút xuất PDF báo cáo lớp
-                                        IconButton(
-                                          icon: const Icon(Icons.picture_as_pdf),
-                                          color: accentColor,
-                                          tooltip: isVi
-                                              ? 'Xuất PDF báo cáo lớp'
-                                              : 'Export Class PDF Report',
-                                          onPressed: () {
-                                            PdfExportService()
-                                                .generateAndOpenHocPhiPdf(
-                                              activeViewModel,
-                                              _selectedMonthYear,
-                                            );
-                                          },
-                                        ),
-                                      ],
-                                    ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  isVi ? 'Tỷ lệ hoàn thành' : 'Completion Rate',
+                                  style: TextStyle(
+                                    color: secondaryText,
+                                    fontSize: 10,
                                   ),
-                                  Expanded(
-                                    child: filteredList.isEmpty
-                                        ? Center(
-                                            child: Text(
-                                              isVi
-                                                  ? 'Không tìm thấy học sinh phù hợp'
-                                                  : 'No matching student found',
-                                              style: TextStyle(
-                                                color: secondaryText,
-                                                fontSize: 13,
-                                              ),
+                                ),
+                                Text(
+                                  '${(tileHoanThanh * 100).toStringAsFixed(1)}%',
+                                  style: TextStyle(
+                                    color: tileHoanThanh == 1.0
+                                        ? const Color(0xFF10B981)
+                                        : accentColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      if (classesWithDebt.isEmpty)
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              isVi
+                                  ? 'Tất cả các lớp đã hoàn thành học phí!'
+                                  : 'All classes completed tuition fees!',
+                              style: TextStyle(
+                                color: accentColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        )
+                      else ...[
+                        // Combobox chọn lớp còn nợ
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8.0,
+                            vertical: 4.0,
+                          ),
+                          child: DropdownButtonFormField<int>(
+                            value: activeId,
+                            dropdownColor: cardColor,
+                            style: TextStyle(color: lightText, fontSize: 14),
+                            decoration: InputDecoration(
+                              labelText: isVi
+                                  ? 'Lớp học còn nợ'
+                                  : 'Class with debt',
+                              labelStyle: TextStyle(
+                                color: accentColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              filled: true,
+                              fillColor: cardColor,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Colors.white24,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Colors.white12,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: accentColor,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                            items: classesWithDebt.map((item) {
+                              return DropdownMenuItem<int>(
+                                value: item.lop.id,
+                                child: Text(
+                                  '${item.lop.ten} (Còn nợ: ${formatCurrency.format(item.report.tongSoTienConNo)}đ)',
+                                  style: TextStyle(color: lightText),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (newId) {
+                              setState(() {
+                                _selectedLopId = newId;
+                              });
+                            },
+                          ),
+                        ),
+
+                        // Danh sách học sinh nợ của lớp được chọn
+                        if (activeViewModel != null) ...[
+                          Builder(
+                            builder: (context) {
+                              final filteredList =
+                                  activeViewModel.report.dsHocSinhConNo;
+
+                              return Expanded(
+                                child: Column(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 4,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            isVi
+                                                ? 'Học sinh chưa hoàn thành học phí (${filteredList.length}):'
+                                                : 'Unpaid students (${filteredList.length}):',
+                                            style: TextStyle(
+                                              color: secondaryText,
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w500,
                                             ),
-                                          )
-                                        : ListView.builder(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 0,
+                                          ),
+                                          // Nút xuất PDF báo cáo lớp
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.picture_as_pdf,
                                             ),
-                                            itemCount: filteredList.length,
-                                            itemBuilder: (context, idx) {
-                                              final hs = filteredList[idx];
-                                              return _buildHocSinhNoItem(
-                                                hs,
-                                                activeViewModel.lop.id!,
-                                                activeViewModel.lop.ten,
+                                            color: accentColor,
+                                            tooltip: isVi
+                                                ? 'Xuất PDF báo cáo lớp'
+                                                : 'Export Class PDF Report',
+                                            onPressed: () {
+                                              showDialog(
+                                                context: context,
+                                                builder: (ctx) =>
+                                                    XuatBaoCaoPdfDialog(
+                                                      initialLop:
+                                                          activeViewModel
+                                                                  .lop
+                                                                  .id ==
+                                                              -1
+                                                          ? null
+                                                          : activeViewModel.lop,
+                                                      initialSections: const {
+                                                        ReportSection
+                                                            .classSummary,
+                                                        ReportSection.tuition,
+                                                      },
+                                                    ),
                                               );
                                             },
                                           ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: filteredList.isEmpty
+                                          ? Center(
+                                              child: Text(
+                                                isVi
+                                                    ? 'Không tìm thấy học sinh phù hợp'
+                                                    : 'No matching student found',
+                                                style: TextStyle(
+                                                  color: secondaryText,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            )
+                                          : ListView.builder(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 0,
+                                                  ),
+                                              itemCount: filteredList.length,
+                                              itemBuilder: (context, idx) {
+                                                final hs = filteredList[idx];
+                                                return _buildHocSinhNoItem(
+                                                  hs,
+                                                  activeViewModel.lop.id!,
+                                                  activeViewModel.lop.ten,
+                                                );
+                                              },
+                                            ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ],
                     ],
-                  ],
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
-        ),
         ],
       ),
     );

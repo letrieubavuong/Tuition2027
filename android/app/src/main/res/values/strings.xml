@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_tuition_name">Lịch dạy &amp; Ca học</string>
+    <string name="widget_tuition_description">Hiển thị ca dạy trong ngày, sĩ số có mặt và nhắc nhở học phí</string>
+    <string name="widget_bank_qr_name">Mã QR Ngân hàng</string>
+    <string name="widget_bank_qr_description">Hiển thị mã QR ngân hàng nhận học phí nhanh</string>
+</resources>

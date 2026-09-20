@@ -16,9 +16,9 @@ class ThongKePage extends StatefulWidget {
 
 class _ThongKePageState extends State<ThongKePage> {
   final ThongKeService _service = ThongKeService();
-  final DashboardService _dashboardService =
-      DashboardService(); // KHỞI TẠO SERVICE
+  final DashboardService _dashboardService = DashboardService();
   late Future<Map<String, dynamic>> _dataFuture;
+  bool _isRefreshing = false;
 
   // Theme màu
   static const Color darkBackground = Color(0xFF1A1A2E);
@@ -37,16 +37,26 @@ class _ThongKePageState extends State<ThongKePage> {
   }
 
   void _loadData() {
+    if (_isRefreshing) return;
+    _isRefreshing = true;
     setState(() {
-      _dataFuture = _fetchData();
+      _dataFuture = _fetchData().whenComplete(() {
+        _isRefreshing = false;
+      });
     });
+  }
+
+  String _getSafeMonthLabel(String thang) {
+    if (thang.length >= 7) {
+      return thang.substring(5);
+    }
+    return thang;
   }
 
   Future<Map<String, dynamic>> _fetchData() async {
     final studentData = await _service.getSoLuongHSHoatDong12Thang();
     final tuitionData = await _service.getHocPhi12Thang();
-    final dashboardData = await _dashboardService
-        .getDashboardData(); // LẤY DỮ LIỆU TỔNG QUAN
+    final dashboardData = await _dashboardService.getDashboardData();
     return {
       'students': studentData,
       'tuition': tuitionData,
@@ -82,12 +92,19 @@ class _ThongKePageState extends State<ThongKePage> {
           }
           if (snapshot.hasError) {
             return Center(
-              child: Text(
-                isVi ? 'Lỗi: ${snapshot.error}' : 'Error: ${snapshot.error}',
-                style: const TextStyle(color: debtColor),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  isVi
+                      ? 'Không thể tải dữ liệu thống kê. Vui lòng thử lại sau.'
+                      : 'Failed to load statistics. Please try again later.',
+                  style: const TextStyle(color: debtColor),
+                  textAlign: TextAlign.center,
+                ),
               ),
             );
           }
+
           if (!snapshot.hasData || snapshot.data == null) {
             return Center(
               child: Text(
@@ -260,15 +277,20 @@ class _ThongKePageState extends State<ThongKePage> {
       );
     }
 
+    final maxCount = data
+        .map((d) => d.soLuong)
+        .fold<int>(0, (a, b) => a > b ? a : b);
+    final maxY = maxCount == 0 ? 10.0 : (maxCount * 1.2);
+
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
-        maxY: (data.map((d) => d.soLuong).reduce((a, b) => a > b ? a : b) * 1.2)
-            .toDouble(),
+        maxY: maxY,
         barTouchData: BarTouchData(
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (group) => Colors.blueGrey,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              if (groupIndex < 0 || groupIndex >= data.length) return null;
               return BarTooltipItem(
                 '${data[groupIndex].thang}\n',
                 const TextStyle(
@@ -295,7 +317,9 @@ class _ThongKePageState extends State<ThongKePage> {
             sideTitles: SideTitles(
               showTitles: true,
               getTitlesWidget: (value, meta) {
-                final month = data[value.toInt()].thang.substring(5);
+                final idx = value.toInt();
+                if (idx < 0 || idx >= data.length) return const SizedBox();
+                final month = _getSafeMonthLabel(data[idx].thang);
                 return SideTitleWidget(
                   axisSide: meta.axisSide,
                   space: 4.0,
@@ -353,6 +377,7 @@ class _ThongKePageState extends State<ThongKePage> {
     }
 
     final formatCurrency = NumberFormat.compact(locale: 'vi_VN');
+    final formatMoney = NumberFormat('#,##0', 'vi_VN');
 
     return BarChart(
       BarChartData(
@@ -361,28 +386,21 @@ class _ThongKePageState extends State<ThongKePage> {
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (group) => Colors.blueGrey,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              String text;
-              if (rod.color == incomeColor) {
-                text =
-                    (isVi ? 'Thu: ' : 'Collected: ') +
-                    NumberFormat('#,##0', 'vi_VN').format(rod.toY);
-              } else {
-                text =
-                    (isVi ? 'Nợ: ' : 'Debt: ') +
-                    NumberFormat('#,##0', 'vi_VN').format(rod.toY);
-              }
+              if (groupIndex < 0 || groupIndex >= data.length) return null;
+              final item = data[groupIndex];
               return BarTooltipItem(
-                '${data[groupIndex].thang}\n',
+                '${item.thang}\n',
                 const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
                 children: <TextSpan>[
                   TextSpan(
-                    text: text,
-                    style: TextStyle(
-                      color: rod.color,
-                      fontSize: 14,
+                    text:
+                        '${isVi ? "Thu: " : "Collected: "}${formatMoney.format(item.tongThu)}\n${isVi ? "Nợ: " : "Debt: "}${formatMoney.format(item.tongNo)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -397,7 +415,9 @@ class _ThongKePageState extends State<ThongKePage> {
             sideTitles: SideTitles(
               showTitles: true,
               getTitlesWidget: (value, meta) {
-                final month = data[value.toInt()].thang.substring(5);
+                final idx = value.toInt();
+                if (idx < 0 || idx >= data.length) return const SizedBox();
+                final month = _getSafeMonthLabel(data[idx].thang);
                 return SideTitleWidget(
                   axisSide: meta.axisSide,
                   space: 4.0,

@@ -51,26 +51,50 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
   final _nhanXetChungController = TextEditingController();
 
   NhanXetThang? _currentNhanXet;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
+    _loadNhanXetData();
+  }
+
+  @override
+  void didUpdateWidget(DanhGiaDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.idHocSinh != widget.idHocSinh ||
+        oldWidget.idLop != widget.idLop ||
+        oldWidget.thang != widget.thang) {
+      _loadNhanXetData();
+    }
+  }
+
+  void _loadNhanXetData() {
     _nhanXetFuture = _nhanXetService.layHoacTaoNhanXet(
       widget.idHocSinh,
       widget.idLop,
       widget.thang,
     );
-    _nhanXetFuture.then((nx) {
-      if (mounted) {
-        setState(() {
-          _currentNhanXet = nx;
-          _thaiDoController.text = nx.diemThaiDo.toString();
-          _baiTapController.text = nx.diemBaiTap.toString();
-          _kiemTraController.text = nx.diemKiemTra.toString();
-          _nhanXetChungController.text = nx.nhanXetChung ?? '';
+    _nhanXetFuture
+        .then((nx) {
+          if (mounted) {
+            setState(() {
+              _currentNhanXet = nx;
+              _thaiDoController.text = nx.diemThaiDo.toString();
+              _baiTapController.text = nx.diemBaiTap.toString();
+              _kiemTraController.text = nx.diemKiemTra.toString();
+              _nhanXetChungController.text = nx.nhanXetChung ?? '';
+            });
+          }
+        })
+        .catchError((err) {
+          if (mounted) {
+            ToastHelper.showError(
+              context,
+              'Không thể tải dữ liệu đánh giá tháng',
+            );
+          }
         });
-      }
-    });
   }
 
   @override
@@ -82,20 +106,66 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
     super.dispose();
   }
 
-  Future<void> _handleSave() async {
-    if (_formKey.currentState!.validate() && _currentNhanXet != null) {
-      _currentNhanXet!.diemThaiDo =
-          double.tryParse(_thaiDoController.text) ?? 0.0;
-      _currentNhanXet!.diemBaiTap =
-          double.tryParse(_baiTapController.text) ?? 0.0;
-      _currentNhanXet!.diemKiemTra =
-          double.tryParse(_kiemTraController.text) ?? 0.0;
-      _currentNhanXet!.nhanXetChung = _nhanXetChungController.text;
+  Future<bool> _persistCurrentState() async {
+    if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
+      return false;
+    }
+    if (_isSaving) return false;
 
-      await _nhanXetService.capNhatNhanXet(_currentNhanXet!);
+    setState(() => _isSaving = true);
+    try {
+      final cc = _currentNhanXet?.diemChuyenCan ?? 10.0;
+      final td = (double.tryParse(_thaiDoController.text.trim()) ?? 0.0).clamp(
+        0.0,
+        10.0,
+      );
+      final bt = (double.tryParse(_baiTapController.text.trim()) ?? 0.0).clamp(
+        0.0,
+        10.0,
+      );
+      final kt = (double.tryParse(_kiemTraController.text.trim()) ?? 0.0).clamp(
+        0.0,
+        10.0,
+      );
+      final nhanXetStr = _nhanXetChungController.text.trim();
+
+      final targetNx =
+          (_currentNhanXet ??
+                  NhanXetThang(
+                    idHocSinh: widget.idHocSinh,
+                    idLop: widget.idLop,
+                    thang: widget.thang,
+                  ))
+              .copyWith(
+                diemChuyenCan: cc,
+                diemThaiDo: td,
+                diemBaiTap: bt,
+                diemKiemTra: kt,
+                nhanXetChung: nhanXetStr,
+                isManualOverride: true,
+              );
+
+      await _nhanXetService.capNhatNhanXet(targetNx);
       if (mounted) {
-        Navigator.of(context).pop(true);
+        setState(() {
+          _currentNhanXet = targetNx;
+          _isSaving = false;
+        });
       }
+      return true;
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ToastHelper.showError(context, 'Lỗi khi lưu đánh giá: ${e.toString()}');
+      }
+      return false;
+    }
+  }
+
+  Future<void> _handleSave() async {
+    final success = await _persistCurrentState();
+    if (success && mounted) {
+      Navigator.of(context).pop(true);
     }
   }
 
@@ -114,6 +184,13 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
     }
   }
 
+  String _sanitizeFileName(String raw) {
+    return raw
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
+        .replaceAll(RegExp(r'\s+'), '_')
+        .trim();
+  }
+
   Future<void> _luuAnh(
     BuildContext context,
     Uint8List bytes,
@@ -125,7 +202,10 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
     final file = File('${dir.path}/$fileName');
     await file.writeAsBytes(bytes);
     if (context.mounted) {
-      ToastHelper.showSuccess(context, 'Đã lưu phiếu học tập vào thư mục Download!');
+      ToastHelper.showSuccess(
+        context,
+        'Đã lưu phiếu học tập vào thư mục Download!',
+      );
     }
   }
 
@@ -138,17 +218,18 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
     final file = File('${dir.path}/$fileName');
     await file.writeAsBytes(bytes);
 
-    await SharePlus.instance.share(
-      ShareParams(files: [XFile(file.path)]),
-    );
+    await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
   }
 
-  void _hienThiPhieuAnhHocTap() {
+  Future<void> _hienThiPhieuAnhHocTap() async {
+    final success = await _persistCurrentState();
+    if (!success || !mounted) return;
+
     final cardKey = GlobalKey();
     final cc = _currentNhanXet?.diemChuyenCan ?? 10.0;
-    final td = double.tryParse(_thaiDoController.text) ?? 0.0;
-    final bt = double.tryParse(_baiTapController.text) ?? 0.0;
-    final kt = double.tryParse(_kiemTraController.text) ?? 0.0;
+    final td = double.tryParse(_thaiDoController.text.trim()) ?? 0.0;
+    final bt = double.tryParse(_baiTapController.text.trim()) ?? 0.0;
+    final kt = double.tryParse(_kiemTraController.text.trim()) ?? 0.0;
     final nhanXetStr = _nhanXetChungController.text.trim();
     final xepHang = _nhanXetService.tinhXepHang(cc, td, kt, bt);
 
@@ -157,8 +238,6 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
       final parts = widget.thang.split('-');
       if (parts.length == 2) formattedThang = '${parts[1]}/${parts[0]}';
     }
-
-
 
     showDialog(
       context: context,
@@ -194,8 +273,12 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
                 onPressed: () async {
                   final bytes = await _capturePng(cardKey);
                   if (bytes != null && ctx.mounted) {
-                    final cleanName = widget.tenHocSinh.replaceAll(RegExp(r'[^\w]'), '_');
-                    _luuAnh(ctx, bytes, 'PhieuHocTap_${cleanName}_$formattedThang.png');
+                    final cleanName = _sanitizeFileName(widget.tenHocSinh);
+                    _luuAnh(
+                      ctx,
+                      bytes,
+                      'PhieuHocTap_${cleanName}_$formattedThang.png',
+                    );
                   }
                 },
                 icon: const Icon(Icons.save_alt_rounded),
@@ -205,8 +288,12 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
                 onPressed: () async {
                   final bytes = await _capturePng(cardKey);
                   if (bytes != null && ctx.mounted) {
-                    final cleanName = widget.tenHocSinh.replaceAll(RegExp(r'[^\w]'), '_');
-                    _chiaSeAnh(ctx, bytes, 'PhieuHocTap_${cleanName}_$formattedThang.png');
+                    final cleanName = _sanitizeFileName(widget.tenHocSinh);
+                    _chiaSeAnh(
+                      ctx,
+                      bytes,
+                      'PhieuHocTap_${cleanName}_$formattedThang.png',
+                    );
                   }
                 },
                 icon: const Icon(Icons.share_rounded),
@@ -320,7 +407,11 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
                         color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.school_rounded, color: Color(0xFF2563EB), size: 20),
+                      child: const Icon(
+                        Icons.school_rounded,
+                        color: Color(0xFF2563EB),
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -349,17 +440,45 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
                     children: [
                       Row(
                         children: [
-                          Expanded(child: _buildMetricItem('Chuyên cần', '${chuyenCan.toStringAsFixed(1)}/10', Icons.task_alt_rounded, Colors.green)),
+                          Expanded(
+                            child: _buildMetricItem(
+                              'Chuyên cần',
+                              '${chuyenCan.toStringAsFixed(1)}/10',
+                              Icons.task_alt_rounded,
+                              Colors.green,
+                            ),
+                          ),
                           const SizedBox(width: 8),
-                          Expanded(child: _buildMetricItem('Thái độ học', '${thaiDo.toStringAsFixed(1)}/10', Icons.psychology_rounded, Colors.blue)),
+                          Expanded(
+                            child: _buildMetricItem(
+                              'Thái độ học',
+                              '${thaiDo.toStringAsFixed(1)}/10',
+                              Icons.psychology_rounded,
+                              Colors.blue,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          Expanded(child: _buildMetricItem('Bài tập ở nhà', '${baiTap.toStringAsFixed(1)}/10', Icons.assignment_turned_in_rounded, Colors.orange)),
+                          Expanded(
+                            child: _buildMetricItem(
+                              'Bài tập ở nhà',
+                              '${baiTap.toStringAsFixed(1)}/10',
+                              Icons.assignment_turned_in_rounded,
+                              Colors.orange,
+                            ),
+                          ),
                           const SizedBox(width: 8),
-                          Expanded(child: _buildMetricItem('Bài kiểm tra', '${kiemTra.toStringAsFixed(1)}/10', Icons.quiz_rounded, Colors.purple)),
+                          Expanded(
+                            child: _buildMetricItem(
+                              'Bài kiểm tra',
+                              '${kiemTra.toStringAsFixed(1)}/10',
+                              Icons.quiz_rounded,
+                              Colors.purple,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -370,16 +489,25 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
                 // Rank Badge
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: xepHangColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: xepHangColor.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: xepHangColor.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.workspace_premium_rounded, color: xepHangColor, size: 20),
+                      Icon(
+                        Icons.workspace_premium_rounded,
+                        color: xepHangColor,
+                        size: 20,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'XẾP LOẠI: ',
@@ -422,9 +550,11 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
                     border: Border.all(color: const Color(0xFFFDE68A)),
                   ),
                   child: Text(
-                    nhanXet.isNotEmpty ? nhanXet : 'Học sinh đi học đầy đủ và có tiến bộ tốt trong tháng.',
-                    style: const TextStyle(
-                      color: Color(0xFF78350F),
+                    nhanXet.isNotEmpty ? nhanXet : 'Chưa có nhận xét',
+                    style: TextStyle(
+                      color: nhanXet.isNotEmpty
+                          ? const Color(0xFF78350F)
+                          : const Color(0xFF94A3B8),
                       fontSize: 12.5,
                       height: 1.4,
                       fontStyle: FontStyle.italic,
@@ -453,7 +583,12 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
     );
   }
 
-  Widget _buildMetricItem(String label, String value, IconData icon, Color color) {
+  Widget _buildMetricItem(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -471,7 +606,11 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
               Expanded(
                 child: Text(
                   label,
-                  style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -480,7 +619,11 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
           const SizedBox(height: 2),
           Text(
             value,
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
         ],
       ),
@@ -508,7 +651,9 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
           }
           if (snapshot.hasError) {
             return Text(
-              isVi ? 'Lỗi: ${snapshot.error}' : 'Error: ${snapshot.error}',
+              isVi
+                  ? 'Không thể tải dữ liệu đánh giá'
+                  : 'Failed to load evaluation data',
               style: const TextStyle(color: Colors.red),
             );
           }
@@ -554,11 +699,16 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: _hienThiPhieuAnhHocTap,
+                      onPressed: _isSaving ? null : _hienThiPhieuAnhHocTap,
                       icon: const Icon(Icons.image_rounded, size: 18),
                       label: Text(
-                        isVi ? 'XUẤT PHIẾU BÁO CÁO HỌC TẬP (ẢNH)' : 'EXPORT REPORT CARD (IMAGE)',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                        isVi
+                            ? 'XUẤT PHIẾU BÁO CÁO HỌC TẬP (ẢNH)'
+                            : 'EXPORT REPORT CARD (IMAGE)',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF0068FF),
@@ -575,23 +725,28 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
           child: Text(
             isVi ? 'Hủy' : 'Cancel',
             style: TextStyle(color: secondaryText),
           ),
         ),
         OutlinedButton.icon(
-          onPressed: () {
-            final cc = _currentNhanXet?.diemChuyenCan ?? 10.0;
-            final td = double.tryParse(_thaiDoController.text) ?? 0.0;
-            final bt = double.tryParse(_baiTapController.text) ?? 0.0;
-            final kt = double.tryParse(_kiemTraController.text) ?? 0.0;
-            setState(() {
-              _nhanXetChungController.text = _nhanXetService
-                  .sinhNhanXetThangTuDong(cc, td, kt, bt);
-            });
-          },
+          onPressed: _isSaving
+              ? null
+              : () {
+                  final cc = _currentNhanXet?.diemChuyenCan ?? 10.0;
+                  final td =
+                      double.tryParse(_thaiDoController.text.trim()) ?? 0.0;
+                  final bt =
+                      double.tryParse(_baiTapController.text.trim()) ?? 0.0;
+                  final kt =
+                      double.tryParse(_kiemTraController.text.trim()) ?? 0.0;
+                  setState(() {
+                    _nhanXetChungController.text = _nhanXetService
+                        .sinhNhanXetThangTuDong(cc, td, kt, bt);
+                  });
+                },
           style: OutlinedButton.styleFrom(
             foregroundColor: accentColor,
             side: BorderSide(color: accentColor),
@@ -600,13 +755,23 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
           label: Text(isVi ? 'Tự sinh' : 'Auto Remark'),
         ),
         ElevatedButton.icon(
-          onPressed: _handleSave,
+          onPressed: _isSaving ? null : _handleSave,
           style: ElevatedButton.styleFrom(
             backgroundColor: accentColor,
             foregroundColor: darkBackground,
           ),
-          icon: const Icon(Icons.save),
-          label: Text(isVi ? 'Lưu' : 'Save'),
+          icon: _isSaving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.save),
+          label: Text(
+            isVi
+                ? (_isSaving ? 'Đang lưu...' : 'Lưu')
+                : (_isSaving ? 'Saving...' : 'Save'),
+          ),
         ),
       ],
     );
@@ -642,12 +807,12 @@ class _DanhGiaDialogState extends State<DanhGiaDialog> {
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       decoration: _inputDecoration(label),
       validator: (value) {
-        if (value == null || value.isEmpty) {
+        if (value == null || value.trim().isEmpty) {
           return isVi ? 'Không được để trống' : 'Cannot be empty';
         }
-        final score = double.tryParse(value);
-        if (score == null || score < -10 || score > 10) {
-          return isVi ? 'Điểm phải từ -10 đến 10' : 'Score must be -10 to 10';
+        final score = double.tryParse(value.trim());
+        if (score == null || score < 0.0 || score > 10.0) {
+          return isVi ? 'Điểm phải từ 0 đến 10' : 'Score must be 0 to 10';
         }
         return null;
       },

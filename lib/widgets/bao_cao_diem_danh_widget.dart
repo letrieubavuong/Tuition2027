@@ -6,9 +6,9 @@ import 'package:intl/intl.dart';
 import '../models/hs.dart';
 import '../models/lop.dart';
 import '../services/lop_hoc_sinh_service.dart';
-import '../utils/db.dart';
+import '../services/diem_danh_service.dart';
+import '../services/zalo_contact_service.dart';
 
-// SỬA: Chuyển sang ConsumerStatefulWidget để dùng Riverpod
 class BaoCaoDiemDanhWidget extends ConsumerStatefulWidget {
   final HS hocSinh;
   final int refreshTrigger;
@@ -36,18 +36,12 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
 
   // --- Services ---
   final LopHocSinhService _lhsService = LopHocSinhService();
+
   // --- State ---
   List<Lop> _lopCuaHocSinh = [];
   Lop? _selectedLop;
   late String _selectedMonthYear;
   bool _isLoading = true;
-
-  // --- Theme Colors ---
-  // static const Color darkBackground = Color(0xFF1A1A2E);
-  // static const Color cardColor = Color(0xFF16213E);
-  // static const Color lightText = Colors.white;
-  // static const Color secondaryText = Colors.white70;
-  // static const Color accentColor = Color(0xFF00BFA5); // Teal Accent
 
   @override
   void initState() {
@@ -57,23 +51,41 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
   }
 
   Future<void> _loadInitialData() async {
+    if (widget.hocSinh.id == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
     setState(() => _isLoading = true);
-    final lopList = await _lhsService.docDSLopCuaHS(widget.hocSinh.id!);
-    setState(() {
-      _lopCuaHocSinh = lopList;
-      if (lopList.isNotEmpty) {
-        _selectedLop = lopList.first; // Chọn lớp đầu tiên làm mặc định
+    try {
+      final lopList = await _lhsService.docDSLopCuaHS(widget.hocSinh.id!);
+      if (mounted) {
+        setState(() {
+          _lopCuaHocSinh = lopList;
+          if (lopList.isNotEmpty) {
+            _selectedLop = lopList.first;
+          } else {
+            _selectedLop = null;
+          }
+        });
       }
-      _isLoading = false;
-    });
-    // Dữ liệu báo cáo sẽ được tải bởi reportProvider
+    } catch (_) {
+      // Giữ nguyên trạng thái rỗng an toàn nếu có lỗi DB
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
   void didUpdateWidget(BaoCaoDiemDanhWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.refreshTrigger != widget.refreshTrigger &&
-        _selectedLop != null) {
+    // Nếu học sinh thay đổi, tải lại danh sách lớp chính xác
+    if (oldWidget.hocSinh.id != widget.hocSinh.id) {
+      _loadInitialData();
+    } else if (oldWidget.refreshTrigger != widget.refreshTrigger &&
+        _selectedLop != null &&
+        widget.hocSinh.id != null) {
       ref.invalidate(
         reportProvider((
           idHocSinh: widget.hocSinh.id!,
@@ -111,10 +123,11 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
 
     if (picked != null) {
       final newMonthYear = DateFormat('yyyy-MM').format(picked);
-      if (newMonthYear != _selectedMonthYear) {
+      if (newMonthYear != _selectedMonthYear &&
+          widget.hocSinh.id != null &&
+          _selectedLop?.id != null) {
         setState(() {
           _selectedMonthYear = newMonthYear;
-          // Vô hiệu hóa provider để nó tải lại dữ liệu cho tháng mới
           ref.invalidate(
             reportProvider((
               idHocSinh: widget.hocSinh.id!,
@@ -134,7 +147,7 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
       return Center(child: CircularProgressIndicator(color: accentColor));
     }
 
-    if (_lopCuaHocSinh.isEmpty) {
+    if (_lopCuaHocSinh.isEmpty || widget.hocSinh.id == null) {
       return Center(
         child: Text(
           isVi
@@ -149,14 +162,15 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
       padding: const EdgeInsets.all(16.0),
       child: RefreshIndicator(
         onRefresh: () async {
-          // Khi kéo để làm mới, vô hiệu hóa provider để tải lại
-          ref.invalidate(
-            reportProvider((
+          if (_selectedLop?.id != null && widget.hocSinh.id != null) {
+            final param = (
               idHocSinh: widget.hocSinh.id!,
               idLop: _selectedLop!.id!,
               thang: _selectedMonthYear,
-            )),
-          );
+            );
+            ref.invalidate(reportProvider(param));
+            await ref.read(reportProvider(param).future);
+          }
         },
         color: accentColor,
         backgroundColor: cardColor,
@@ -164,10 +178,11 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
           children: [
             _buildSelector(isVi),
             const SizedBox(height: 12),
-            // SỬA: Dùng Consumer để lắng nghe reportProvider
             Consumer(
               builder: (context, ref, child) {
-                if (_selectedLop == null) return const SizedBox.shrink();
+                if (_selectedLop?.id == null || widget.hocSinh.id == null) {
+                  return const SizedBox.shrink();
+                }
                 final reportAsyncValue = ref.watch(
                   reportProvider((
                     idHocSinh: widget.hocSinh.id!,
@@ -242,7 +257,6 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
     );
   }
 
-  // SỬA: Nhận AsyncValue làm tham số
   Widget _buildReportContent(
     AsyncValue<Map<String, dynamic>> reportAsyncValue,
     bool isVi,
@@ -254,7 +268,9 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
       error: (err, stack) => Expanded(
         child: Center(
           child: Text(
-            isVi ? 'Lỗi tải báo cáo: $err' : 'Error loading report: $err',
+            isVi
+                ? 'Không thể tải báo cáo điểm danh.'
+                : 'Failed to load attendance report.',
             style: const TextStyle(color: Colors.redAccent),
           ),
         ),
@@ -267,13 +283,15 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
 
   Widget _buildReportCards(Map<String, dynamic> reportData, bool isVi) {
     final coMat = reportData['coMat'] as int? ?? 0;
+    final tre = reportData['tre'] as int? ?? 0;
     final nghiCoPhep = reportData['nghiCoPhep'] as int? ?? 0;
     final nghiKhongPhep = reportData['nghiKhongPhep'] as int? ?? 0;
     final hocBu = reportData['hocBu'] as int? ?? 0;
-    final tongSoBuoi = coMat + nghiCoPhep + nghiKhongPhep + hocBu;
+    final tongSoBuoi = reportData['tongSoBuoi'] as int? ?? 0;
 
     final listCoMat =
         reportData['listCoMat'] as List<Map<String, dynamic>>? ?? [];
+    final listTre = reportData['listTre'] as List<Map<String, dynamic>>? ?? [];
     final listNghiCoPhep =
         reportData['listNghiCoPhep'] as List<Map<String, dynamic>>? ?? [];
     final listNghiKhongPhep =
@@ -289,6 +307,11 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
             label: isVi ? 'Tổng số buổi có mặt' : 'Total attended sessions',
             value: coMat.toString(),
             color: Colors.green,
+            subtitle: tre > 0
+                ? (isVi
+                      ? '(Trong đó có $tre buổi đi trễ)'
+                      : '($tre late sessions included)')
+                : null,
             onTap: coMat > 0
                 ? () => _showChiTietDiemDanh(
                     isVi ? 'Có mặt' : 'Present',
@@ -297,6 +320,15 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
                   )
                 : null,
           ),
+          if (tre > 0)
+            _buildReportCard(
+              icon: Icons.access_time_filled,
+              label: isVi ? 'Số buổi đi trễ' : 'Late sessions',
+              value: tre.toString(),
+              color: Colors.amber,
+              onTap: () =>
+                  _showChiTietDiemDanh(isVi ? 'Đi trễ' : 'Late', listTre, isVi),
+            ),
           _buildReportCard(
             icon: Icons.event_available,
             label: isVi ? 'Số buổi nghỉ có phép' : 'Excused absences',
@@ -356,6 +388,7 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
     required String label,
     required String value,
     required Color color,
+    String? subtitle,
     bool isTotal = false,
     VoidCallback? onTap,
   }) {
@@ -366,6 +399,16 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
         onTap: onTap,
         leading: Icon(icon, color: color, size: 32),
         title: Text(label, style: TextStyle(color: secondaryText)),
+        subtitle: subtitle != null
+            ? Text(
+                subtitle,
+                style: const TextStyle(
+                  color: Colors.amber,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              )
+            : null,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -379,7 +422,7 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
             ),
             if (onTap != null)
               Padding(
-                padding: EdgeInsets.only(left: 8.0),
+                padding: const EdgeInsets.only(left: 8.0),
                 child: Icon(
                   Icons.chevron_right,
                   color: secondaryText,
@@ -401,9 +444,21 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: cardColor,
-        title: Text(
-          isVi ? 'Chi tiết: $title' : 'Details: $title',
-          style: TextStyle(color: lightText),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                isVi ? 'Chi tiết: $title' : 'Details: $title',
+                style: TextStyle(color: lightText, fontSize: 16),
+              ),
+            ),
+            ZaloContactService.instance.buildZaloQuickButton(
+              context,
+              widget.hocSinh,
+              preparedMessage:
+                  'Chào phụ huynh, thông báo về tình hình điểm danh ($title) của cháu ${widget.hocSinh.ten}.',
+            ),
+          ],
         ),
         content: SizedBox(
           width: double.maxFinite,
@@ -412,7 +467,7 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
             itemCount: records.length,
             itemBuilder: (context, index) {
               final r = records[index];
-              final datetimeStr = r['gio_diem_danh'] as String;
+              final datetimeStr = (r['gio_diem_danh'] ?? '') as String;
               final ghiChu = r['ghi_chu'] as String?;
 
               final dt = DateTime.tryParse(datetimeStr);
@@ -452,50 +507,15 @@ class _BaoCaoDiemDanhWidgetState extends ConsumerState<BaoCaoDiemDanhWidget> {
   }
 }
 
-// SỬA: Thêm autoDispose để xóa cache khi thoát trang, đồng thời query SQL trực tiếp để đảm bảo đếm chính xác
 final reportProvider = FutureProvider.autoDispose
     .family<Map<String, dynamic>, ({int idHocSinh, int idLop, String thang})>((
       ref,
       params,
     ) async {
-      final db = await DBHelper.instance.database;
-
-      final results = await db.rawQuery(
-        '''
-        SELECT trang_thai, gio_diem_danh, ghi_chu
-        FROM ${DBHelper.tenBangDiemDanh}
-        WHERE id_hoc_sinh = ? AND id_lop = ? AND gio_diem_danh LIKE ?
-        ORDER BY gio_diem_danh DESC
-      ''',
-        [params.idHocSinh, params.idLop, '${params.thang}-%'],
+      final diemDanhService = DiemDanhService();
+      return diemDanhService.layBaoCaoDiemDanhThang(
+        idHocSinh: params.idHocSinh,
+        idLop: params.idLop,
+        thang: params.thang,
       );
-
-      List<Map<String, dynamic>> listCoMat = [];
-      List<Map<String, dynamic>> listNghiCoPhep = [];
-      List<Map<String, dynamic>> listNghiKhongPhep = [];
-      List<Map<String, dynamic>> listHocBu = [];
-
-      for (var row in results) {
-        final trangThai = row['trang_thai'] as String;
-        if (trangThai == 'Có mặt') {
-          listCoMat.add(row);
-        } else if (trangThai == 'Nghỉ có phép') {
-          listNghiCoPhep.add(row);
-        } else if (trangThai == 'Nghỉ không phép') {
-          listNghiKhongPhep.add(row);
-        } else if (trangThai == 'Học bù') {
-          listHocBu.add(row);
-        }
-      }
-
-      return {
-        'coMat': listCoMat.length,
-        'nghiCoPhep': listNghiCoPhep.length,
-        'nghiKhongPhep': listNghiKhongPhep.length,
-        'hocBu': listHocBu.length,
-        'listCoMat': listCoMat,
-        'listNghiCoPhep': listNghiCoPhep,
-        'listNghiKhongPhep': listNghiKhongPhep,
-        'listHocBu': listHocBu,
-      };
     });

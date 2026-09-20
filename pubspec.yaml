@@ -43,13 +43,12 @@ dependencies:
   firebase_database: ^11.3.1
   sqflite_common_ffi_web: ^0.4.5
 
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  sqflite_common_ffi: ^2.3.0
   build_runner: ^2.4.11
   riverpod_generator: ^2.4.2
-
   flutter_lints: ^6.0.0
 
 flutter:

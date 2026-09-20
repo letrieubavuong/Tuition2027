@@ -1,14 +1,23 @@
 // File: lib/screens/home_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'dart:developer' as developer;
+
 import '../main.dart';
 import '../l10n/app_localizations.dart';
-import 'package:fl_chart/fl_chart.dart'; // Import thư viện biểu đồ
-import 'package:intl/intl.dart';
 import '../services/dashboard_service.dart';
 import '../services/tuition_event_service.dart';
+import '../services/post_session_review_service.dart';
 import '../widgets/main_drawer.dart';
-// Import các trang cần điều hướng đến
+import '../widgets/xuat_bao_cao_pdf_dialog.dart';
+import '../models/home_widget_snapshot.dart';
+import '../services/widget_snapshot_service.dart';
+import '../widgets/home_widget_snapshot_card.dart';
+
+// Import screens for navigation
+import 'daily_brief_page.dart';
+import 'attention_queue_page.dart';
 import 'diem_danh_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -27,9 +36,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final DashboardService _dashboardService = DashboardService();
   late Future<DashboardData> _dashboardDataFuture;
-
-  // Biến trạng thái cho biểu đồ
-  int _touchedIndex = -1;
+  late Future<HomeWidgetSnapshot> _widgetSnapshotFuture;
 
   @override
   void initState() {
@@ -53,6 +60,7 @@ class _HomePageState extends State<HomePage> {
   void _loadDashboardData() {
     setState(() {
       _dashboardDataFuture = _dashboardService.getDashboardData();
+      _widgetSnapshotFuture = WidgetSnapshotService.instance.buildSnapshot();
     });
   }
 
@@ -60,6 +68,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final loc = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
@@ -75,244 +84,490 @@ class _HomePageState extends State<HomePage> {
         mainScreenKey: widget.mainScreenKey,
         selectedIndex: widget.selectedIndex,
       ),
-      body: FutureBuilder<DashboardData>(
-        future: _dashboardDataFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: CircularProgressIndicator(color: theme.primaryColor),
-            );
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Lỗi tải dữ liệu: ${snapshot.error}',
-                style: TextStyle(color: theme.colorScheme.error),
-              ),
-            );
-          }
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _loadDashboardData();
+          await _dashboardDataFuture;
+        },
+        child: FutureBuilder<DashboardData>(
+          future: _dashboardDataFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                child: CircularProgressIndicator(color: theme.primaryColor),
+              );
+            }
 
-          final data = snapshot.data ?? DashboardData();
-          final formatCurrency = NumberFormat('#,##0', 'vi_VN');
-
-          final totalPotential = data.tongTienThu + data.tongTienNo;
-          final collectionRate = totalPotential > 0
-              ? data.tongTienThu / totalPotential
-              : 0.0;
-
-          return SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // --- Grid View cho các Metric Cards ---
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.1,
+            if (snapshot.hasError) {
+              return SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Container(
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildSummaryCard(
-                        loc.homeMetricStudent,
-                        data.soHocSinh.toString(),
-                        Icons.group_rounded,
-                        Colors.blueAccent,
-                        progress: null,
-                        subtitle: loc.homeSubtitleClassCount(
-                          data.soLopHoc.toString(),
-                        ),
-                        onTap: () =>
-                            widget.mainScreenKey.currentState?.onItemTapped(2),
+                      const Icon(Icons.warning_amber_rounded, size: 48, color: Colors.orangeAccent),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Không thể tải một số dữ liệu.',
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                       ),
-                      _buildSummaryCard(
-                        loc.homeMetricClass,
-                        data.soCaHocHomNay.toString(),
-                        Icons.calendar_today_rounded,
-                        Colors.orangeAccent,
-                        progress: null,
-                        subtitle: loc.homeSubtitleToday,
+                      const SizedBox(height: 8),
+                      Text(
+                        'Hãy kéo xuống để thử lại.',
+                        style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                        textAlign: TextAlign.center,
                       ),
-                      _buildSummaryCard(
-                        loc.homeMetricRevenue,
-                        '${formatCurrency.format(data.tongTienThu)}đ',
-                        Icons.account_balance_wallet_rounded,
-                        Colors.tealAccent,
-                        progress: collectionRate,
-                        subtitle: loc.homeSubtitleCollectionRate,
-                      ),
-                      _buildSummaryCard(
-                        loc.homeMetricDebt,
-                        '${formatCurrency.format(data.tongTienNo)}đ',
-                        Icons.error_outline_rounded,
-                        Colors.pinkAccent,
-                        progress: null,
-                        subtitle: loc.homeSubtitleRemainingDebt,
-                        onTap: () =>
-                            widget.mainScreenKey.currentState?.onItemTapped(3),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _loadDashboardData,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Tải lại'),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                ),
+              );
+            }
 
-                  // SỬA: Thêm phần biểu đồ
+            final data = snapshot.data ?? DashboardData();
+            final formatCurrency = NumberFormat('#,##0', 'vi_VN');
+            final totalPotential = data.tongTienThu + data.tongTienNo;
+            final collectionRate = totalPotential > 0 ? data.tongTienThu / totalPotential : 0.0;
+
+            return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // --- 1. TODAY CONTROL CENTER WIDGET ---
+                    FutureBuilder<HomeWidgetSnapshot>(
+                      future: _widgetSnapshotFuture,
+                      builder: (context, widgetSnapshot) {
+                        if (!widgetSnapshot.hasData) {
+                          return const SizedBox.shrink();
+                        }
+                        return HomeWidgetSnapshotCard(
+                          snapshot: widgetSnapshot.data!,
+                          onRefresh: _loadDashboardData,
+                          onNavigatePayload: (payload) {
+                            switch (payload.action) {
+                              case HomeWidgetAction.attendance:
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => DiemDanhPage(
+                                      selectedLopId: payload.classId,
+                                      selectedDate: payload.date ?? DateTime.now(),
+                                      selectedScheduleId: payload.scheduleId,
+                                    ),
+                                  ),
+                                );
+                                break;
+                              case HomeWidgetAction.sessionClose:
+                                if (payload.classId != null && payload.classId! > 0) {
+                                  PostSessionReviewService.instance.openPostSessionReviewScreen(
+                                    context,
+                                    classId: payload.classId!,
+                                    scheduleId: payload.scheduleId,
+                                    date: payload.date ?? DateTime.now(),
+                                  );
+                                }
+                                break;
+                              case HomeWidgetAction.dailyBrief:
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const DailyBriefPage(),
+                                  ),
+                                );
+                                break;
+                              case HomeWidgetAction.refresh:
+                                _loadDashboardData();
+                                break;
+                              case HomeWidgetAction.tuition:
+                                widget.mainScreenKey.currentState?.onItemTapped(3);
+                                break;
+                              case HomeWidgetAction.students:
+                              case HomeWidgetAction.parents:
+                                widget.mainScreenKey.currentState?.onItemTapped(2);
+                                break;
+                              case HomeWidgetAction.attention:
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const AttentionQueuePage(),
+                                  ),
+                                );
+                                break;
+                            }
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // --- 2. CÔNG CỤ NHANH (QUICK ACTIONS ROW) ---
+                    _buildQuickActionsRow(theme),
+                    const SizedBox(height: 20),
+
+                    // --- 3. SECTION: VIỆC HÔM NAY (TODAY'S SCHEDULE & WORK) ---
+                    _buildTodayWorkSection(theme, data.dsCaHocHomNay),
+                    const SizedBox(height: 24),
+
+                    // --- 4. THỐNG KÊ TỔNG QUAN (COMPACT METRIC CARDS) ---
+                    Text(
+                      data.monthKey.length >= 7
+                          ? 'THỐNG KÊ HỌC PHÍ THÁNG ${data.monthKey.substring(5)}/${data.monthKey.substring(0, 4)}'
+                          : 'THỐNG KÊ TỔNG QUAN',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.15,
+                      children: [
+                        _buildSummaryCard(
+                          loc.homeMetricStudent,
+                          data.soHocSinh.toString(),
+                          Icons.group_rounded,
+                          Colors.blueAccent,
+                          progress: null,
+                          subtitle: loc.homeSubtitleClassCount(data.soLopHoc.toString()),
+                          onTap: () => widget.mainScreenKey.currentState?.onItemTapped(2),
+                        ),
+                        _buildSummaryCard(
+                          loc.homeMetricClass,
+                          data.soCaHocHomNay.toString(),
+                          Icons.calendar_today_rounded,
+                          Colors.orangeAccent,
+                          progress: null,
+                          subtitle: loc.homeSubtitleToday,
+                        ),
+                        _buildSummaryCard(
+                          loc.homeMetricRevenue,
+                          '${formatCurrency.format(data.tongTienThu)}đ',
+                          Icons.account_balance_wallet_rounded,
+                          Colors.tealAccent,
+                          progress: collectionRate,
+                          subtitle: loc.homeSubtitleCollectionRate,
+                        ),
+                        _buildSummaryCard(
+                          loc.homeMetricDebt,
+                          '${formatCurrency.format(data.tongTienNo)}đ',
+                          Icons.error_outline_rounded,
+                          Colors.pinkAccent,
+                          progress: null,
+                          subtitle: loc.homeSubtitleRemainingDebt,
+                          onTap: () => widget.mainScreenKey.currentState?.onItemTapped(3),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // --- SECTION: CÔNG CỤ NHANH ---
+  Widget _buildQuickActionsRow(ThemeData theme) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildQuickActionButton(
+            theme,
+            icon: Icons.assignment_turned_in_rounded,
+            label: 'Điểm danh',
+            color: Colors.blueAccent,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DiemDanhPage()),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _buildQuickActionButton(
+            theme,
+            icon: Icons.monetization_on_rounded,
+            label: 'Học phí',
+            color: Colors.teal,
+            onTap: () => widget.mainScreenKey.currentState?.onItemTapped(3),
+          ),
+          const SizedBox(width: 8),
+          _buildQuickActionButton(
+            theme,
+            icon: Icons.person_search_rounded,
+            label: 'Học sinh',
+            color: Colors.purpleAccent,
+            onTap: () => widget.mainScreenKey.currentState?.onItemTapped(2),
+          ),
+          const SizedBox(width: 8),
+          _buildQuickActionButton(
+            theme,
+            icon: Icons.notification_important_rounded,
+            label: 'Việc cần làm',
+            color: Colors.orangeAccent,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AttentionQueuePage()),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _buildQuickActionButton(
+            theme,
+            icon: Icons.picture_as_pdf_rounded,
+            label: 'Xuất Báo Cáo',
+            color: Colors.redAccent,
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => const XuatBaoCaoPdfDialog(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionButton(
+    ThemeData theme, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- SECTION: VIỆC HÔM NAY (TODAY'S WORK) ---
+  Widget _buildTodayWorkSection(
+    ThemeData theme,
+    List<CaHocHomNay> schedule,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.event_note_rounded, color: Colors.blueAccent, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'VIỆC HÔM NAY',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        if (schedule.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: theme.dividerColor),
+            ),
+            child: const Text(
+              'Hôm nay không có ca học.',
+              style: TextStyle(fontStyle: FontStyle.italic),
+            ),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: schedule.length,
+            itemBuilder: (context, index) {
+              final ca = schedule[index];
+              return _buildScheduleItemCard(theme, ca);
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildScheduleItemCard(ThemeData theme, CaHocHomNay ca) {
+    Color chipColor;
+    switch (ca.status) {
+      case 'Đang diễn ra':
+        chipColor = Colors.green;
+        break;
+      case 'Chưa điểm danh':
+        chipColor = Colors.redAccent;
+        break;
+      case 'Cần đánh giá':
+        chipColor = Colors.orangeAccent;
+        break;
+      case 'Hoàn tất':
+        chipColor = Colors.purple;
+        break;
+      case 'Đã điểm danh':
+        chipColor = Colors.teal;
+        break;
+      case 'Đã kết thúc':
+        chipColor = Colors.grey;
+        break;
+      case 'Sắp bắt đầu':
+      default:
+        chipColor = Colors.blue;
+        break;
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: theme.dividerColor),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: chipColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                children: [
                   Text(
-                    loc.studentDistributionTitle,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.hintColor,
-                      fontSize: 16,
+                    ca.gioBatDau,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: chipColor,
                     ),
                   ),
-                  Divider(color: theme.dividerColor, height: 16),
-                  if (data.phanBoHocSinh.isNotEmpty)
-                    _buildStudentDistributionChart(data.phanBoHocSinh)
-                  else
-                    _buildEmptyChartPlaceholder(),
-                  const SizedBox(height: 24),
-                  // Tiêu đề cho danh sách lịch học
                   Text(
-                    loc.todayScheduleTitle,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.hintColor,
-                      fontSize: 16,
+                    ca.gioKetThuc,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: chipColor.withValues(alpha: 0.8),
                     ),
                   ),
-                  Divider(color: theme.dividerColor, height: 16),
-                  // Danh sách lịch học
-                  _buildTodayScheduleList(data.dsCaHocHomNay),
                 ],
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  // HÀM MỚI: Widget hiển thị khi không có dữ liệu biểu đồ
-  Widget _buildEmptyChartPlaceholder() {
-    final loc = AppLocalizations.of(context)!;
-    return Container(
-      height: 200,
-      alignment: Alignment.center,
-      child: Text(
-        loc.noStudentDataChart,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
-      ),
-    );
-  }
-
-  // HÀM MỚI: Widget xây dựng biểu đồ tròn và chú thích
-  Widget _buildStudentDistributionChart(List<HocSinhTheoKhoi> data) {
-    // Danh sách màu cho các phần của biểu đồ
-    final List<Color> pieColors = [
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.red,
-      Colors.teal,
-      Colors.pink,
-      Colors.indigo,
-    ];
-
-    return SizedBox(
-      height: 200,
-      child: Row(
-        children: [
-          // Biểu đồ tròn
-          Expanded(
-            flex: 2,
-            child: PieChart(
-              PieChartData(
-                // SỬA: Thêm phần xử lý sự kiện chạm
-                pieTouchData: PieTouchData(
-                  touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                    setState(() {
-                      if (!event.isInterestedForInteractions ||
-                          pieTouchResponse == null ||
-                          pieTouchResponse.touchedSection == null) {
-                        _touchedIndex = -1;
-                        return;
-                      }
-                      _touchedIndex =
-                          pieTouchResponse.touchedSection!.touchedSectionIndex;
-                    });
-                  },
-                ),
-                sectionsSpace: 2,
-                centerSpaceRadius: 30,
-                sections: List.generate(data.length, (i) {
-                  final isTouched = i == _touchedIndex;
-                  final fontSize = isTouched ? 18.0 : 14.0;
-                  final radius = isTouched ? 70.0 : 60.0;
-                  final item = data[i];
-                  final color = pieColors[i % pieColors.length];
-                  return PieChartSectionData(
-                    color: color,
-                    value: item.soLuong.toDouble(),
-                    title: '${item.soLuong}',
-                    radius: radius,
-                    titleStyle: TextStyle(
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [Shadow(color: Colors.black, blurRadius: 2)],
-                    ),
-                  );
-                }),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Lớp ${ca.tenLop}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${ca.attendedCount}/${ca.totalStudentsCount} học sinh • ${ca.status}',
+                    style: TextStyle(fontSize: 12, color: theme.hintColor),
+                  ),
+                ],
               ),
             ),
-          ),
-          // Chú thích
-          Expanded(
-            flex: 1,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: data.length,
-              itemBuilder: (context, i) {
-                final item = data[i];
-                final color = pieColors[i % pieColors.length];
-                final loc = AppLocalizations.of(context)!;
-                return _buildIndicator(
-                  color: color,
-                  text: loc.grade(item.khoi.toString()),
-                );
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: chipColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                minimumSize: const Size(80, 32),
+              ),
+              onPressed: () {
+                if (!ca.attendanceDone) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DiemDanhPage(
+                        selectedLopId: ca.idLop,
+                        selectedDate: DateTime.now(),
+                        selectedScheduleId: ca.idLichHoc,
+                      ),
+                    ),
+                  );
+                } else if (!ca.reviewDone) {
+                  PostSessionReviewService.instance.openPostSessionReviewScreen(
+                    context,
+                    classId: ca.idLop,
+                    scheduleId: ca.idLichHoc,
+                    date: DateTime.now(),
+                  );
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DiemDanhPage(
+                        selectedLopId: ca.idLop,
+                        selectedDate: DateTime.now(),
+                        selectedScheduleId: ca.idLichHoc,
+                      ),
+                    ),
+                  );
+                }
               },
+              child: Text(
+                !ca.attendanceDone
+                    ? 'Điểm danh'
+                    : (!ca.reviewDone ? 'Đánh giá' : 'Chi tiết'),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // HÀM MỚI: Widget xây dựng một dòng chú thích
-  Widget _buildIndicator({required Color color, required String text}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 16,
-            height: 16,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            text,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyLarge?.copyWith(fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
-
+  // --- SUMMARY CARD ---
   Widget _buildSummaryCard(
     String title,
     String value,
@@ -323,32 +578,14 @@ class _HomePageState extends State<HomePage> {
     VoidCallback? onTap,
   }) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              color.withValues(alpha: 0.15),
-              color.withValues(alpha: 0.05),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
-          boxShadow: [
-            if (!isDark)
-              BoxShadow(
-                color: color.withValues(alpha: 0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-          ],
-        ),
+    final cardWidget = Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.dividerColor),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -356,129 +593,64 @@ class _HomePageState extends State<HomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, color: color, size: 20),
-                ),
+                Icon(icon, color: color, size: 22),
                 if (progress != null)
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 3,
-                      backgroundColor: color.withValues(alpha: 0.1),
+                  Text(
+                    '${(progress * 100).toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
                       color: color,
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  width: double.infinity,
-                  height: 34,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      value,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : Colors.black87,
-                        letterSpacing: -0.5,
-                      ),
-                      maxLines: 1,
-                    ),
-                  ),
-                ),
                 Text(
-                  title,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: color.withValues(alpha: 0.8),
+                  value,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: theme.textTheme.titleLarge?.color,
                   ),
                   maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
+                const SizedBox(height: 2),
+                Text(
+                  title,
+                  style: TextStyle(fontSize: 12, color: theme.hintColor),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (subtitle != null && subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: theme.hintColor.withValues(alpha: 0.8),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ],
             ),
           ],
         ),
       ),
     );
-  }
 
-  Widget _buildTodayScheduleList(List<CaHocHomNay> schedule) {
-    final loc = AppLocalizations.of(context)!;
-    if (schedule.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 32.0),
-          child: Text(
-            loc.noScheduleToday,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
-          ),
-        ),
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: cardWidget,
       );
     }
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: schedule.length,
-      itemBuilder: (context, index) {
-        final caHoc = schedule[index];
-        final theme = Theme.of(context);
-        return Card(
-          color: theme.cardColor,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: Colors.white10),
-          ),
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          child: ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.primaryColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.schedule, color: theme.primaryColor, size: 20),
-            ),
-            title: Text(
-              caHoc.tenLop,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            subtitle: Text(
-              '${loc.locale.languageCode == 'vi' ? 'Thời gian' : 'Time'}: ${caHoc.gioBatDau.substring(0, 5)} - ${caHoc.gioKetThuc.substring(0, 5)}',
-              style: theme.textTheme.bodySmall,
-            ),
-            trailing: const Icon(Icons.chevron_right, size: 18),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => DiemDanhPage(
-                    selectedLopId: caHoc.idLop,
-                    selectedDate: DateTime.now(),
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
+    return cardWidget;
   }
 }

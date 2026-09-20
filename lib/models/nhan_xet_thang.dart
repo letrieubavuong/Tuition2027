@@ -13,6 +13,7 @@ class NhanXetThang {
   double diemKiemTra;
   String? nhanXetChung;
   String? xepHang; // Đồng, Bạc, Vàng, Bạch Kim, Kim Cương
+  bool isManualOverride;
 
   NhanXetThang({
     this.id,
@@ -25,6 +26,7 @@ class NhanXetThang {
     this.diemKiemTra = 0.0,
     this.nhanXetChung,
     this.xepHang,
+    this.isManualOverride = false,
   });
 
   double get diemTrungBinh =>
@@ -42,6 +44,7 @@ class NhanXetThang {
       'diem_kiem_tra': diemKiemTra,
       'nhan_xet_chung': nhanXetChung,
       'xep_hang': xepHang,
+      'is_manual_override': isManualOverride ? 1 : 0,
     };
   }
 
@@ -60,21 +63,32 @@ class NhanXetThang {
       diemKiemTra: parseDoubleSafely(map['diem_kiem_tra'], defaultValue: 0.0),
       nhanXetChung: map['nhan_xet_chung'] as String?,
       xepHang: map['xep_hang'] as String?,
+      isManualOverride: (map['is_manual_override'] as int?) == 1,
     );
   }
 
-  NhanXetThang copyWith({int? id, String? xepHang}) {
+  NhanXetThang copyWith({
+    int? id,
+    double? diemChuyenCan,
+    double? diemThaiDo,
+    double? diemBaiTap,
+    double? diemKiemTra,
+    String? nhanXetChung,
+    String? xepHang,
+    bool? isManualOverride,
+  }) {
     return NhanXetThang(
       id: id ?? this.id,
       idHocSinh: idHocSinh,
       idLop: idLop,
       thang: thang,
-      diemChuyenCan: diemChuyenCan,
-      diemThaiDo: diemThaiDo,
-      diemBaiTap: diemBaiTap,
-      diemKiemTra: diemKiemTra,
-      nhanXetChung: nhanXetChung,
+      diemChuyenCan: diemChuyenCan ?? this.diemChuyenCan,
+      diemThaiDo: diemThaiDo ?? this.diemThaiDo,
+      diemBaiTap: diemBaiTap ?? this.diemBaiTap,
+      diemKiemTra: diemKiemTra ?? this.diemKiemTra,
+      nhanXetChung: nhanXetChung ?? this.nhanXetChung,
       xepHang: xepHang ?? this.xepHang,
+      isManualOverride: isManualOverride ?? this.isManualOverride,
     );
   }
 }

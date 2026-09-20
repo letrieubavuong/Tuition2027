@@ -75,4 +75,73 @@ class QuyTacDiemService {
     }
     return result;
   }
+
+  // Tự động phân bổ điểm nguyên tố (Atomic Transaction)
+  Future<void> tuDongChiaDiemAtomic() async {
+    final db = await _database;
+    await db.transaction((txn) async {
+      final List<Map<String, dynamic>> maps = await txn.query(
+        _tenBang,
+        orderBy: 'thu_tu_hien_thi ASC, mo_ta ASC',
+      );
+      final listQuyTac = List.generate(
+        maps.length,
+        (i) => QuyTacDiem.fromMap(maps[i]),
+      );
+      if (listQuyTac.isEmpty) return;
+
+      final positiveRules = listQuyTac
+          .where((r) => r.loaiQuyTac == 'CONG_DIEM')
+          .toList();
+      final negativeRules = listQuyTac
+          .where((r) => r.loaiQuyTac == 'TRU_DIEM')
+          .toList();
+
+      if (positiveRules.isNotEmpty) {
+        double sumAllocated = 0.0;
+        for (int i = 0; i < positiveRules.length; i++) {
+          double share;
+          if (i == positiveRules.length - 1) {
+            share = 10.0 - sumAllocated;
+          } else {
+            share = double.parse(
+              (10.0 / positiveRules.length).toStringAsFixed(2),
+            );
+            sumAllocated += share;
+          }
+          share = double.parse(share.toStringAsFixed(2));
+          final updated = positiveRules[i].copyWith(diemThayDoi: share);
+          await txn.update(
+            _tenBang,
+            updated.toMap(),
+            where: 'id = ?',
+            whereArgs: [updated.id],
+          );
+        }
+      }
+
+      if (negativeRules.isNotEmpty) {
+        double sumAllocated = 0.0;
+        for (int i = 0; i < negativeRules.length; i++) {
+          double share;
+          if (i == negativeRules.length - 1) {
+            share = -5.0 - sumAllocated;
+          } else {
+            share = double.parse(
+              (-5.0 / negativeRules.length).toStringAsFixed(2),
+            );
+            sumAllocated += share;
+          }
+          share = double.parse(share.toStringAsFixed(2));
+          final updated = negativeRules[i].copyWith(diemThayDoi: share);
+          await txn.update(
+            _tenBang,
+            updated.toMap(),
+            where: 'id = ?',
+            whereArgs: [updated.id],
+          );
+        }
+      }
+    });
+  }
 }

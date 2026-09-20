@@ -3,16 +3,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// 1. Provider để quản lý trạng thái của theme (sáng/tối).
-/// Mặc định là chế độ tối.
+/// Provider quản lý trạng thái theme (sáng/tối).
+/// Mặc định là chế độ tối (ThemeMode.dark).
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
 
-/// SỬA: Thêm provider để quản lý ngôn ngữ
-/// Mặc định là Tiếng Việt
+/// Provider quản lý ngôn ngữ ứng dụng (Locale).
+/// Mặc định là Tiếng Việt (Locale('vi')).
 final localeProvider = StateProvider<Locale>((ref) => const Locale('vi'));
 
-/// 2. Lớp chứa tất cả các hằng số màu sắc cho cả hai theme.
-/// Điều này giúp quản lý màu sắc tập trung và dễ dàng thay đổi.
+/// Hằng số màu sắc cho cả hai chế độ giao diện (Dark/Light).
 class AppColors {
   // --- Dark Theme Colors ---
   static const Color darkBackground = Color(0xFF1A1A2E);
@@ -23,15 +22,15 @@ class AppColors {
   static const Color darkError = Color(0xFFE94560);
 
   // --- Light Theme Colors ---
-  static const Color lightBackground = Color(0xFFF0F2F5); // Màu xám nhạt
+  static const Color lightBackground = Color(0xFFF0F2F5);
   static const Color lightCard = Colors.white;
-  static const Color lightPrimaryText = Color(0xFF1C1E21); // Màu đen xám
-  static const Color lightSecondaryText = Color(0xFF65676B); // Màu xám vừa
-  static const Color lightAccent = Color(0xFF00897B); // Màu teal đậm hơn
-  static const Color lightError = Color(0xFFD32F2F); // Màu đỏ chuẩn
+  static const Color lightPrimaryText = Color(0xFF1C1E21);
+  static const Color lightSecondaryText = Color(0xFF65676B);
+  static const Color lightAccent = Color(0xFF00897B);
+  static const Color lightError = Color(0xFFD32F2F);
 }
 
-/// 3. Lớp định nghĩa các đối tượng ThemeData cho mỗi chế độ.
+/// Định nghĩa đối tượng ThemeData cho mỗi chế độ (Dark/Light).
 class AppThemes {
   // --- ThemeData cho Chế độ Tối ---
   static final darkTheme = ThemeData(

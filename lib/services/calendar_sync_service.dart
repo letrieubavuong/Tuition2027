@@ -28,14 +28,26 @@ class CalendarSyncService {
       daysAhead += 7;
     } else if (daysAhead == 0) {
       // Nếu cùng thứ hôm nay nhưng giờ đã qua thì chuyển sang tuần tới
-      final targetTimeToday = DateTime(now.year, now.month, now.day, hour, minute);
+      final targetTimeToday = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        hour,
+        minute,
+      );
       if (now.isAfter(targetTimeToday)) {
         daysAhead = 7;
       }
     }
 
     final targetDate = now.add(Duration(days: daysAhead));
-    return DateTime(targetDate.year, targetDate.month, targetDate.day, hour, minute);
+    return DateTime(
+      targetDate.year,
+      targetDate.month,
+      targetDate.day,
+      hour,
+      minute,
+    );
   }
 
   /// Thêm 1 ca dạy cụ thể vào Google Calendar / Lịch hệ điều hành
@@ -52,7 +64,8 @@ class CalendarSyncService {
       );
 
       // Nếu endDt <= startDt (do lỗi giờ qua ngày), cộng thêm duration mặc định
-      final actualEndDt = endDt.isBefore(startDt) || endDt.isAtSameMomentAs(startDt)
+      final actualEndDt =
+          endDt.isBefore(startDt) || endDt.isAtSameMomentAs(startDt)
           ? startDt.add(const Duration(hours: 1, minutes: 30))
           : endDt;
 
@@ -63,15 +76,9 @@ class CalendarSyncService {
         location: 'Lớp học ${schedule.tenLop}',
         startDate: startDt,
         endDate: actualEndDt,
-        iosParams: const IOSParams(
-          reminder: Duration(minutes: 30),
-        ),
-        androidParams: const AndroidParams(
-          emailInvites: [],
-        ),
-        recurrence: Recurrence(
-          frequency: Frequency.weekly,
-        ),
+        iosParams: const IOSParams(reminder: Duration(minutes: 30)),
+        androidParams: const AndroidParams(emailInvites: []),
+        recurrence: Recurrence(frequency: Frequency.weekly),
       );
 
       return await Add2Calendar.addEvent2Cal(event);
@@ -108,17 +115,22 @@ class CalendarSyncService {
         s.lichHoc.thuTrongTuan,
         s.lichHoc.gioKetThuc,
       );
-      final actualEndDt = endDt.isBefore(startDt) || endDt.isAtSameMomentAs(startDt)
+      final actualEndDt =
+          endDt.isBefore(startDt) || endDt.isAtSameMomentAs(startDt)
           ? startDt.add(const Duration(hours: 1, minutes: 30))
           : endDt;
 
       sb.writeln('BEGIN:VEVENT');
-      sb.writeln('UID:tuition2025_${s.lichHoc.id ?? i}_${DateTime.now().millisecondsSinceEpoch}@tuition.app');
+      sb.writeln(
+        'UID:tuition2025_${s.lichHoc.id ?? i}_${DateTime.now().millisecondsSinceEpoch}@tuition.app',
+      );
       sb.writeln('DTSTAMP:${icsDateFormat.format(DateTime.now())}');
       sb.writeln('DTSTART:${icsDateFormat.format(startDt)}');
       sb.writeln('DTEND:${icsDateFormat.format(actualEndDt)}');
       sb.writeln('SUMMARY:Lớp ${s.tenLop} - Dạy Học');
-      sb.writeln('DESCRIPTION:Ca dạy lớp ${s.tenLop} (${s.lichHoc.gioBatDau} - ${s.lichHoc.gioKetThuc})');
+      sb.writeln(
+        'DESCRIPTION:Ca dạy lớp ${s.tenLop} (${s.lichHoc.gioBatDau} - ${s.lichHoc.gioKetThuc})',
+      );
       sb.writeln('LOCATION:Lớp ${s.tenLop}');
       sb.writeln('RRULE:FREQ=WEEKLY');
       sb.writeln('BEGIN:VALARM');

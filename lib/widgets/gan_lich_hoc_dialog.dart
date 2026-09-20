@@ -52,20 +52,24 @@ class _GanLichHocDialogState extends State<GanLichHocDialog> {
     setState(() => _isLoading = true);
 
     try {
-      // Kiểm tra từng học sinh xem đã được gán lịch học này chưa
-      for (var hs in widget.danhSachHocSinh) {
-        if (hs.id != null) {
-          final daGan = await _service.kiemTraHocSinhCoLichHoc(
-            hs.id!,
-            widget.lichHocChung.id!,
-          );
-          if (daGan) {
-            _selectedHocSinhIds.add(hs.id!);
-          }
-        }
+      if (widget.lichHocChung.id != null) {
+        final assignedIds = await _service.layDanhSachHocSinhDaGan(
+          widget.lichHocChung.id!,
+        );
+        _selectedHocSinhIds.clear();
+        _selectedHocSinhIds.addAll(assignedIds);
       }
     } catch (e) {
       debugPrint('Lỗi khi load danh sách đã gán: $e');
+      if (mounted) {
+        final isVi = Localizations.localeOf(context).languageCode == 'vi';
+        ToastHelper.showError(
+          context,
+          isVi
+              ? 'Không thể tải danh sách gán lịch: $e'
+              : 'Failed to load schedule assignments: $e',
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -74,72 +78,23 @@ class _GanLichHocDialogState extends State<GanLichHocDialog> {
   }
 
   Future<void> _luuThayDoi() async {
+    if (_isSaving || _isLoading || widget.lichHocChung.id == null) return;
     setState(() => _isSaving = true);
 
     try {
-      int successCount = 0;
-      int failCount = 0;
+      final success = await _service.luuPhanCongLichHocHangLoat(
+        idLichHocChung: widget.lichHocChung.id!,
+        desiredHocSinhIds: _selectedHocSinhIds,
+      );
 
-      // Duyệt qua tất cả học sinh
-      for (var hs in widget.danhSachHocSinh) {
-        if (hs.id == null) continue;
-
-        final isSelected = _selectedHocSinhIds.contains(hs.id!);
-        final daGan = await _service.kiemTraHocSinhCoLichHoc(
-          hs.id!,
-          widget.lichHocChung.id!,
-        );
-
-        if (isSelected && !daGan) {
-          // Cần gán
-          final result = await _service.ganLichHocChoHocSinh(
-            hs.id!,
-            widget.lichHocChung.id!,
-          );
-          if (result) {
-            successCount++;
-          } else {
-            failCount++;
-          }
-        } else if (!isSelected && daGan) {
-          // Cần hủy gán
-          final result = await _service.huyGanLichHocChoHocSinh(
-            hs.id!,
-            widget.lichHocChung.id!,
-          );
-          if (result) {
-            successCount++;
-          } else {
-            failCount++;
-          }
-        }
-      }
-
-      if (mounted) {
+      if (mounted && success) {
         final isVi = Localizations.localeOf(context).languageCode == 'vi';
-        String message = '';
-        if (successCount > 0 && failCount == 0) {
-          message = isVi
-              ? '✅ Cập nhật lịch học thành công cho $successCount học sinh!'
-              : '✅ Schedule updated successfully for $successCount students!';
-        } else if (successCount > 0 && failCount > 0) {
-          message = isVi
-              ? '⚠️ Cập nhật thành công $successCount, thất bại $failCount học sinh'
-              : '⚠️ Updated successfully $successCount, failed $failCount students';
-        } else if (failCount > 0) {
-          message = isVi
-              ? '❌ Cập nhật thất bại cho $failCount học sinh'
-              : '❌ Update failed for $failCount students';
-        } else {
-          message = isVi ? 'ℹ️ Không có thay đổi nào' : 'ℹ️ No changes made';
-        }
-
-        if (failCount > 0) {
-          ToastHelper.showWarning(context, message);
-        } else {
-          ToastHelper.showSuccess(context, message);
-        }
-
+        ToastHelper.showSuccess(
+          context,
+          isVi
+              ? '✅ Cập nhật lịch học thành công!'
+              : '✅ Schedule updated successfully!',
+        );
         Navigator.of(context).pop(true);
       }
     } catch (e) {
@@ -247,15 +202,18 @@ class _GanLichHocDialogState extends State<GanLichHocDialog> {
                           margin: const EdgeInsets.only(bottom: 8),
                           child: CheckboxListTile(
                             value: isSelected,
-                            onChanged: (value) {
-                              setState(() {
-                                if (value == true && hs.id != null) {
-                                  _selectedHocSinhIds.add(hs.id!);
-                                } else if (hs.id != null) {
-                                  _selectedHocSinhIds.remove(hs.id!);
-                                }
-                              });
-                            },
+                            onChanged:
+                                (_isSaving || _isLoading || hs.id == null)
+                                ? null
+                                : (value) {
+                                    setState(() {
+                                      if (value == true) {
+                                        _selectedHocSinhIds.add(hs.id!);
+                                      } else {
+                                        _selectedHocSinhIds.remove(hs.id!);
+                                      }
+                                    });
+                                  },
                             title: Text(
                               hs.ten,
                               style: TextStyle(color: lightText),

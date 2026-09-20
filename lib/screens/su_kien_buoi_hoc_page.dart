@@ -43,6 +43,8 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
   List<QuyTacDiem> _suKienTichCuc = [];
   List<QuyTacDiem> _suKienTieuCuc = [];
   bool _isLoadingQuyTac = true;
+  bool _isProcessingEvent = false;
+  bool _hasPopulatedCommentController = false;
 
   @override
   void initState() {
@@ -57,9 +59,21 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
       _loadEvaluationFuture = _danhGiaService
           .layHoacTaoDanhGia(widget.idDiemDanh)
           .then((dg) {
-            _nhanXetController.text = dg.nhanXet ?? '';
+            if (!_hasPopulatedCommentController) {
+              _nhanXetController.text = dg.nhanXet ?? '';
+              _hasPopulatedCommentController = true;
+            }
             return dg;
           });
+    });
+  }
+
+  void _loadEventsOnly() {
+    setState(() {
+      _loadEventsFuture = _service.laySuKienTheoBuoiHoc(widget.idDiemDanh);
+      _loadEvaluationFuture = _danhGiaService.layHoacTaoDanhGia(
+        widget.idDiemDanh,
+      );
     });
   }
 
@@ -71,12 +85,15 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
 
   Future<void> _luuNhanXet(String text) async {
     final dg = await _loadEvaluationFuture;
-    dg.nhanXet = text;
-    await _danhGiaService.luuDanhGia(dg);
+    final updatedDg = dg.copyWith(nhanXet: text);
+    await _danhGiaService.luuDanhGia(updatedDg);
+    setState(() {
+      _loadEvaluationFuture = Future.value(updatedDg);
+    });
   }
 
   void _loadEvents() {
-    _loadData();
+    _loadEventsOnly();
   }
 
   Future<void> _taiQuyTacDiem() async {
@@ -116,15 +133,30 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
   }
 
   Future<void> _themSuKien(QuyTacDiem quyTac) async {
-    final suKienMoi = SuKienHocTap(
-      idDiemDanh: widget.idDiemDanh,
-      loaiSuKien: _mapHangMucToLoaiSuKien(quyTac.hangMuc),
-      moTa: quyTac.moTa,
-      diemThayDoi: quyTac.diemThayDoi,
-    );
-    await _service.themSuKien(suKienMoi);
-    await _danhGiaService.capNhatDiemTuSuKien(widget.idDiemDanh);
-    _loadEvents();
+    if (_isProcessingEvent) return;
+    _isProcessingEvent = true;
+
+    try {
+      final suKienMoi = SuKienHocTap(
+        idDiemDanh: widget.idDiemDanh,
+        loaiSuKien: _mapHangMucToLoaiSuKien(quyTac.hangMuc),
+        moTa: quyTac.moTa,
+        diemThayDoi: quyTac.diemThayDoi,
+      );
+      await _service.themSuKien(suKienMoi);
+      _loadEventsOnly();
+    } catch (e) {
+      if (mounted) {
+        ToastHelper.showError(
+          context,
+          AppLocalizations.of(context)?.locale.languageCode == 'vi'
+              ? 'Lỗi khi thêm sự kiện!'
+              : 'Error adding event!',
+        );
+      }
+    } finally {
+      _isProcessingEvent = false;
+    }
   }
 
   LoaiSuKien _mapHangMucToLoaiSuKien(String hangMuc) {
@@ -141,9 +173,24 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
   }
 
   Future<void> _xoaSuKien(int idSuKien) async {
-    await _service.xoaSuKien(idSuKien);
-    await _danhGiaService.capNhatDiemTuSuKien(widget.idDiemDanh);
-    _loadEvents();
+    if (_isProcessingEvent) return;
+    _isProcessingEvent = true;
+
+    try {
+      await _service.xoaSuKien(idSuKien);
+      _loadEventsOnly();
+    } catch (e) {
+      if (mounted) {
+        ToastHelper.showError(
+          context,
+          AppLocalizations.of(context)?.locale.languageCode == 'vi'
+              ? 'Lỗi khi xóa sự kiện!'
+              : 'Error deleting event!',
+        );
+      }
+    } finally {
+      _isProcessingEvent = false;
+    }
   }
 
   @override
@@ -254,6 +301,48 @@ class _SuKienBuoiHocPageState extends State<SuKienBuoiHocPage> {
             children: [
               OutlinedButton.icon(
                 onPressed: () async {
+                  if (_nhanXetController.text.trim().isNotEmpty) {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: cardColor,
+                        title: Text(
+                          isVi
+                              ? 'Xác nhận thay thế nhận xét'
+                              : 'Confirm Replace Comment',
+                          style: const TextStyle(
+                            color: accentColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        content: Text(
+                          isVi
+                              ? 'Nhận xét hiện tại sẽ bị thay thế bằng nhận xét tự sinh. Bạn có chắc chắn không?'
+                              : 'Current comment will be replaced by auto-generated comment. Are you sure?',
+                          style: const TextStyle(color: lightText),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(false),
+                            child: Text(
+                              isVi ? 'Hủy' : 'Cancel',
+                              style: const TextStyle(color: secondaryText),
+                            ),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.of(ctx).pop(true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: accentColor,
+                              foregroundColor: darkBackground,
+                            ),
+                            child: Text(isVi ? 'Thay thế' : 'Replace'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm != true) return;
+                  }
+
                   final dg = await _loadEvaluationFuture;
                   final autoText = _danhGiaService.sinhNhanXetTuDong(
                     dg.diemThaiDo ?? 0.0,
