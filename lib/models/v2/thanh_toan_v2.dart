@@ -1,5 +1,7 @@
 // File: lib/models/v2/thanh_toan_v2.dart
 
+import '../../utils/v2/db_value_parser.dart';
+
 class ThanhToanV2 {
   final int? id;
   final int idHocSinh;
@@ -42,16 +44,16 @@ class ThanhToanV2 {
 
   factory ThanhToanV2.fromMap(Map<String, dynamic> map) {
     return ThanhToanV2(
-      id: map['id'] as int?,
-      idHocSinh: map['id_hoc_sinh'] as int,
-      idLop: map['id_lop'] as int,
-      thang: map['thang'] as String,
-      soTien: map['so_tien'] as int,
-      ngayThanhToan: map['ngay_thanh_toan'] as String,
-      phuongThuc: map['phuong_thuc'] as String,
-      maGiaoDich: map['ma_giao_dich'] as String?,
-      ghiChu: map['ghi_chu'] as String?,
-      createdAt: DateTime.parse(map['created_at'] as String),
+      id: DbValueParser.parseInt(map['id']),
+      idHocSinh: DbValueParser.parseInt(map['id_hoc_sinh'])!,
+      idLop: DbValueParser.parseInt(map['id_lop'])!,
+      thang: DbValueParser.parseString(map['thang'])!,
+      soTien: DbValueParser.parseInt(map['so_tien']) ?? 0,
+      ngayThanhToan: DbValueParser.parseString(map['ngay_thanh_toan'])!,
+      phuongThuc: DbValueParser.parseString(map['phuong_thuc']) ?? 'KHAC',
+      maGiaoDich: DbValueParser.parseString(map['ma_giao_dich']),
+      ghiChu: DbValueParser.parseString(map['ghi_chu']),
+      createdAt: DateTime.parse(map['created_at'] as String? ?? DateTime.now().toIso8601String()),
     );
   }
 }

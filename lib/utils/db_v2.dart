@@ -1,6 +1,5 @@
 // File: lib/utils/db_v2.dart
 
-import 'dart:developer' as developer;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -42,9 +41,8 @@ class DBV2 {
     const intNotN = 'INTEGER NOT NULL';
     const intNull = 'INTEGER';
     const intDef0 = 'INTEGER NOT NULL DEFAULT 0';
-    const realNotN = 'REAL NOT NULL';
 
-    // 1. hoc_sinh
+    // 1. hoc_sinh (Humans)
     await db.execute('''
       CREATE TABLE hoc_sinh (
         id $idPK,
@@ -65,11 +63,12 @@ class DBV2 {
         zalo_link_status $textNull DEFAULT 'UNLINKED',
         da_luu_tru $intDef0,
         created_at $textNotN,
-        updated_at $textNotN
+        updated_at $textNotN,
+        CHECK (zalo_link_status IN ('UNLINKED', 'LINKED', 'PENDING'))
       )
     ''');
 
-    // 2. lop
+    // 2. lop (Classes)
     await db.execute('''
       CREATE TABLE lop (
         id $idPK,
@@ -77,17 +76,19 @@ class DBV2 {
         khoi $intNull,
         mon_hoc $textNull,
         hoc_phi_moi_buoi $intNull,
-        so_buoi_chuan_thang $intDef0,
+        so_buoi_chuan_thang INTEGER NOT NULL DEFAULT 12,
         hoc_phi_thang_toi_da $intNull,
         si_so_toi_da $intNull,
         ghi_chu $textNull,
         da_luu_tru $intDef0,
         created_at $textNotN,
-        updated_at $textNotN
+        updated_at $textNotN,
+        CHECK (so_buoi_chuan_thang > 0)
       )
     ''');
 
-    // 3. tham_gia_lop
+    // 3. tham_gia_lop (Source of Truth for membership)
+    // No CASCADE DELETE on hoc_sinh/lop to preserve history if UI "deletes" them
     await db.execute('''
       CREATE TABLE tham_gia_lop (
         id $idPK,
@@ -100,17 +101,25 @@ class DBV2 {
         ghi_chu $textNull,
         created_at $textNotN,
         updated_at $textNotN,
-        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id) ON DELETE CASCADE,
-        FOREIGN KEY (id_lop) REFERENCES lop (id) ON DELETE CASCADE
+        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id),
+        FOREIGN KEY (id_lop) REFERENCES lop (id),
+        UNIQUE(id_hoc_sinh, id_lop, tu_ngay)
       )
     ''');
+    
+    // Partial unique to ensure only one open membership per student-class
+    await db.execute('''
+      CREATE UNIQUE INDEX idx_membership_open 
+      ON tham_gia_lop (id_hoc_sinh, id_lop) 
+      WHERE den_ngay IS NULL
+    ''');
 
-    // 4. lich_hoc (Recurring)
+    // 4. lich_hoc (Recurring schedules)
     await db.execute('''
       CREATE TABLE lich_hoc (
         id $idPK,
         id_lop $intNotN,
-        thu_trong_tuan $intNotN, -- 1=Mon, 7=Sun
+        thu_trong_tuan $intNotN, -- 1=Mon, 7=Sun (DateTime.weekday compatible)
         gio_bat_dau $textNotN,   -- HH:mm
         gio_ket_thuc $textNotN,  -- HH:mm
         hieu_luc_tu $textNotN,   -- YYYY-MM-DD
@@ -118,11 +127,12 @@ class DBV2 {
         ghi_chu $textNull,
         created_at $textNotN,
         updated_at $textNotN,
-        FOREIGN KEY (id_lop) REFERENCES lop (id) ON DELETE CASCADE
+        FOREIGN KEY (id_lop) REFERENCES lop (id) ON DELETE CASCADE,
+        CHECK (thu_trong_tuan BETWEEN 1 AND 7)
       )
     ''');
 
-    // 5. phan_ca_hoc_sinh
+    // 5. phan_ca_hoc_sinh (Student assignment to specific recurring schedules)
     await db.execute('''
       CREATE TABLE phan_ca_hoc_sinh (
         id $idPK,
@@ -135,13 +145,13 @@ class DBV2 {
         ghi_chu $textNull,
         created_at $textNotN,
         updated_at $textNotN,
-        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id) ON DELETE CASCADE,
-        FOREIGN KEY (id_lop) REFERENCES lop (id) ON DELETE CASCADE,
+        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id),
+        FOREIGN KEY (id_lop) REFERENCES lop (id),
         FOREIGN KEY (id_lich_hoc) REFERENCES lich_hoc (id) ON DELETE CASCADE
       )
     ''');
 
-    // 6. buoi_hoc (Instances)
+    // 6. buoi_hoc (Historical or Planned Sessions)
     await db.execute('''
       CREATE TABLE buoi_hoc (
         id $idPK,
@@ -155,12 +165,15 @@ class DBV2 {
         ghi_chu $textNull,
         created_at $textNotN,
         updated_at $textNotN,
-        FOREIGN KEY (id_lop) REFERENCES lop (id) ON DELETE CASCADE,
-        UNIQUE(id_lop, ngay, gio_bat_dau)
+        FOREIGN KEY (id_lop) REFERENCES lop (id),
+        FOREIGN KEY (id_lich_hoc) REFERENCES lich_hoc (id) ON DELETE SET NULL,
+        UNIQUE(id_lop, ngay, gio_bat_dau),
+        CHECK (loai IN ('CHINH', 'HOC_BU', 'PHAT_SINH')),
+        CHECK (trang_thai IN ('DU_KIEN', 'DA_HOC', 'HUY', 'NGHI_LE'))
       )
     ''');
 
-    // 7. dieu_chinh_buoi_hoc
+    // 7. dieu_chinh_buoi_hoc (Exceptions like shift changes or one-off makeups)
     await db.execute('''
       CREATE TABLE dieu_chinh_buoi_hoc (
         id $idPK,
@@ -171,12 +184,15 @@ class DBV2 {
         loai $textNotN,          -- DOI_CA, HOC_BU, PHAT_SINH
         ly_do $textNull,
         created_at $textNotN,
-        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id) ON DELETE CASCADE,
-        FOREIGN KEY (id_lop_goc) REFERENCES lop (id) ON DELETE CASCADE
+        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id),
+        FOREIGN KEY (id_buoi_hoc_goc) REFERENCES buoi_hoc (id),
+        FOREIGN KEY (id_buoi_hoc_tham_gia) REFERENCES buoi_hoc (id),
+        FOREIGN KEY (id_lop_goc) REFERENCES lop (id),
+        CHECK (loai IN ('DOI_CA', 'HOC_BU', 'PHAT_SINH'))
       )
     ''');
 
-    // 8. diem_danh
+    // 8. diem_danh (Attendance)
     await db.execute('''
       CREATE TABLE diem_danh (
         id $idPK,
@@ -189,18 +205,22 @@ class DBV2 {
         ghi_chu $textNull,
         created_at $textNotN,
         updated_at $textNotN,
-        FOREIGN KEY (id_buoi_hoc) REFERENCES buoi_hoc (id) ON DELETE CASCADE,
-        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id) ON DELETE CASCADE,
-        UNIQUE(id_buoi_hoc, id_hoc_sinh)
+        FOREIGN KEY (id_buoi_hoc) REFERENCES buoi_hoc (id),
+        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id),
+        FOREIGN KEY (id_lop_goc) REFERENCES lop (id),
+        FOREIGN KEY (id_buoi_vang_goc) REFERENCES buoi_hoc (id),
+        UNIQUE(id_buoi_hoc, id_hoc_sinh),
+        CHECK (trang_thai IN ('CO_MAT', 'TRE', 'NGHI_CO_PHEP', 'NGHI_KHONG_PHEP', 'HOC_BU')),
+        CHECK (loai_tham_gia IN ('CHINH', 'DOI_CA', 'HOC_BU'))
       )
     ''');
 
-    // 9. lich_can
+    // 9. lich_can (Blocked schedules for students)
     await db.execute('''
       CREATE TABLE lich_can (
         id $idPK,
         id_hoc_sinh $intNotN,
-        loai $textNotN,          -- HOC_CHINH_KHOA, HOC_MON_KHAC, etc.
+        loai $textNotN,          -- HOC_CHINH_KHOA, HOC_MON_KHAC, BAN_CA_NHAN, etc.
         muc_do $textNotN,        -- CUNG, MEM
         thu_trong_tuan $intNull,
         ngay_cu_the $textNull,
@@ -209,11 +229,12 @@ class DBV2 {
         hieu_luc_tu $textNotN,
         hieu_luc_den $textNull,
         ghi_chu $textNull,
-        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id) ON DELETE CASCADE
+        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id) ON DELETE CASCADE,
+        CHECK (muc_do IN ('CUNG', 'MEM'))
       )
     ''');
 
-    // 10. buoi_du_ledger
+    // 10. buoi_du_ledger (Source of truth for extra session credits)
     await db.execute('''
       CREATE TABLE buoi_du_ledger (
         id $idPK,
@@ -222,15 +243,17 @@ class DBV2 {
         id_buoi_hoc $intNull,
         ngay_hieu_luc $textNotN,
         delta $intNotN,
-        ly_do $textNotN,         -- VUOT_SO_BUOI_CHUAN, BU_TRU_NGHI_CO_PHEP, etc.
+        ly_do $textNotN,         -- VUOT_SO_BUOI_CHUAN, BU_TRU_NGHI_CO_PHEP, DIEU_CHINH_THU_CONG, MIGRATION
         ghi_chu $textNull,
         created_at $textNotN,
-        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id) ON DELETE CASCADE,
-        FOREIGN KEY (id_lop) REFERENCES lop (id) ON DELETE CASCADE
+        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id),
+        FOREIGN KEY (id_lop) REFERENCES lop (id),
+        FOREIGN KEY (id_buoi_hoc) REFERENCES buoi_hoc (id),
+        UNIQUE(id_hoc_sinh, id_lop, id_buoi_hoc, ly_do)
       )
     ''');
 
-    // 11. thanh_toan
+    // 11. thanh_toan (Actual payments received)
     await db.execute('''
       CREATE TABLE thanh_toan (
         id $idPK,
@@ -243,9 +266,16 @@ class DBV2 {
         ma_giao_dich $textNull,
         ghi_chu $textNull,
         created_at $textNotN,
-        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id) ON DELETE CASCADE,
-        FOREIGN KEY (id_lop) REFERENCES lop (id) ON DELETE CASCADE
+        FOREIGN KEY (id_hoc_sinh) REFERENCES hoc_sinh (id),
+        FOREIGN KEY (id_lop) REFERENCES lop (id),
+        CHECK (phuong_thuc IN ('TIEN_MAT', 'CHUYEN_KHOAN', 'KHAC'))
       )
+    ''');
+    
+    await db.execute('''
+      CREATE UNIQUE INDEX idx_payment_tx 
+      ON thanh_toan (ma_giao_dich) 
+      WHERE ma_giao_dich IS NOT NULL AND TRIM(ma_giao_dich) <> ''
     ''');
 
     // 12. migration_issue
@@ -256,7 +286,7 @@ class DBV2 {
         legacy_table $textNull,
         legacy_id $textNull,
         issue_code $textNotN,
-        severity $textNotN,
+        severity $textNotN, -- ERROR, WARNING, INFO
         message $textNull,
         raw_reference $textNull,
         resolved $intDef0,
@@ -264,15 +294,16 @@ class DBV2 {
       )
     ''');
 
-    // Create Indices
+    // Indices for performance
     await db.execute('CREATE INDEX idx_hs_hoten ON hoc_sinh (ho_ten)');
-    await db.execute('CREATE INDEX idx_tg_hs ON tham_gia_lop (id_hoc_sinh)');
-    await db.execute('CREATE INDEX idx_tg_lop ON tham_gia_lop (id_lop)');
+    await db.execute('CREATE INDEX idx_tg_active ON tham_gia_lop (id_lop, tu_ngay, den_ngay)');
+    await db.execute('CREATE INDEX idx_lh_lop_thu ON lich_hoc (id_lop, thu_trong_tuan)');
+    await db.execute('CREATE INDEX idx_pc_hs_lh ON phan_ca_hoc_sinh (id_hoc_sinh, id_lich_hoc)');
     await db.execute('CREATE INDEX idx_bh_lop_ngay ON buoi_hoc (id_lop, ngay)');
-    await db.execute('CREATE INDEX idx_dd_bh ON diem_danh (id_buoi_hoc)');
-    await db.execute('CREATE INDEX idx_dd_hs ON diem_danh (id_hoc_sinh)');
+    await db.execute('CREATE INDEX idx_dd_bh_hs ON diem_danh (id_buoi_hoc, id_hoc_sinh)');
     await db.execute('CREATE INDEX idx_bdl_hs_lop ON buoi_du_ledger (id_hoc_sinh, id_lop)');
     await db.execute('CREATE INDEX idx_tt_hs_lop_thang ON thanh_toan (id_hoc_sinh, id_lop, thang)');
+    await db.execute('CREATE INDEX idx_issue_code ON migration_issue (issue_code, severity)');
   }
 
   Future<void> close() async {

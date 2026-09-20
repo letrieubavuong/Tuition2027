@@ -10,18 +10,18 @@ class SessionGenerationServiceV2 {
   final ScheduleRepositoryV2 _scheduleRepo = ScheduleRepositoryV2();
   final SessionRepositoryV2 _sessionRepo = SessionRepositoryV2();
 
-  /// Generates missing sessions for a class in a given month.
+  /// Generates planned sessions for a class in a given month.
   /// month: YYYY-MM
-  Future<void> generateForMonth(int lopId, String month) async {
+  Future<int> generateForMonth(int lopId, String month) async {
     final DateTime firstDay = DateFormat('yyyy-MM').parse(month);
     final DateTime lastDay = DateTime(firstDay.year, firstDay.month + 1, 0);
-    final String startDateStr = DateFormat('yyyy-MM-dd').format(firstDay);
-    final String endDateStr = DateFormat('yyyy-MM-dd').format(lastDay);
-
-    final List<LichHocV2> schedules = await _scheduleRepo.getByClassId(lopId);
     
+    final List<LichHocV2> schedules = await _scheduleRepo.getByClassId(lopId);
+    int generatedCount = 0;
+
     for (var day = firstDay; day.isBefore(lastDay.add(const Duration(days: 1))); day = day.add(const Duration(days: 1))) {
       final int weekday = day.weekday; // 1=Mon, 7=Sun
+      final String dateStr = DateFormat('yyyy-MM-dd').format(day);
       
       final activeSchedules = schedules.where((s) {
         if (s.thuTrongTuan != weekday) return false;
@@ -38,7 +38,7 @@ class SessionGenerationServiceV2 {
         final session = BuoiHocV2(
           idLop: lopId,
           idLichHoc: s.id,
-          ngay: DateFormat('yyyy-MM-dd').format(day),
+          ngay: dateStr,
           gioBatDau: s.gioBatDau,
           gioKetThuc: s.gioKetThuc,
           loai: 'CHINH',
@@ -46,8 +46,12 @@ class SessionGenerationServiceV2 {
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
-        await _sessionRepo.insert(session);
+        
+        // Repository insert uses ignore/check to ensure idempotency
+        final id = await _sessionRepo.insert(session);
+        if (id > 0) generatedCount++;
       }
     }
+    return generatedCount;
   }
 }

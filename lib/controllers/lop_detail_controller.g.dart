@@ -7,7 +7,7 @@ part of 'lop_detail_controller.dart';
 // **************************************************************************
 
 String _$lopDetailControllerHash() =>
-    r'aa17dd2a43f266dda6197b3aea408294921a3fa6';
+    r'8a426d0f91fac4626eb7fdae7ab74ecfd2d493d7';
 
 /// Copied from Dart SDK
 class _SystemHash {

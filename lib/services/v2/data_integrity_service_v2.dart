@@ -1,13 +1,16 @@
 // File: lib/services/v2/data_integrity_service_v2.dart
 
-import 'dart:developer' as developer;
 import 'package:sqflite/sqflite.dart';
 import '../../utils/db_v2.dart';
 
 class DataIntegrityReport {
-  final int totalErrors;
-  final List<String> errorMessages;
-  DataIntegrityReport(this.totalErrors, this.errorMessages);
+  final int errorCount;
+  final int warningCount;
+  final List<String> messages;
+  final String status; // READY, NOT_READY
+
+  DataIntegrityReport({required this.errorCount, required this.warningCount, required this.messages})
+    : status = errorCount == 0 ? 'READY' : 'NOT_READY';
 }
 
 class DataIntegrityServiceV2 {
@@ -15,35 +18,41 @@ class DataIntegrityServiceV2 {
 
   Future<DataIntegrityReport> runFullCheck() async {
     final db = await _dbHelper.database;
-    final List<String> errors = [];
+    final List<String> messages = [];
+    int errors = 0;
+    int warnings = 0;
 
-    // 1. Foreign Key Check
+    // 1. SQLite Foreign Key Check
     final fkCheck = await db.rawQuery('PRAGMA foreign_key_check');
     if (fkCheck.isNotEmpty) {
+      errors += fkCheck.length;
       for (var entry in fkCheck) {
-        errors.add('FK Violation: Table ${entry['table']} row ${entry['rowid']} links to missing parent in ${entry['parent']}');
+        messages.add('ERROR: FK Violation in ${entry['table']} row ${entry['rowid']}');
       }
     }
 
-    // 2. Orphan Checks
-    await _checkOrphans(db, 'tham_gia_lop', 'id_hoc_sinh', 'hoc_sinh', errors);
-    await _checkOrphans(db, 'tham_gia_lop', 'id_lop', 'lop', errors);
-    await _checkOrphans(db, 'diem_danh', 'id_buoi_hoc', 'buoi_hoc', errors);
-    
-    // 3. Overlap Checks (Membership)
-    // ...
-
-    return DataIntegrityReport(errors.length, errors);
-  }
-
-  Future<void> _checkOrphans(Database db, String table, String fkCol, String parentTable, List<String> errors) async {
-    final orphans = await db.rawQuery('''
-      SELECT T.id FROM $table T 
-      LEFT JOIN $parentTable P ON T.$fkCol = P.id 
-      WHERE P.id IS NULL
+    // 2. Overlapping Memberships
+    final List<Map<String, dynamic>> overlaps = await db.rawQuery('''
+      SELECT t1.id_hoc_sinh, t1.id_lop, t1.tu_ngay, t1.den_ngay, t2.id as id2
+      FROM tham_gia_lop t1
+      JOIN tham_gia_lop t2 ON t1.id_hoc_sinh = t2.id_hoc_sinh AND t1.id_lop = t2.id_lop AND t1.id < t2.id
+      WHERE (t1.den_ngay IS NULL OR t1.den_ngay >= t2.tu_ngay)
+      AND (t2.den_ngay IS NULL OR t2.den_ngay >= t1.tu_ngay)
     ''');
-    if (orphans.isNotEmpty) {
-      errors.add('Orphan Records in $table: ${orphans.length} rows have no valid $parentTable');
+    if (overlaps.isNotEmpty) {
+      errors += overlaps.length;
+      messages.add('ERROR: Overlapping membership intervals found for ${overlaps.length} student-class pairs');
     }
+
+    // 3. Unmapped Attendance
+    final List<Map<String, dynamic>> issues = await db.query('migration_issue', where: "severity = 'ERROR' AND resolved = 0");
+    if (issues.isNotEmpty) {
+      errors += issues.length;
+      for (var issue in issues) {
+        messages.add('ERROR: Unresolved migration issue: ${issue['issue_code']} - ${issue['message']}');
+      }
+    }
+
+    return DataIntegrityReport(errorCount: errors, warningCount: warnings, messages: messages);
   }
 }

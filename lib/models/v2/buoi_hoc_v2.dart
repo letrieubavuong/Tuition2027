@@ -1,5 +1,7 @@
 // File: lib/models/v2/buoi_hoc_v2.dart
 
+import '../../utils/v2/db_value_parser.dart';
+
 class BuoiHocV2 {
   final int? id;
   final int idLop;
@@ -45,17 +47,17 @@ class BuoiHocV2 {
 
   factory BuoiHocV2.fromMap(Map<String, dynamic> map) {
     return BuoiHocV2(
-      id: map['id'] as int?,
-      idLop: map['id_lop'] as int,
-      idLichHoc: map['id_lich_hoc'] as int?,
-      ngay: map['ngay'] as String,
-      gioBatDau: map['gio_bat_dau'] as String,
-      gioKetThuc: map['gio_ket_thuc'] as String,
-      loai: map['loai'] as String,
-      trangThai: map['trang_thai'] as String,
-      ghiChu: map['ghi_chu'] as String?,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
+      id: DbValueParser.parseInt(map['id']),
+      idLop: DbValueParser.parseInt(map['id_lop'])!,
+      idLichHoc: DbValueParser.parseInt(map['id_lich_hoc']),
+      ngay: DbValueParser.parseString(map['ngay'])!,
+      gioBatDau: DbValueParser.parseString(map['gio_bat_dau'])!,
+      gioKetThuc: DbValueParser.parseString(map['gio_ket_thuc'])!,
+      loai: DbValueParser.parseString(map['loai']) ?? 'CHINH',
+      trangThai: DbValueParser.parseString(map['trang_thai']) ?? 'DU_KIEN',
+      ghiChu: DbValueParser.parseString(map['ghi_chu']),
+      createdAt: DateTime.parse(map['created_at'] as String? ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(map['updated_at'] as String? ?? DateTime.now().toIso8601String()),
     );
   }
 }

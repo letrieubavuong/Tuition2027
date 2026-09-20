@@ -1,5 +1,7 @@
 // File: lib/models/v2/lop_v2.dart
 
+import '../../utils/v2/db_value_parser.dart';
+
 class LopV2 {
   final int? id;
   final String tenLop;
@@ -29,6 +31,8 @@ class LopV2 {
     required this.updatedAt,
   });
 
+  String get ten => tenLop;
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -48,18 +52,18 @@ class LopV2 {
 
   factory LopV2.fromMap(Map<String, dynamic> map) {
     return LopV2(
-      id: map['id'] as int?,
-      tenLop: map['ten_lop'] as String,
-      khoi: map['khoi'] as int?,
-      monHoc: map['mon_hoc'] as String?,
-      hocPhiMoiBuoi: map['hoc_phi_moi_buoi'] as int?,
-      soBuoiChuanThang: map['so_buoi_chuan_thang'] as int? ?? 12,
-      hocPhiThangToiDa: map['hoc_phi_thang_toi_da'] as int?,
-      siSoToiDa: map['si_so_toi_da'] as int?,
-      ghiChu: map['ghi_chu'] as String?,
-      daLuuTru: map['da_luu_tru'] as int? ?? 0,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
+      id: DbValueParser.parseInt(map['id']),
+      tenLop: DbValueParser.parseString(map['ten_lop']) ?? 'Lớp chưa đặt tên',
+      khoi: DbValueParser.parseInt(map['khoi']),
+      monHoc: DbValueParser.parseString(map['mon_hoc']),
+      hocPhiMoiBuoi: DbValueParser.parseInt(map['hoc_phi_moi_buoi']),
+      soBuoiChuanThang: DbValueParser.parseInt(map['so_buoi_chuan_thang']) ?? 12,
+      hocPhiThangToiDa: DbValueParser.parseInt(map['hoc_phi_thang_toi_da']),
+      siSoToiDa: DbValueParser.parseInt(map['si_so_toi_da']),
+      ghiChu: DbValueParser.parseString(map['ghi_chu']),
+      daLuuTru: DbValueParser.parseInt(map['da_luu_tru']) ?? 0,
+      createdAt: DateTime.parse(map['created_at'] as String? ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(map['updated_at'] as String? ?? DateTime.now().toIso8601String()),
     );
   }
 }

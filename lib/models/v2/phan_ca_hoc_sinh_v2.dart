@@ -1,5 +1,7 @@
 // File: lib/models/v2/phan_ca_hoc_sinh_v2.dart
 
+import '../../utils/v2/db_value_parser.dart';
+
 class PhanCaHocSinhV2 {
   final int? id;
   final int idHocSinh;
@@ -42,16 +44,16 @@ class PhanCaHocSinhV2 {
 
   factory PhanCaHocSinhV2.fromMap(Map<String, dynamic> map) {
     return PhanCaHocSinhV2(
-      id: map['id'] as int?,
-      idHocSinh: map['id_hoc_sinh'] as int,
-      idLop: map['id_lop'] as int,
-      idLichHoc: map['id_lich_hoc'] as int,
-      tuNgay: map['tu_ngay'] as String,
-      denNgay: map['den_ngay'] as String?,
-      nguon: map['nguon'] as String?,
-      ghiChu: map['ghi_chu'] as String?,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
+      id: DbValueParser.parseInt(map['id']),
+      idHocSinh: DbValueParser.parseInt(map['id_hoc_sinh'])!,
+      idLop: DbValueParser.parseInt(map['id_lop'])!,
+      idLichHoc: DbValueParser.parseInt(map['id_lich_hoc'])!,
+      tuNgay: DbValueParser.parseString(map['tu_ngay'])!,
+      denNgay: DbValueParser.parseString(map['den_ngay']),
+      nguon: DbValueParser.parseString(map['nguon']),
+      ghiChu: DbValueParser.parseString(map['ghi_chu']),
+      createdAt: DateTime.parse(map['created_at'] as String? ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(map['updated_at'] as String? ?? DateTime.now().toIso8601String()),
     );
   }
 }

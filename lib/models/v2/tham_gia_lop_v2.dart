@@ -1,5 +1,7 @@
 // File: lib/models/v2/tham_gia_lop_v2.dart
 
+import '../../utils/v2/db_value_parser.dart';
+
 class ThamGiaLopV2 {
   final int? id;
   final int idHocSinh;
@@ -42,16 +44,16 @@ class ThamGiaLopV2 {
 
   factory ThamGiaLopV2.fromMap(Map<String, dynamic> map) {
     return ThamGiaLopV2(
-      id: map['id'] as int?,
-      idHocSinh: map['id_hoc_sinh'] as int,
-      idLop: map['id_lop'] as int,
-      tuNgay: map['tu_ngay'] as String,
-      denNgay: map['den_ngay'] as String?,
-      lyDoKetThuc: map['ly_do_ket_thuc'] as String?,
-      mienGiamPhanTram: map['mien_giam_phan_tram'] as int? ?? 0,
-      ghiChu: map['ghi_chu'] as String?,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
+      id: DbValueParser.parseInt(map['id']),
+      idHocSinh: DbValueParser.parseInt(map['id_hoc_sinh'])!,
+      idLop: DbValueParser.parseInt(map['id_lop'])!,
+      tuNgay: DbValueParser.parseString(map['tu_ngay'])!,
+      denNgay: DbValueParser.parseString(map['den_ngay']),
+      lyDoKetThuc: DbValueParser.parseString(map['ly_do_ket_thuc']),
+      mienGiamPhanTram: DbValueParser.parseInt(map['mien_giam_phan_tram']) ?? 0,
+      ghiChu: DbValueParser.parseString(map['ghi_chu']),
+      createdAt: DateTime.parse(map['created_at'] as String? ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(map['updated_at'] as String? ?? DateTime.now().toIso8601String()),
     );
   }
 }

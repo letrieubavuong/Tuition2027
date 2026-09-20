@@ -1,5 +1,7 @@
 // File: lib/models/v2/hoc_sinh_v2.dart
 
+import '../../utils/v2/db_value_parser.dart';
+
 class HocSinhV2 {
   final int? id;
   final String hoTen;
@@ -43,6 +45,9 @@ class HocSinhV2 {
     required this.updatedAt,
   });
 
+  String get ten => hoTen;
+  String? get sdt => sdtPhuHuynh;
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -69,25 +74,25 @@ class HocSinhV2 {
 
   factory HocSinhV2.fromMap(Map<String, dynamic> map) {
     return HocSinhV2(
-      id: map['id'] as int?,
-      hoTen: map['ho_ten'] as String,
-      tenPhuHuynh: map['ten_phu_huynh'] as String?,
-      sdtPhuHuynh: map['sdt_phu_huynh'] as String?,
-      sdtHocSinh: map['sdt_hoc_sinh'] as String?,
-      ngaySinh: map['ngay_sinh'] as String?,
-      gioiTinh: map['gioi_tinh'] as String?,
-      truongDangHoc: map['truong_dang_hoc'] as String?,
-      khoi: map['khoi'] as int?,
-      diaChi: map['dia_chi'] as String?,
-      email: map['email'] as String?,
-      facebook: map['facebook'] as String?,
-      ghiChu: map['ghi_chu'] as String?,
-      zaloUserId: map['zalo_user_id'] as String?,
-      zaloDisplayName: map['zalo_display_name'] as String?,
-      zaloLinkStatus: map['zalo_link_status'] as String? ?? 'UNLINKED',
-      daLuuTru: map['da_luu_tru'] as int? ?? 0,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
+      id: DbValueParser.parseInt(map['id']),
+      hoTen: DbValueParser.parseString(map['ho_ten']) ?? 'Không tên',
+      tenPhuHuynh: DbValueParser.parseString(map['ten_phu_huynh']),
+      sdtPhuHuynh: DbValueParser.parseString(map['sdt_phu_huynh']),
+      sdtHocSinh: DbValueParser.parseString(map['sdt_hoc_sinh']),
+      ngaySinh: DbValueParser.parseString(map['ngay_sinh']),
+      gioiTinh: DbValueParser.parseString(map['gioi_tinh']),
+      truongDangHoc: DbValueParser.parseString(map['truong_dang_hoc']),
+      khoi: DbValueParser.parseInt(map['khoi']),
+      diaChi: DbValueParser.parseString(map['dia_chi']),
+      email: DbValueParser.parseString(map['email']),
+      facebook: DbValueParser.parseString(map['facebook']),
+      ghiChu: DbValueParser.parseString(map['ghi_chu']),
+      zaloUserId: DbValueParser.parseString(map['zalo_user_id']),
+      zaloDisplayName: DbValueParser.parseString(map['zalo_display_name']),
+      zaloLinkStatus: DbValueParser.parseString(map['zalo_link_status']) ?? 'UNLINKED',
+      daLuuTru: DbValueParser.parseInt(map['da_luu_tru']) ?? 0,
+      createdAt: DateTime.parse(map['created_at'] as String? ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(map['updated_at'] as String? ?? DateTime.now().toIso8601String()),
     );
   }
 }

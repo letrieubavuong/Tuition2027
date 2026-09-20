@@ -7,9 +7,29 @@ import '../../utils/db_v2.dart';
 class AttendanceRepositoryV2 {
   final DBV2 _dbHelper = DBV2.instance;
 
-  Future<int> insert(DiemDanhV2 a) async {
+  Future<int> upsert(DiemDanhV2 a) async {
     final db = await _dbHelper.database;
-    return await db.insert('diem_danh', a.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    
+    return await db.transaction((txn) async {
+      final List<Map<String, dynamic>> existing = await txn.query(
+        'diem_danh',
+        where: 'id_buoi_hoc = ? AND id_hoc_sinh = ?',
+        whereArgs: [a.idBuoiHoc, a.idHocSinh],
+      );
+
+      if (existing.isNotEmpty) {
+        final id = existing.first['id'] as int;
+        await txn.update(
+          'diem_danh',
+          a.toMap()..remove('id'),
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+        return id;
+      } else {
+        return await txn.insert('diem_danh', a.toMap());
+      }
+    });
   }
 
   Future<List<DiemDanhV2>> getBySessionId(int sessionId) async {
@@ -27,10 +47,5 @@ class AttendanceRepositoryV2 {
     );
     if (maps.isEmpty) return null;
     return DiemDanhV2.fromMap(maps.first);
-  }
-
-  Future<int> update(DiemDanhV2 a) async {
-    final db = await _dbHelper.database;
-    return await db.update('diem_danh', a.toMap(), where: 'id = ?', whereArgs: [a.id]);
   }
 }

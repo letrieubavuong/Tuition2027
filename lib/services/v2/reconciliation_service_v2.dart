@@ -4,47 +4,65 @@ import 'package:sqflite/sqflite.dart';
 import '../../utils/db.dart';
 import '../../utils/db_v2.dart';
 
-class ReconciliationReport {
-  final Map<String, dynamic> legacyStats;
-  final Map<String, dynamic> v2Stats;
+class ReconciliationSummary {
+  final Map<String, int> legacyCounts;
+  final Map<String, int> v2Counts;
   final List<String> mismatches;
+  final String status; // READY, NOT_READY
 
-  ReconciliationReport(this.legacyStats, this.v2Stats, this.mismatches);
+  ReconciliationSummary(this.legacyCounts, this.v2Counts, this.mismatches)
+    : status = mismatches.isEmpty ? 'READY' : 'NOT_READY';
 }
 
 class ReconciliationServiceV2 {
   final DBHelper _legacyDB = DBHelper.instance;
   final DBV2 _v2DB = DBV2.instance;
 
-  Future<ReconciliationReport> runReconciliation() async {
+  Future<ReconciliationSummary> runReconciliation() async {
     final legacy = await _legacyDB.database;
     final v2 = await _v2DB.database;
 
-    final Map<String, dynamic> legacyStats = {};
-    final Map<String, dynamic> v2Stats = {};
-    final List<String> mismatches = [];
+    final legacyCounts = <String, int>{};
+    final v2Counts = <String, int>{};
+    final mismatches = <String, String>{};
 
-    // 1. Student Count
-    legacyStats['student_count'] = Sqflite.firstIntValue(await legacy.rawQuery('SELECT COUNT(*) FROM hoc_sinh'));
-    v2Stats['student_count'] = Sqflite.firstIntValue(await v2.rawQuery('SELECT COUNT(*) FROM hoc_sinh'));
-    if (legacyStats['student_count'] != v2Stats['student_count']) {
-      mismatches.add('Student count mismatch: Legacy=${legacyStats['student_count']}, V2=${v2Stats['student_count']}');
+    // Helper to compare counts
+    Future<void> compare(String label, String legacyTable, String v2Table, {String? legacyWhere, String? v2Where}) async {
+      legacyCounts[label] = Sqflite.firstIntValue(await legacy.rawQuery('SELECT COUNT(*) FROM $legacyTable ${legacyWhere ?? ''}')) ?? 0;
+      v2Counts[label] = Sqflite.firstIntValue(await v2.rawQuery('SELECT COUNT(*) FROM $v2Table ${v2Where ?? ''}')) ?? 0;
+      
+      if (legacyCounts[label] != v2Counts[label]) {
+        mismatches[label] = 'Count mismatch for $label: Legacy=${legacyCounts[label]}, V2=${v2Counts[label]}';
+      }
     }
 
-    // 2. Class Count
-    legacyStats['class_count'] = Sqflite.firstIntValue(await legacy.rawQuery('SELECT COUNT(*) FROM lop'));
-    v2Stats['class_count'] = Sqflite.firstIntValue(await v2.rawQuery('SELECT COUNT(*) FROM lop'));
-    if (legacyStats['class_count'] != v2Stats['class_count']) {
-      mismatches.add('Class count mismatch: Legacy=${legacyStats['class_count']}, V2=${v2Stats['class_count']}');
+    await compare('Students', 'hoc_sinh', 'hoc_sinh');
+    await compare('Classes', 'lop', 'lop');
+    await compare('Memberships', 'lop_hoc_sinh', 'tham_gia_lop');
+    await compare('Attendance', 'diem_danh', 'diem_danh');
+
+    // Deep Audit: Student Names and IDs
+    final List<Map<String, dynamic>> legacyStudents = await legacy.query('hoc_sinh', columns: ['id', 'ten']);
+    for (var s in legacyStudents) {
+      final id = s['id'];
+      final List<Map<String, dynamic>> v2S = await v2.query('hoc_sinh', where: 'id = ?', whereArgs: [id]);
+      if (v2S.isEmpty) {
+        mismatches.add('Missing Student in V2: ID=$id, Name=${s['ten']}');
+      } else if (v2S.first['ho_ten'] != s['ten']) {
+        mismatches.add('Student Name Mismatch: ID=$id, Legacy=${s['ten']}, V2=${v2S.first['ho_ten']}');
+      }
     }
 
-    // 3. Payment Totals
-    legacyStats['total_paid'] = Sqflite.firstIntValue(await legacy.rawQuery('SELECT SUM(so_tien_da_dong) FROM thanh_toan')) ?? 0;
-    v2Stats['total_paid'] = Sqflite.firstIntValue(await v2.rawQuery('SELECT SUM(so_tien) FROM thanh_toan')) ?? 0;
-    if (legacyStats['total_paid'] != v2Stats['total_paid']) {
-      mismatches.add('Payment total mismatch: Legacy=${legacyStats['total_paid']}, V2=${v2Stats['total_paid']}');
+    // Compare total money
+    final legacyMoneyRow = await legacy.rawQuery('SELECT SUM(so_tien_da_dong) as total FROM thanh_toan');
+    final v2MoneyRow = await v2.rawQuery('SELECT SUM(so_tien) as total FROM thanh_toan');
+    final legacyMoney = (legacyMoneyRow.first['total'] as num? ?? 0).toInt();
+    final v2Money = (v2MoneyRow.first['total'] as num? ?? 0).toInt();
+
+    if (legacyMoney != v2Money) {
+       mismatches.add('Total payment mismatch: Legacy=$legacyMoney, V2=$v2Money');
     }
 
-    return ReconciliationReport(legacyStats, v2Stats, mismatches);
+    return ReconciliationSummary(legacyCounts, v2Counts, mismatches.values.toList());
   }
 }

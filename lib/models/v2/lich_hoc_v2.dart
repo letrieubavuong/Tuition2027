@@ -1,5 +1,7 @@
 // File: lib/models/v2/lich_hoc_v2.dart
 
+import '../../utils/v2/db_value_parser.dart';
+
 class LichHocV2 {
   final int? id;
   final int idLop;
@@ -42,16 +44,16 @@ class LichHocV2 {
 
   factory LichHocV2.fromMap(Map<String, dynamic> map) {
     return LichHocV2(
-      id: map['id'] as int?,
-      idLop: map['id_lop'] as int,
-      thuTrongTuan: map['thu_trong_tuan'] as int,
-      gioBatDau: map['gio_bat_dau'] as String,
-      gioKetThuc: map['gio_ket_thuc'] as String,
-      hieuLucTu: map['hieu_luc_tu'] as String,
-      hieuLucDen: map['hieu_luc_den'] as String?,
-      ghiChu: map['ghi_chu'] as String?,
-      createdAt: DateTime.parse(map['created_at'] as String),
-      updatedAt: DateTime.parse(map['updated_at'] as String),
+      id: DbValueParser.parseInt(map['id']),
+      idLop: DbValueParser.parseInt(map['id_lop'])!,
+      thuTrongTuan: DbValueParser.parseInt(map['thu_trong_tuan'])!,
+      gioBatDau: DbValueParser.parseString(map['gio_bat_dau'])!,
+      gioKetThuc: DbValueParser.parseString(map['gio_ket_thuc'])!,
+      hieuLucTu: DbValueParser.parseString(map['hieu_luc_tu'])!,
+      hieuLucDen: DbValueParser.parseString(map['hieu_luc_den']),
+      ghiChu: DbValueParser.parseString(map['ghi_chu']),
+      createdAt: DateTime.parse(map['created_at'] as String? ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(map['updated_at'] as String? ?? DateTime.now().toIso8601String()),
     );
   }
 }
